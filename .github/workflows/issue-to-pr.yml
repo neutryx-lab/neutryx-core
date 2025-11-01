@@ -1,0 +1,68 @@
+name: Issue to Draft PR
+on:
+  issues:
+    types: [labeled]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  create-branch-and-pr:
+    if: github.event.label.name == 'task'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Prepare vars
+        id: v
+        run: |
+          issue_number=${{ github.event.issue.number }}
+          slug=$(echo "${{ github.event.issue.title }}" | tr '[:upper:]' '[:lower:]' | tr -cs 'a-z0-9' '-' | sed 's/^-//;s/-$//')
+          branch="task/${issue_number}-${slug}"
+          echo "branch=$branch" >> $GITHUB_OUTPUT
+
+      - name: Create branch
+        run: |
+          git switch -c "${{ steps.v.outputs.branch }}"
+
+      - name: Add tracking file
+        run: |
+          mkdir -p .tasks
+          cat > ".tasks/issue-${{ github.event.issue.number }}.md" <<EOF
+          # Task #${{ github.event.issue.number }} - ${{ github.event.issue.title }}
+
+          - Issue: #${{ github.event.issue.number }}
+          - Opened by: @${{ github.event.issue.user.login }}
+          - Created: ${{ github.event.issue.created_at }}
+
+          This file tracks context for this task branch.
+          EOF
+          git add .tasks/issue-${{ github.event.issue.number }}.md
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" commit -m "chore(task): track issue #${{ github.event.issue.number }}"
+          git push origin "${{ steps.v.outputs.branch }}"
+
+      - name: Open draft PR
+        uses: actions/github-script@v8
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const issue = context.payload.issue;
+            const title = `[Task #${issue.number}] ${issue.title}`;
+            const head = '${{ steps.v.outputs.branch }}';
+            const base = 'main';
+            const body = `Auto-generated from #${issue.number}\n\n${issue.body || ''}`;
+            const { data: pr } = await github.rest.pulls.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title, head, base, body, draft: true
+            });
+            // Issue と PR を相互リンク
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issue.number,
+              body: `Opened draft PR #${pr.number} from \`${head}\`.`
+            });

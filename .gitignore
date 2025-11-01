@@ -1,0 +1,21 @@
+.DS_Store
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.so
+*.dylib
+*.egg-info/
+build/
+dist/
+.cache/
+.ipynb_checkpoints/
+.pytest_cache/
+.prof/
+.hlo/
+# Ignore local example data
+examples/data/
+# Large profiling dumps (local only)
+tools/profiling/flamegraphs/
+tools/profiling/xla_hlo_dumps/
+*.prof

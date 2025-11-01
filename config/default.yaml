@@ -1,0 +1,24 @@
+seed: 12345
+engine:
+  dtype: float32
+  paths: 20000
+  steps: 252
+cluster:
+  coordinator_address: null
+  coordinator_port: null
+  num_processes: null
+  process_id: null
+  local_device_ids: null
+  mesh:
+    axis_names: [data]
+    shape: [1]
+market:
+  r: 0.01
+  q: 0.00
+tracking:
+  enable: false
+  provider: none
+  project: null
+  experiment_name: null
+  tags: []
+  log_every: 25

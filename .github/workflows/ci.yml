@@ -1,0 +1,141 @@
+name: CI
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  unit-tests:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt -r requirements-dev.txt
+          pip install -e .
+
+      - name: Run unit tests
+        run: pytest tests --ignore=tests/regression --ignore=tests/performance
+
+  regression:
+    name: Regression suite
+    runs-on: ubuntu-latest
+    needs: unit-tests
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt -r requirements-dev.txt
+          pip install -e .
+
+      - name: Run regression tests
+        run: pytest tests/regression
+
+  benchmarks:
+    name: Performance benchmarks
+    runs-on: ubuntu-latest
+    needs: unit-tests
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt -r requirements-dev.txt
+          pip install -e .
+
+      - name: Run benchmarks
+        run: pytest tests/performance --benchmark-only --benchmark-json=benchmark-results.json
+
+      - name: Upload benchmark results
+        uses: actions/upload-artifact@v5
+        with:
+          name: benchmark-results
+          path: benchmark-results.json
+
+  security:
+    name: Security and dependencies
+    runs-on: ubuntu-latest
+    needs: unit-tests
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt -r requirements-dev.txt
+          pip install -e .
+
+      - name: Dependency vulnerability scan
+        run: pip-audit
+
+      - name: Static analysis security scan
+        run: bandit -r src -ll
+      - name: Run tests
+        run: pytest
+      - name: Generate SBOM
+        uses: CycloneDX/gh-actions-generate-sbom@v2
+        with:
+          path: .
+          spec-version: 1.5
+          output-format: json
+      - name: Upload SBOM artifact
+        uses: actions/upload-artifact@v5
+        with:
+          name: cyclonedx-sbom
+          path: bom.json
+
+  docs-build:
+    name: Documentation build
+    runs-on: ubuntu-latest
+    needs: unit-tests
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install documentation dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r docs/requirements.txt
+
+      - name: Validate MkDocs build
+        run: mkdocs build --strict

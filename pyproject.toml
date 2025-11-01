@@ -1,0 +1,67 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "neutryx-lab"
+version = "0.1.0"
+description = "A compact JAX-based quant finance library (pricing, risk, XVA, calibration)."
+authors = [{ name = "Neutryx", email = "dev@neutryx.ai" }]
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+dependencies = [
+  "jax>=0.4.26",
+  "jaxlib>=0.4.26",
+  "numpy>=1.26.0",
+  "scipy>=1.11.0",
+  "pandas>=2.1.0",
+  "pyyaml>=6.0.1",
+  "optax>=0.1.8",
+  "typing_extensions>=4.10.0",
+  "pytest>=7.4.0",
+  "fastapi>=0.110.0",
+  "uvicorn>=0.29.0",
+  "pydantic>=2.6.0",
+  "grpcio>=1.62.0"
+]
+
+[project.optional-dependencies]
+quantlib = ["QuantLib>=1.29"]
+eigen = ["pybind11>=2.11"]
+native = ["QuantLib>=1.29", "pybind11>=2.11"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+# ---- moved from setup.cfg ----
+[tool.flake8]
+max-line-length = 100
+extend-ignore = ["E203"]
+
+[tool.pytest.ini_options]
+addopts = "-q"
+markers = [
+    "regression: marks tests as part of the regression suite",
+    "performance: marks tests that exercise performance benchmarks",
+]
+
+[tool.isort]
+profile = "black"
+
+[tool.black]
+line-length = 100
+target-version = ["py310"]
+extend-exclude = "docs/"
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B"]
+ignore = ["E203"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"

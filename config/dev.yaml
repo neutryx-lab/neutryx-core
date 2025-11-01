@@ -1,0 +1,12 @@
+seed: 2025
+engine:
+  dtype: float32
+  paths: 2000
+  steps: 64
+tracking:
+  enable: false
+  provider: none
+  project: null
+  experiment_name: null
+  tags: []
+  log_every: 10

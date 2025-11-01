@@ -1,0 +1,90 @@
+site_name: Neutryx Lab
+site_description: Compact JAX-first quantitative finance toolkit
+site_url: https://neutryx-lab.github.io/
+repo_url: https://github.com/neutryx-lab/neutryx-lab
+repo_name: neutryx-lab
+nav:
+  - Home: index.md
+  - Overview:
+      - Project Overview: overview.md
+      - Product Strategy: products.md
+      - Roadmap: roadmap.md
+      - Design Decisions: design_decisions.md
+      - Tutorials Index: tutorials.md
+  - Models:
+      - Modeling Hub: models/index.md
+      - Playbooks:
+          - Playbooks Overview: models/playbooks/index.md
+          - Modeling Masterclass and Production Playbook: models/playbooks/modeling_masterclass.md
+      - Tutorials:
+          - Tutorials Overview: models/tutorials/index.md
+          - Granular Modeling Tutorials: models/tutorials/granular_modeling_tutorials.md
+          - Modeling Grandmaster Tutorial Codex: models/tutorials/modeling_grandmaster_codex.md
+      - Reference:
+          - Reference Overview: models/reference/index.md
+          - Model Reference Compendium: models/reference/model_reference_compendium.md
+  - Calibration:
+      - Calibration Hub: calibration/index.md
+      - Playbooks:
+          - Playbooks Overview: calibration/playbooks/index.md
+          - Full-spectrum Calibration Playbook: calibration/playbooks/full_spectrum_calibration.md
+      - Tutorials:
+          - Tutorials Overview: calibration/tutorials/index.md
+          - Calibration Masterclass and Tuning Workshop: calibration/tutorials/calibration_masterclass.md
+      - Reference:
+          - Reference Overview: calibration/reference/index.md
+          - Calibration Reference Compendium: calibration/reference/calibration_reference_compendium.md
+          - Calibration Grandmaster Reference Codex: calibration/reference/calibration_grandmaster_codex.md
+  - Risk:
+      - Risk Hub: risk/index.md
+      - Tutorials:
+          - Tutorials Overview: risk/tutorials/index.md
+          - Risk Masterclass and Scenario Workshop: risk/tutorials/risk_masterclass.md
+      - Control Atlases:
+          - Control Atlases Overview: risk/controls/index.md
+          - Risk Controls Atlas: risk/controls/risk_controls_atlas.md
+      - Reference:
+          - Reference Overview: risk/reference/index.md
+          - Enterprise Risk Reference Compendium: risk/reference/enterprise_risk_reference.md
+          - Risk Grandmaster Governance Codex: risk/reference/risk_grandmaster_codex.md
+  - Engineering Operations:
+      - Deployment Guide: deployment.md
+      - Orchestration Patterns: orchestration.md
+      - Tracking and Observability: tracking.md
+      - CI Pipeline: ci_pipeline.md
+      - Security Audit: security_audit.md
+  - Additional References:
+      - Project Overview: overview.md
+      - Product Strategy: products.md
+      - Roadmap: roadmap.md
+      - Design Decisions: design_decisions.md
+      - Tutorials Index: tutorials.md
+      - API Reference: api_reference.md
+      - Configuration Guide: configuration.md
+      - Test Coverage: test_coverage.md
+      - Documentation Notebooks: notebooks/index.md
+docs_dir: docs
+theme:
+  name: material
+  features:
+    - navigation.tabs
+    - content.code.copy
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          setup_commands:
+            - import sys
+            - sys.path.insert(0, "src")
+          options:
+            show_root_heading: true
+            show_root_toc_entry: false
+            merge_init_into_class: true
+            docstring_style: google
+markdown_extensions:
+  - admonition
+  - codehilite
+  - footnotes
+  - toc:
+      permalink: true
