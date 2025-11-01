@@ -1,7 +1,7 @@
-# 🚀 Neutryx Lab — The JAX-Driven Frontier of Quantitative Finance
+# 🚀 Neutryx Core — The JAX-Driven Frontier of Quantitative Finance
 
 > **Lightning-fast. Differentiable. Reproducible.**
-> Neutryx Lab fuses modern computational science with financial engineering — bringing together
+> Neutryx Core fuses modern computational science with financial engineering — bringing together
 > **JAX**, **automatic differentiation**, and **high-performance computing** to redefine how we price derivatives,
 > measure risk, and model complex markets.
 
@@ -25,7 +25,7 @@
 
 ## 🌌 Why Neutryx?
 
-Neutryx Lab is a **next-generation JAX-first quantitative finance library** —
+Neutryx Core is a **next-generation JAX-first quantitative finance library** —
 designed for **researchers**, **banks**, and **AI-for-science teams** building real-time pricing, calibration,
 and risk engines at HPC scale.
 
@@ -154,7 +154,7 @@ print(f"Price: {price:.4f}, Delta: {delta:.4f}, IV: {implied:.4f}")
 ## 🧭 Project Structure
 
 ```text
-neutryx-lab/
+neutryx-Core/
 ├── .github/              # Continuous integration workflows and repository automation
 ├── config/               # YAML configuration presets for different environments
 ├── docs/                 # Lightweight design notes and reference documents
@@ -400,7 +400,7 @@ open htmlcov/index.html
 
 ### ✅ Completed Features (v0.1.0)
 
-Neutryx Lab has successfully implemented a comprehensive quantitative finance framework with:
+Neutryx Core has successfully implemented a comprehensive quantitative finance framework with:
 
 - **Core Infrastructure:** PDE solvers (Crank-Nicolson, boundary conditions), GPU optimization (pmap/pjit), AAD with Hessian-vector products, mixed-precision support, YAML configuration system
 - **Advanced Pricing:** Adjoint Monte Carlo, QMC/MLMC engines, FFT/COS methods, jump diffusion models, tree-based methods
@@ -527,8 +527,8 @@ We welcome contributions from the community! Here's how to get started:
 
 ## 💬 Community & Support
 
-- **Issues:** Report bugs or request features via [GitHub Issues](https://github.com/neutryx-lab/neutryx-lab/issues)
-- **Discussions:** Ask questions and share ideas in [GitHub Discussions](https://github.com/neutryx-lab/neutryx-lab/discussions)
+- **Issues:** Report bugs or request features via [GitHub Issues](https://github.com/neutryx-lab/neutryx-core/issues)
+- **Discussions:** Ask questions and share ideas in [GitHub Discussions](https://github.com/neutryx-lab/neutryx-core/discussions)
 - **Email:** For private inquiries, contact `dev@neutryx.ai`
 
 ### Code of Conduct
@@ -563,7 +563,7 @@ See [CHANGELOG.md](CHANGELOG.md) for detailed version history.
 
 ## 🔒 Security
 
-Neutryx Lab is research-oriented software intended for development and prototyping.
+Neutryx Core is research-oriented software intended for development and prototyping.
 
 - **Vulnerability Reports:** Please report security issues privately to `dev@neutryx.ai`
 - **Security Audits:** See [docs/security_audit.md](docs/security_audit.md) for procedures
@@ -606,7 +606,7 @@ SOFTWARE.
 
 ## 🙏 Acknowledgments
 
-Neutryx Lab builds upon the incredible work of the scientific computing community:
+Neutryx Core builds upon the incredible work of the scientific computing community:
 
 - **JAX Team** at Google Research for the foundational JAX framework
 - **QuantLib** contributors for quantitative finance reference implementations
@@ -618,8 +618,8 @@ Neutryx Lab builds upon the incredible work of the scientific computing communit
 ## 🔗 Links
 
 - **Documentation:** [https://neutryx-lab.github.io](https://neutryx-lab.github.io)
-- **Repository:** [https://github.com/neutryx-lab/neutryx-lab](https://github.com/neutryx-lab/neutryx-lab)
-- **Issues:** [https://github.com/neutryx-lab/neutryx-lab/issues](https://github.com/neutryx-lab/neutryx-lab/issues)
+- **Repository:** [https://github.com/neutryx-lab/neutryx-core](https://github.com/neutryx-lab/neutryx-lab)
+- **Issues:** [https://github.com/neutryx-lab/neutryx-core/issues](https://github.com/neutryx-lab/neutryx-lab/issues)
 - **Website:** [https://neutryx.ai](https://neutryx.ai)
 
 ---
