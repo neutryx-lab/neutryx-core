@@ -330,6 +330,7 @@ def simulate_jump_diffusion(
     return MCPaths(values=paths, times=timeline, log_values=log_values, metadata=metadata)
 
 
+@jax.jit
 def discount_factor(r: float, t: float | Array, *, dtype: Any = None) -> Array:
     """Return discount factor(s) e^{-r t}."""
     comp_dtype = canonicalize_dtype(dtype) if dtype is not None else None
@@ -341,6 +342,7 @@ def discount_factor(r: float, t: float | Array, *, dtype: Any = None) -> Array:
     return jnp.exp(-r_cast * t_arr)
 
 
+@jax.jit
 def present_value(payoffs: Array, times: Array | float, r: float, *, axis: Optional[int] = 0) -> Array:
     """Discount path-wise payoffs at their respective times and average."""
     payoffs_arr = jnp.asarray(payoffs)

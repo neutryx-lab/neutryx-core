@@ -61,6 +61,7 @@ def linear_interpolation(x: jnp.ndarray, y: jnp.ndarray, x_new: float) -> float:
     return y0 + slope * (x_new - x0)
 
 
+@jit
 def natural_cubic_spline_coefficients(
     x: jnp.ndarray, y: jnp.ndarray
 ) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray]:
