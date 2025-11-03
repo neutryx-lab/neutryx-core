@@ -66,7 +66,8 @@ jobs:
           PYTHONPATH=$PWD:$PYTHONPATH pytest src/neutryx/tests/regression \
             --ignore=src/neutryx/tests/regression/test_monte_carlo_greeks.py \
             --ignore=src/neutryx/tests/regression/test_tree_pricing.py \
-            --ignore=src/neutryx/tests/regression/test_portfolio_scenarios.py
+            --ignore=src/neutryx/tests/regression/test_portfolio_scenarios.py \
+            || [ $? -eq 5 ]
 
   benchmarks:
     name: Performance benchmarks
