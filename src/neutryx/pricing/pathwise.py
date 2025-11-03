@@ -17,7 +17,7 @@ from typing import Callable, Iterable, Mapping, Sequence
 import jax
 import jax.numpy as jnp
 
-from ..engine import MCConfig
+from neutryx.core.engine import MCConfig
 
 Array = jnp.ndarray
 

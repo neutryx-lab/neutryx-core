@@ -418,3 +418,259 @@ def get_calendar(name: str) -> BusinessCalendar:
         return BusinessCalendar(name)
 
     return calendars[name]
+
+
+# ==============================================================================
+# IMM (International Monetary Market) Dates
+# ==============================================================================
+
+
+def is_imm_month(month: int) -> bool:
+    """
+    Check if a month is an IMM month (March, June, September, December).
+
+    Args:
+        month: Month number (1-12)
+
+    Returns:
+        True if IMM month, False otherwise
+
+    Example:
+        >>> is_imm_month(3)   # March
+        True
+        >>> is_imm_month(4)   # April
+        False
+    """
+    return month in (3, 6, 9, 12)
+
+
+def get_imm_date(year: int, month: int) -> date:
+    """
+    Get the IMM date for a given year and month.
+
+    IMM dates are the third Wednesday of March, June, September, and December.
+    These are standard settlement dates for exchange-traded derivatives.
+
+    Args:
+        year: Year
+        month: Month (must be 3, 6, 9, or 12)
+
+    Returns:
+        IMM date as datetime.date
+
+    Raises:
+        ValueError: If month is not an IMM month
+
+    Example:
+        >>> # Get March 2024 IMM date (should be March 20, 2024 - 3rd Wednesday)
+        >>> imm = get_imm_date(2024, 3)
+        >>> imm.day >= 15 and imm.day <= 21  # 3rd week
+        True
+        >>> imm.weekday() == 2  # Wednesday
+        True
+    """
+    if not is_imm_month(month):
+        raise ValueError(f"Month {month} is not an IMM month (3, 6, 9, 12)")
+
+    # Start from first day of month
+    first_day = date(year, month, 1)
+
+    # Find first Wednesday (weekday 2 = Wednesday)
+    days_until_wednesday = (2 - first_day.weekday()) % 7
+    first_wednesday = first_day + timedelta(days=days_until_wednesday)
+
+    # Third Wednesday is 2 weeks after first Wednesday
+    third_wednesday = first_wednesday + timedelta(weeks=2)
+
+    return third_wednesday
+
+
+def get_next_imm_date(ref_date: date, num_imm: int = 1) -> date:
+    """
+    Get the next IMM date(s) after a reference date.
+
+    Args:
+        ref_date: Reference date
+        num_imm: Number of IMM cycles forward (default 1)
+
+    Returns:
+        The n-th next IMM date
+
+    Example:
+        >>> from datetime import date
+        >>> ref = date(2024, 1, 15)
+        >>> next_imm = get_next_imm_date(ref)  # Next IMM after Jan 15, 2024
+        >>> next_imm.month  # Should be March
+        3
+        >>> next_imm.weekday()  # Should be Wednesday
+        2
+    """
+    if num_imm < 1:
+        raise ValueError("num_imm must be at least 1")
+
+    # IMM months cycle
+    imm_months = [3, 6, 9, 12]
+
+    # Start from reference month
+    current_month = ref_date.month
+    current_year = ref_date.year
+
+    count = 0
+    while count < num_imm:
+        # Find next IMM month
+        next_imm_months = [m for m in imm_months if m > current_month]
+        if next_imm_months:
+            current_month = next_imm_months[0]
+        else:
+            # Wrap to next year
+            current_month = imm_months[0]
+            current_year += 1
+
+        # Get the IMM date
+        imm_date = get_imm_date(current_year, current_month)
+
+        # Check if it's actually after ref_date
+        if imm_date > ref_date:
+            count += 1
+            if count == num_imm:
+                return imm_date
+
+    # Should never reach here
+    raise RuntimeError("Failed to find IMM date")
+
+
+def get_imm_code(imm_date: date) -> str:
+    """
+    Get the standard IMM contract code for a date.
+
+    IMM codes are in format: [Month Code][Year Digit]
+    - Month codes: H=Mar, M=Jun, U=Sep, Z=Dec
+    - Year digit: Last digit of year
+
+    Args:
+        imm_date: IMM date
+
+    Returns:
+        IMM code string (e.g., "H4" for March 2024)
+
+    Raises:
+        ValueError: If date is not in an IMM month
+
+    Example:
+        >>> from datetime import date
+        >>> imm = date(2024, 3, 20)  # March 2024
+        >>> get_imm_code(imm)
+        'H4'
+        >>> imm = date(2025, 12, 17)  # December 2025
+        >>> get_imm_code(imm)
+        'Z5'
+    """
+    if not is_imm_month(imm_date.month):
+        raise ValueError(f"Date {imm_date} is not in an IMM month")
+
+    # Month code mapping
+    month_codes = {
+        3: 'H',   # March
+        6: 'M',   # June
+        9: 'U',   # September
+        12: 'Z',  # December
+    }
+
+    month_code = month_codes[imm_date.month]
+    year_digit = str(imm_date.year)[-1]  # Last digit of year
+
+    return f"{month_code}{year_digit}"
+
+
+def parse_imm_code(imm_code: str, ref_year: Optional[int] = None) -> date:
+    """
+    Parse an IMM contract code to get the IMM date.
+
+    Args:
+        imm_code: IMM code (e.g., "H4", "Z5")
+        ref_year: Reference year for decade disambiguation (optional)
+                  If not provided, assumes current decade
+
+    Returns:
+        IMM date
+
+    Raises:
+        ValueError: If code is invalid
+
+    Example:
+        >>> parse_imm_code("H4", ref_year=2024)
+        datetime.date(2024, 3, 20)
+        >>> parse_imm_code("M5", ref_year=2025)
+        datetime.date(2025, 6, 18)
+    """
+    if len(imm_code) != 2:
+        raise ValueError(f"IMM code must be 2 characters, got: {imm_code}")
+
+    month_code = imm_code[0].upper()
+    year_digit = imm_code[1]
+
+    # Month code mapping
+    code_to_month = {
+        'H': 3,   # March
+        'M': 6,   # June
+        'U': 9,   # September
+        'Z': 12,  # December
+    }
+
+    if month_code not in code_to_month:
+        raise ValueError(f"Invalid month code: {month_code}")
+
+    month = code_to_month[month_code]
+
+    # Determine year
+    if ref_year is None:
+        from datetime import datetime
+        ref_year = datetime.now().year
+
+    decade_start = (ref_year // 10) * 10
+    year = decade_start + int(year_digit)
+
+    # If year is more than 5 years in the past, assume next decade
+    if year < ref_year - 5:
+        year += 10
+
+    return get_imm_date(year, month)
+
+
+def get_imm_dates_between(start_date: date, end_date: date) -> list[date]:
+    """
+    Get all IMM dates between two dates (inclusive).
+
+    Args:
+        start_date: Start date
+        end_date: End date
+
+    Returns:
+        List of IMM dates
+
+    Example:
+        >>> from datetime import date
+        >>> start = date(2024, 1, 1)
+        >>> end = date(2024, 12, 31)
+        >>> imm_dates = get_imm_dates_between(start, end)
+        >>> len(imm_dates)  # Should be 4 (Mar, Jun, Sep, Dec)
+        4
+        >>> [d.month for d in imm_dates]
+        [3, 6, 9, 12]
+    """
+    if end_date < start_date:
+        raise ValueError("end_date must be >= start_date")
+
+    imm_dates = []
+    current_date = start_date
+
+    # Find first IMM date at or after start_date
+    first_imm = get_next_imm_date(current_date - timedelta(days=1), num_imm=1)
+
+    current_imm = first_imm
+    while current_imm <= end_date:
+        imm_dates.append(current_imm)
+        # Get next IMM date
+        current_imm = get_next_imm_date(current_imm, num_imm=1)
+
+    return imm_dates

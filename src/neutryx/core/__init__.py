@@ -4,7 +4,7 @@ This module provides Monte Carlo simulation, automatic differentiation,
 configuration management, infrastructure, and utility functions.
 """
 
-from . import autodiff, config, infrastructure, utils
+from . import autodiff, infrastructure, utils
 from .engine import (
     Array,
     MCConfig,
@@ -42,7 +42,6 @@ __all__ = [
     "MCPaths",
     "MeshConfig",
     "autodiff",
-    "config",
     "discount_factor",
     "grid_time_grid",
     "infrastructure",

@@ -56,6 +56,29 @@ class MVARequest(BaseModel):
     spread: Sequence[float] | float
 
 
+class PortfolioXVARequest(BaseModel):
+    """Request to compute XVA for a portfolio or netting set."""
+
+    portfolio_id: str = Field(..., description="Portfolio identifier")
+    netting_set_id: str | None = Field(
+        None, description="Netting set ID (if None, compute for entire portfolio)"
+    )
+    valuation_date: str = Field(..., description="Valuation date (ISO format)")
+    compute_cva: bool = Field(True, description="Compute CVA")
+    compute_dva: bool = Field(False, description="Compute DVA")
+    compute_fva: bool = Field(False, description="Compute FVA")
+    compute_mva: bool = Field(False, description="Compute MVA")
+    lgd: float = Field(0.6, description="Loss given default (if not in counterparty data)")
+    funding_spread_bps: float = Field(50.0, description="Funding spread in bps for FVA")
+
+
+class PortfolioSummaryRequest(BaseModel):
+    """Request to get portfolio summary statistics."""
+
+    portfolio_id: str = Field(..., description="Portfolio identifier")
+    valuation_date: str | None = Field(None, description="Valuation date (ISO format)")
+
+
 class FpMLPriceRequest(BaseModel):
     """Request to price an FpML document."""
 
@@ -91,6 +114,10 @@ def _to_array(values: Sequence[float] | float, *, match: int) -> jnp.ndarray:
 
 def create_app() -> FastAPI:
     app = FastAPI(title="Neutryx Pricing API", version="0.1.0")
+
+    # In-memory portfolio storage (for demo purposes)
+    # In production, this would be a database or cache
+    _portfolios: dict[str, Any] = {}
 
     @app.post("/price/vanilla")
     def price_vanilla(payload: VanillaOptionRequest) -> dict[str, float]:
@@ -288,6 +315,216 @@ def create_app() -> FastAPI:
             return {"valid": False, "message": f"Parse error: {e}"}
         except Exception as e:
             return {"valid": False, "message": f"Validation error: {e}"}
+
+    # Portfolio management endpoints
+    @app.post("/portfolio/register")
+    def register_portfolio(portfolio_data: dict[str, Any]) -> dict[str, Any]:
+        """Register a portfolio for XVA calculations.
+
+        Accepts a portfolio serialized as JSON (from Portfolio.model_dump()).
+        """
+        try:
+            from neutryx.portfolio.portfolio import Portfolio
+
+            portfolio = Portfolio.model_validate(portfolio_data)
+            _portfolios[portfolio.name] = portfolio
+
+            return {
+                "status": "registered",
+                "portfolio_id": portfolio.name,
+                "summary": portfolio.summary(),
+            }
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Portfolio registration error: {e}")
+
+    @app.get("/portfolio/{portfolio_id}/summary")
+    def get_portfolio_summary(portfolio_id: str) -> dict[str, Any]:
+        """Get portfolio summary statistics."""
+        if portfolio_id not in _portfolios:
+            raise HTTPException(status_code=404, detail=f"Portfolio '{portfolio_id}' not found")
+
+        portfolio = _portfolios[portfolio_id]
+
+        summary = {
+            "portfolio_id": portfolio_id,
+            "base_currency": portfolio.base_currency,
+            **portfolio.summary(),
+            "total_mtm": portfolio.calculate_total_mtm(),
+            "gross_notional": portfolio.calculate_gross_notional(),
+        }
+
+        # Counterparty breakdown
+        counterparty_summary = []
+        for cp_id, cp in portfolio.counterparties.items():
+            cp_trades = portfolio.get_trades_by_counterparty(cp_id)
+            counterparty_summary.append(
+                {
+                    "counterparty_id": cp_id,
+                    "name": cp.name,
+                    "entity_type": cp.entity_type.value,
+                    "num_trades": len(cp_trades),
+                    "net_mtm": portfolio.calculate_net_mtm_by_counterparty(cp_id),
+                }
+            )
+
+        summary["counterparties"] = counterparty_summary
+        return summary
+
+    @app.post("/portfolio/xva")
+    def compute_portfolio_xva(payload: PortfolioXVARequest) -> dict[str, Any]:
+        """Compute XVA adjustments for a portfolio or netting set.
+
+        This is a simplified implementation that uses current MTM values
+        as a proxy for exposure profiles. In production, you would:
+        1. Run Monte Carlo simulation for each trade
+        2. Compute exposure profiles (EE, PFE, EPE, ENE)
+        3. Apply CVA/DVA/FVA/MVA formulas with proper term structures
+        """
+        if payload.portfolio_id not in _portfolios:
+            raise HTTPException(
+                status_code=404, detail=f"Portfolio '{payload.portfolio_id}' not found"
+            )
+
+        portfolio = _portfolios[payload.portfolio_id]
+
+        # Get trades to analyze
+        if payload.netting_set_id:
+            netting_set = portfolio.get_netting_set(payload.netting_set_id)
+            if not netting_set:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Netting set '{payload.netting_set_id}' not found",
+                )
+            trades = portfolio.get_trades_by_netting_set(payload.netting_set_id)
+            scope = f"netting_set:{payload.netting_set_id}"
+        else:
+            trades = list(portfolio.trades.values())
+            netting_set = None
+            scope = "portfolio"
+
+        if not trades:
+            return {
+                "scope": scope,
+                "num_trades": 0,
+                "cva": 0.0,
+                "dva": 0.0,
+                "fva": 0.0,
+                "mva": 0.0,
+                "total_xva": 0.0,
+            }
+
+        # Compute net MTM as simplified exposure
+        net_mtm = sum(t.get_mtm(default=0.0) for t in trades)
+        positive_exposure = max(net_mtm, 0.0)
+        negative_exposure = max(-net_mtm, 0.0)
+
+        result = {
+            "scope": scope,
+            "num_trades": len(trades),
+            "net_mtm": net_mtm,
+            "positive_exposure": positive_exposure,
+            "negative_exposure": negative_exposure,
+        }
+
+        # Get counterparty for credit info
+        if netting_set:
+            cp = portfolio.get_counterparty(netting_set.counterparty_id)
+            lgd = cp.get_lgd() if cp else payload.lgd
+            has_csa = netting_set.has_csa()
+        else:
+            lgd = payload.lgd
+            has_csa = False
+
+        # Simplified XVA calculations
+        # In production, these would use proper exposure profiles and term structures
+
+        if payload.compute_cva:
+            # CVA = LGD * EPE * PD (simplified)
+            # Using a simplified default probability of 1% per year
+            pd_annual = 0.01
+            cva_value = lgd * positive_exposure * pd_annual
+            result["cva"] = cva_value
+        else:
+            result["cva"] = None
+
+        if payload.compute_dva:
+            # DVA = Our LGD * ENE * Our PD (simplified)
+            # Assuming our own default probability of 0.5% per year
+            our_pd_annual = 0.005
+            dva_value = 0.6 * negative_exposure * our_pd_annual
+            result["dva"] = dva_value
+        else:
+            result["dva"] = None
+
+        if payload.compute_fva:
+            # FVA = Funding spread * Average uncollateralized exposure
+            # If CSA exists, FVA is reduced/eliminated
+            if has_csa:
+                uncollateralized_exposure = 0.0
+            else:
+                uncollateralized_exposure = positive_exposure
+
+            funding_spread = payload.funding_spread_bps / 10000.0
+            fva_value = funding_spread * uncollateralized_exposure
+            result["fva"] = fva_value
+        else:
+            result["fva"] = None
+
+        if payload.compute_mva:
+            # MVA simplified calculation
+            # In production, this requires initial margin simulation
+            if has_csa:
+                # Rough estimate: 6% of gross notional
+                gross_notional = sum(abs(t.notional or 0) for t in trades)
+                im_estimate = 0.06 * gross_notional
+                mva_value = 0.015 * im_estimate  # 150bps spread on IM
+            else:
+                mva_value = 0.0
+            result["mva"] = mva_value
+        else:
+            result["mva"] = None
+
+        # Total XVA
+        total_xva = 0.0
+        if result["cva"] is not None:
+            total_xva += result["cva"]
+        if result["dva"] is not None:
+            total_xva -= result["dva"]  # DVA is a benefit
+        if result["fva"] is not None:
+            total_xva += result["fva"]
+        if result["mva"] is not None:
+            total_xva += result["mva"]
+
+        result["total_xva"] = total_xva
+        result["valuation_date"] = payload.valuation_date
+
+        return result
+
+    @app.get("/portfolio/{portfolio_id}/netting-sets")
+    def list_netting_sets(portfolio_id: str) -> dict[str, Any]:
+        """List all netting sets in a portfolio."""
+        if portfolio_id not in _portfolios:
+            raise HTTPException(status_code=404, detail=f"Portfolio '{portfolio_id}' not found")
+
+        portfolio = _portfolios[portfolio_id]
+
+        netting_sets_info = []
+        for ns_id, ns in portfolio.netting_sets.items():
+            trades = portfolio.get_trades_by_netting_set(ns_id)
+            cp = portfolio.get_counterparty(ns.counterparty_id)
+
+            netting_sets_info.append(
+                {
+                    "netting_set_id": ns_id,
+                    "counterparty_id": ns.counterparty_id,
+                    "counterparty_name": cp.name if cp else None,
+                    "has_csa": ns.has_csa(),
+                    "num_trades": len(trades),
+                    "net_mtm": sum(t.get_mtm(default=0.0) for t in trades),
+                }
+            )
+
+        return {"portfolio_id": portfolio_id, "netting_sets": netting_sets_info}
 
     return app
 
