@@ -351,5 +351,108 @@ class TestFpMLAdapter:
         assert validate_fpml("<invalid>xml") is False
 
 
+class TestFpMLSwap:
+    """Test FpML swap integration."""
+
+    def test_map_swap(self):
+        """Test mapping FpML swap to pricing result."""
+        # Create a simple swap FpML document
+        swap_fpml = """<?xml version="1.0" encoding="UTF-8"?>
+        <dataDocument xmlns="http://www.fpml.org/FpML-5/confirmation" fpmlVersion="5-0">
+            <party id="party1">
+                <partyName>Bank A</partyName>
+            </party>
+            <party id="party2">
+                <partyName>Bank B</partyName>
+            </party>
+            <trade>
+                <tradeHeader>
+                    <tradeDate>2024-01-15</tradeDate>
+                </tradeHeader>
+                <swap>
+                    <swapStream>
+                        <payerPartyReference href="party1"/>
+                        <receiverPartyReference href="party2"/>
+                        <calculationPeriodDates>
+                            <effectiveDate><unadjustedDate>2024-01-15</unadjustedDate></effectiveDate>
+                            <terminationDate><unadjustedDate>2029-01-15</unadjustedDate></terminationDate>
+                            <calculationPeriodFrequency>
+                                <periodMultiplier>6</periodMultiplier>
+                                <period>M</period>
+                            </calculationPeriodFrequency>
+                        </calculationPeriodDates>
+                        <paymentDates>
+                            <paymentFrequency>
+                                <periodMultiplier>6</periodMultiplier>
+                                <period>M</period>
+                            </paymentFrequency>
+                        </paymentDates>
+                        <calculationPeriodAmount>
+                            <calculation>
+                                <notionalSchedule>
+                                    <notionalStepSchedule>
+                                        <currency>USD</currency>
+                                        <initialValue>10000000</initialValue>
+                                    </notionalStepSchedule>
+                                </notionalSchedule>
+                                <fixedRateSchedule>
+                                    <initialValue>0.05</initialValue>
+                                </fixedRateSchedule>
+                                <dayCountFraction>ACT/360</dayCountFraction>
+                            </calculation>
+                        </calculationPeriodAmount>
+                    </swapStream>
+                    <swapStream>
+                        <payerPartyReference href="party2"/>
+                        <receiverPartyReference href="party1"/>
+                        <calculationPeriodDates>
+                            <effectiveDate><unadjustedDate>2024-01-15</unadjustedDate></effectiveDate>
+                            <terminationDate><unadjustedDate>2029-01-15</unadjustedDate></terminationDate>
+                            <calculationPeriodFrequency>
+                                <periodMultiplier>6</periodMultiplier>
+                                <period>M</period>
+                            </calculationPeriodFrequency>
+                        </calculationPeriodDates>
+                        <paymentDates>
+                            <paymentFrequency>
+                                <periodMultiplier>6</periodMultiplier>
+                                <period>M</period>
+                            </paymentFrequency>
+                        </paymentDates>
+                        <calculationPeriodAmount>
+                            <calculation>
+                                <notionalSchedule>
+                                    <notionalStepSchedule>
+                                        <currency>USD</currency>
+                                        <initialValue>10000000</initialValue>
+                                    </notionalStepSchedule>
+                                </notionalSchedule>
+                                <floatingRateCalculation>
+                                    <floatingRateIndex>USD-LIBOR</floatingRateIndex>
+                                    <dayCountFraction>ACT/360</dayCountFraction>
+                                </floatingRateCalculation>
+                                <dayCountFraction>ACT/360</dayCountFraction>
+                            </calculation>
+                        </calculationPeriodAmount>
+                    </swapStream>
+                </swap>
+            </trade>
+        </dataDocument>
+        """
+
+        doc = fpml.parse_fpml(swap_fpml)
+        market_data = {"discount_rate": 0.05}
+
+        result = fpml.fpml_to_neutryx(doc, market_data)
+
+        # Result should be a dict for swaps
+        assert isinstance(result, dict)
+        assert "value" in result
+        assert "notional" in result
+        assert "fixed_rate" in result
+        assert result["notional"] == 10_000_000
+        assert result["fixed_rate"] == 0.05
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

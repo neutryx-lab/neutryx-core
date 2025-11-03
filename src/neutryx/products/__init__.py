@@ -2,6 +2,15 @@
 from .asian import AsianArithmetic
 from .barrier import UpAndOutCall
 from .base import PathProduct, Product
+from .fx_options import (
+    FXBarrierOption,
+    FXVanillaOption,
+    fx_delta,
+    fx_gamma,
+    fx_theta,
+    fx_vega,
+    garman_kohlhagen,
+)
 from .lookback import LookbackFloatStrikeCall
 from .vanilla import European
 from . import basket
@@ -22,6 +31,15 @@ __all__ = [
     "AsianArithmetic",
     "UpAndOutCall",
     "LookbackFloatStrikeCall",
+    # FX products
+    "FXVanillaOption",
+    "FXBarrierOption",
+    "garman_kohlhagen",
+    "fx_delta",
+    "fx_gamma",
+    "fx_vega",
+    "fx_theta",
+    # Modules
     "basket",
     "digital",
 ]

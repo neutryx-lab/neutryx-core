@@ -11,6 +11,12 @@ from typing import Any, Optional
 
 from neutryx.api.rest import VanillaOptionRequest
 from neutryx.bridge.fpml import schemas
+from neutryx.products.swap import (
+    DayCountConvention,
+    PaymentFrequency,
+    SwapLeg,
+    price_vanilla_swap,
+)
 
 
 class FpMLMappingError(Exception):
@@ -163,11 +169,97 @@ class FpMLToNeutryxMapper:
             call=is_call,
         )
 
+    def map_swap(
+        self,
+        fpml_swap: schemas.InterestRateSwap,
+        trade_date: date,
+        discount_rate: float = 0.05,
+    ) -> dict[str, Any]:
+        """Map FpML interest rate swap to pricing result.
+
+        Args:
+            fpml_swap: FpML swap
+            trade_date: Trade date
+            discount_rate: Discount rate for PV calculation
+
+        Returns:
+            Dictionary with swap valuation details
+
+        Raises:
+            FpMLMappingError: If swap structure is invalid
+        """
+        if len(fpml_swap.swapStream) != 2:
+            raise FpMLMappingError("Swap must have exactly 2 streams")
+
+        # Identify fixed and floating legs
+        fixed_leg = None
+        floating_leg = None
+
+        for stream in fpml_swap.swapStream:
+            calc = stream.calculationPeriodAmount
+            if calc.fixedRateSchedule:
+                fixed_leg = stream
+            elif calc.floatingRateCalculation:
+                floating_leg = stream
+
+        if not fixed_leg or not floating_leg:
+            raise FpMLMappingError("Swap must have one fixed and one floating leg")
+
+        # Extract parameters
+        notional = float(fixed_leg.calculationPeriodAmount.notionalSchedule.amount)
+        fixed_rate = float(fixed_leg.calculationPeriodAmount.fixedRateSchedule.initialValue)
+
+        # Calculate maturity
+        ref_date = self.reference_date or trade_date
+        term_date = fixed_leg.calculationPeriodDates.terminationDate.unadjustedDate
+        maturity_days = (term_date - ref_date).days
+        if maturity_days < 0:
+            raise FpMLMappingError(f"Swap has matured: termination={term_date}")
+        maturity = maturity_days / 365.0
+
+        # Payment frequency
+        freq = fixed_leg.paymentDates.paymentFrequency
+        if freq.period == "M":
+            payment_freq = freq.periodMultiplier  # Monthly
+        elif freq.period == "Y":
+            payment_freq = 1  # Annual
+        else:
+            # Assume semiannual for other cases
+            payment_freq = 2
+
+        # For floating leg, use discount rate as proxy
+        floating_rate = discount_rate
+
+        # Check if paying fixed or floating
+        # Simple heuristic: if fixed leg is paying, pay_fixed=True
+        pay_fixed = True  # Default assumption
+
+        # Price the swap
+        value = price_vanilla_swap(
+            notional=notional,
+            fixed_rate=fixed_rate,
+            floating_rate=floating_rate,
+            maturity=maturity,
+            payment_frequency=payment_freq,
+            discount_rate=discount_rate,
+            pay_fixed=pay_fixed,
+        )
+
+        return {
+            "value": value,
+            "notional": notional,
+            "fixed_rate": fixed_rate,
+            "floating_rate": floating_rate,
+            "maturity": maturity,
+            "payment_frequency": payment_freq,
+            "termination_date": term_date.isoformat(),
+        }
+
     def map_trade(
         self,
         fpml_trade: schemas.Trade,
         market_data: Optional[dict[str, Any]] = None,
-    ) -> VanillaOptionRequest:
+    ) -> VanillaOptionRequest | dict[str, Any]:
         """Map any FpML trade to appropriate Neutryx request.
 
         Args:
@@ -175,7 +267,7 @@ class FpMLToNeutryxMapper:
             market_data: Market data dictionary with keys like 'spot', 'volatility', etc.
 
         Returns:
-            Neutryx pricing request
+            Neutryx pricing request (VanillaOptionRequest for options, dict for swaps)
 
         Raises:
             FpMLMappingError: If trade type not supported or data missing
@@ -206,9 +298,10 @@ class FpMLToNeutryxMapper:
                 paths=market_data.get("paths", 100_000),
             )
         elif fpml_trade.swap:
-            raise FpMLMappingError(
-                "Interest rate swap mapping not yet implemented. "
-                "Use Neutryx.valuations.swaps module directly."
+            return self.map_swap(
+                fpml_trade.swap,
+                trade_date,
+                discount_rate=market_data.get("discount_rate", 0.05),
             )
         else:
             raise FpMLMappingError("Unknown or unsupported trade type")

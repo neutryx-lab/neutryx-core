@@ -8,7 +8,7 @@ from __future__ import annotations
 from enum import Enum
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from neutryx.market.credit.hazard import HazardRateCurve
 
@@ -79,8 +79,7 @@ class CounterpartyCredit(BaseModel):
     hazard_curve: Optional[HazardRateCurve] = None
     credit_spread_bps: Optional[float] = Field(default=None, ge=0.0)
 
-    class Config:
-        arbitrary_types_allowed = True  # Allow HazardRateCurve
+    model_config = ConfigDict(arbitrary_types_allowed=True)  # Allow HazardRateCurve
 
     def get_lgd(self) -> float:
         """Get Loss Given Default, computing from recovery_rate if needed."""

@@ -8,7 +8,7 @@ from __future__ import annotations
 from datetime import date
 from typing import Dict, List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from neutryx.contracts.counterparty import Counterparty
 from neutryx.contracts.csa import CSA
@@ -59,8 +59,7 @@ class Portfolio(BaseModel):
     trades: Dict[str, Trade] = Field(default_factory=dict)
     base_currency: str = Field(default="USD", min_length=3, max_length=3)
 
-    class Config:
-        arbitrary_types_allowed = True
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     def __repr__(self) -> str:
         """String representation."""

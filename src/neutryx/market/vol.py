@@ -77,11 +77,32 @@ def sabr_implied_vol(
 
 @dataclass
 class SABRSurface:
+    """
+    SABR volatility surface with time-dependent parameters.
+
+    Implements the VolatilitySurface protocol using SABR model interpolation.
+
+    Attributes:
+        expiries: Expiry times (in years)
+        forwards: Forward prices at each expiry
+        params: SABR parameters at each expiry
+    """
+
     expiries: Sequence[float]
     forwards: Sequence[float]
     params: Sequence[SABRParameters]
 
     def implied_vol(self, expiry: float, strike: ArrayLike) -> ArrayLike:
+        """
+        Compute implied volatility using SABR model.
+
+        Args:
+            expiry: Time to expiry
+            strike: Strike price(s)
+
+        Returns:
+            Implied volatility
+        """
         exp_array = jnp.asarray(self.expiries)
         fwd_array = jnp.asarray(self.forwards)
         alpha_array = jnp.array([p.alpha for p in self.params])
@@ -98,14 +119,44 @@ class SABRSurface:
         params = SABRParameters(float(alpha), float(beta), float(rho), float(nu))
         return sabr_implied_vol(fwd, strike, expiry, params)
 
+    def value(self, expiry: float, strike: ArrayLike) -> ArrayLike:
+        """Alias for implied_vol to implement Surface protocol."""
+        return self.implied_vol(expiry, strike)
+
+    def __call__(self, expiry: float, strike: ArrayLike) -> ArrayLike:
+        """Alias for implied_vol for convenient syntax."""
+        return self.implied_vol(expiry, strike)
+
 
 @dataclass
 class ImpliedVolSurface:
+    """
+    Grid-based implied volatility surface.
+
+    Implements the VolatilitySurface protocol using bilinear interpolation
+    on a regular grid of (expiry, strike) points.
+
+    Attributes:
+        expiries: Expiry times (in years)
+        strikes: Strike prices
+        vols: Implied volatility grid (expiries × strikes)
+    """
+
     expiries: Sequence[float]
     strikes: Sequence[float]
     vols: Sequence[Sequence[float]]
 
     def implied_vol(self, expiry: ArrayLike, strike: ArrayLike) -> ArrayLike:
+        """
+        Compute implied volatility via bilinear interpolation.
+
+        Args:
+            expiry: Time(s) to expiry
+            strike: Strike price(s)
+
+        Returns:
+            Implied volatility
+        """
         expiry_array = jnp.asarray(self.expiries)
         strike_array = jnp.asarray(self.strikes)
         vol_grid = jnp.asarray(self.vols)
@@ -118,3 +169,11 @@ class ImpliedVolSurface:
 
         vectorised = jnp.vectorize(_interp_single)
         return vectorised(expiry, strike)
+
+    def value(self, expiry: ArrayLike, strike: ArrayLike) -> ArrayLike:
+        """Alias for implied_vol to implement Surface protocol."""
+        return self.implied_vol(expiry, strike)
+
+    def __call__(self, expiry: ArrayLike, strike: ArrayLike) -> ArrayLike:
+        """Alias for implied_vol for convenient syntax."""
+        return self.implied_vol(expiry, strike)

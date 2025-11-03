@@ -158,7 +158,30 @@ def create_app() -> FastAPI:
             # Convert to Neutryx request
             request = fpml.fpml_to_neutryx(fpml_doc, market_data)
 
-            # Price
+            # Extract trade info
+            trade = fpml_doc.primary_trade
+            trade_info = {}
+
+            # Handle different product types
+            if trade.swap:
+                # Swap pricing - request is already a dict with the value
+                if isinstance(request, dict):
+                    swap_value = request["value"]
+                    trade_info = {
+                        "product_type": "InterestRateSwap",
+                        "notional": request["notional"],
+                        "fixed_rate": request["fixed_rate"],
+                        "floating_rate": request["floating_rate"],
+                        "maturity": request["maturity"],
+                        "payment_frequency": request["payment_frequency"],
+                    }
+                    return {
+                        "price": swap_value,
+                        "trade_date": trade.tradeHeader.tradeDate.isoformat(),
+                        "trade_info": trade_info,
+                    }
+
+            # Options pricing - use Monte Carlo
             key = jax.random.PRNGKey(payload.seed)
             mc_cfg = MCConfig(steps=payload.steps, paths=payload.paths)
             price = price_vanilla_mc(
@@ -173,9 +196,6 @@ def create_app() -> FastAPI:
                 is_call=request.call,
             )
 
-            # Extract trade info
-            trade = fpml_doc.primary_trade
-            trade_info = {}
             if trade.equityOption:
                 trade_info = {
                     "product_type": "EquityOption",
