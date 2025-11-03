@@ -7,7 +7,7 @@ import jax
 import jax.numpy as jnp
 import optax
 
-from neutryx.solver.heston import HestonParams, heston_call_price
+from .models.heston import HestonParams, heston_call_price
 
 from . import losses
 from .base import CalibrationController, ParameterSpec

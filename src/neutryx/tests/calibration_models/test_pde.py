@@ -3,7 +3,7 @@
 import jax.numpy as jnp
 
 from neutryx.models.bs import price as bs_price
-from neutryx.solver.pde import (
+from neutryx.calibration.models.pde import (
     PDEGrid,
     price_american_put_pde,
     price_european_option_pde,

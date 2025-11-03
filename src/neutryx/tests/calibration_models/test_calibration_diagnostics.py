@@ -8,8 +8,8 @@ from neutryx.calibration.diagnostics import (
     build_residual_plot_data,
     generate_calibration_diagnostics,
 )
-from neutryx.solver.heston import HestonParams, heston_call_price
-from neutryx.solver.heston import calibrate as calibrate_heston
+from neutryx.calibration.models.heston import HestonParams, heston_call_price
+from neutryx.calibration.models.heston import calibrate as calibrate_heston
 
 
 def _heston_surface(params, *, strike, maturity, S0, r, q):

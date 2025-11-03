@@ -25,7 +25,7 @@ from neutryx.market.conventions import (
     parse_imm_code,
 )
 from neutryx.market.curves import BootstrappedCurve, Deposit, Future, OIS
-from neutryx.math.solvers import brent, newton_raphson
+from neutryx.core.math.solvers import brent, newton_raphson
 
 
 def demonstrate_imm_dates():

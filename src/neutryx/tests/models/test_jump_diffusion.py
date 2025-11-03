@@ -11,7 +11,7 @@ from neutryx.core.engine import (
 )
 from neutryx.models import bs as bs_model
 from neutryx.models.jump_diffusion import merton_jump_price
-from neutryx.solver.local_vol import dupire_local_volatility_surface
+from neutryx.calibration.models.local_vol import dupire_local_volatility_surface
 
 
 def _numpy_merton_call(

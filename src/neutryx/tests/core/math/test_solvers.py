@@ -3,7 +3,7 @@
 import jax.numpy as jnp
 import pytest
 
-from neutryx.math.solvers import bisection, brent, newton_raphson
+from neutryx.core.math.solvers import bisection, brent, newton_raphson
 
 
 class TestNewtonRaphson:
