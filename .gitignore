@@ -1,4 +1,8 @@
+# OS files
 .DS_Store
+Thumbs.db
+
+# Python
 __pycache__/
 *.pyc
 *.pyo
@@ -9,22 +13,38 @@ __pycache__/
 build/
 dist/
 .cache/
-.ipynb_checkpoints/
+
+# Testing
 .pytest_cache/
-.prof/
-.hlo/
-# Ignore local example data
-demos/data/
-demos/outputs/
-# Large profiling dumps (local only)
-dev/profiling/flamegraphs/
-dev/profiling/xla_hlo_dumps/
-*.prof
-# MkDocs build output
-site/
-# Coverage reports
+.hypothesis/
 .coverage
 htmlcov/
 coverage.xml
 *.cover
-.hypothesis/
+
+# Development
+.ipynb_checkpoints/
+.prof/
+.hlo/
+*.prof
+
+# Local demo data
+demos/data/
+demos/outputs/
+
+# Profiling dumps
+dev/profiling/flamegraphs/
+dev/profiling/xla_hlo_dumps/
+
+# Documentation build
+site/
+
+# IDE
+.vscode/settings.json
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
