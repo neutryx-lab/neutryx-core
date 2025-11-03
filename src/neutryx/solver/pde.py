@@ -49,7 +49,8 @@ def crank_nicolson_european(
     r: float,
     q: float,
     sigma: float,
-    option_type: str = "call"
+    option_type: str = "call",
+    strike: float | None = None,
 ) -> Tuple[jnp.ndarray, jnp.ndarray]:
     """Solve Black-Scholes PDE using Crank-Nicolson method for European options.
 
@@ -73,109 +74,79 @@ def crank_nicolson_european(
     dt = grid.dt
     dS = grid.dS
     S = grid.S_grid
+    dtype = jnp.asarray(0.0).dtype
 
-    # Initialize solution matrix
-    V = jnp.zeros((N_S, N_T + 1))
+    if strike is None:
+        raise ValueError("strike must be provided for boundary conditions")
 
-    # Set terminal condition
-    V = V.at[:, -1].set(payoff_fn(S))
+    # Initialise solution matrix in double precision for stability
+    V = jnp.zeros((N_S, N_T + 1), dtype=dtype)
 
-    # Coefficients for finite difference scheme
-    # Second derivative coefficient
-    alpha = 0.5 * dt * (sigma ** 2 * S ** 2) / (dS ** 2)
-    # First derivative coefficient
-    beta = 0.25 * dt * (r - q) * S / dS
-    # Discount coefficient
-    gamma = -0.5 * r * dt
+    # Set terminal payoff
+    V = V.at[:, -1].set(payoff_fn(S).astype(dtype))
 
-    # Build tridiagonal matrices for Crank-Nicolson
-    # A * V^{n+1} = B * V^n
-
-    # Matrix A (implicit side)
-    a_lower = -alpha + beta
-    a_diag = 1 + 2 * alpha - gamma
-    a_upper = -alpha - beta
-
-    # Matrix B (explicit side)
-    b_lower = alpha - beta
-    b_diag = 1 - 2 * alpha + gamma
-    b_upper = alpha + beta
-
-    # Build full tridiagonal matrices (excluding boundaries)
-    # Interior points: indices 1 to N_S-2
+    # Interior node indices (exclude boundaries)
     N_interior = N_S - 2
+    if N_interior <= 0:
+        raise ValueError("Grid must contain at least three spatial points")
+    i_idx = jnp.arange(1, N_S - 1, dtype=dtype)
 
-    # Build sparse tridiagonal matrix A
-    A_matrix = jnp.zeros((N_interior, N_interior))
+    # Crank-Nicolson coefficients (see Wilmott, "Derivatives" 2nd ed. chapter 27)
+    alpha = 0.25 * dt * ((sigma ** 2) * (i_idx ** 2) - (r - q) * i_idx)
+    beta = -0.5 * dt * ((sigma ** 2) * (i_idx ** 2) + r)
+    gamma = 0.25 * dt * ((sigma ** 2) * (i_idx ** 2) + (r - q) * i_idx)
 
-    for i in range(N_interior):
-        idx = i + 1  # Index in full grid
-        # Diagonal
-        A_matrix = A_matrix.at[i, i].set(a_diag[idx])
-        # Lower diagonal
-        if i > 0:
-            A_matrix = A_matrix.at[i, i - 1].set(a_lower[idx])
-        # Upper diagonal
-        if i < N_interior - 1:
-            A_matrix = A_matrix.at[i, i + 1].set(a_upper[idx])
+    # Matrices for implicit (A) and explicit (B) steps
+    diag_A = 1.0 - beta
+    lower_A = -alpha[1:]
+    upper_A = -gamma[:-1]
+    A_matrix = jnp.diag(diag_A)
+    if N_interior > 1:
+        A_matrix = A_matrix + jnp.diag(lower_A, k=-1) + jnp.diag(upper_A, k=1)
 
-    # Build matrix B
-    B_matrix = jnp.zeros((N_interior, N_interior))
+    diag_B = 1.0 + beta
+    lower_B = alpha[1:]
+    upper_B = gamma[:-1]
+    B_matrix = jnp.diag(diag_B)
+    if N_interior > 1:
+        B_matrix = B_matrix + jnp.diag(lower_B, k=-1) + jnp.diag(upper_B, k=1)
 
-    for i in range(N_interior):
-        idx = i + 1
-        # Diagonal
-        B_matrix = B_matrix.at[i, i].set(b_diag[idx])
-        # Lower diagonal
-        if i > 0:
-            B_matrix = B_matrix.at[i, i - 1].set(b_lower[idx])
-        # Upper diagonal
-        if i < N_interior - 1:
-            B_matrix = B_matrix.at[i, i + 1].set(b_upper[idx])
-
-    # Boundary conditions
-    # For a call: V(0, t) = 0, V(S_max, t) = S_max - K*exp(-r*(T-t))
-    # For a put: V(0, t) = K*exp(-r*(T-t)), V(S_max, t) = 0
-    # Here we use simple Dirichlet boundaries based on option type
-
-    # Time-stepping (backward in time)
+    # Backward time-stepping
     for j in range(N_T - 1, -1, -1):
-        # Current time
         t = j * dt
-        time_to_maturity = grid.T - t
+        tau = grid.T - t
 
-        # Set boundary conditions
         if option_type == "call":
-            V = V.at[0, j].set(0.0)
-            # Approximate call boundary at S_max
-            V = V.at[-1, j].set(jnp.maximum(S[-1] - S[-1] * jnp.exp(-r * time_to_maturity), 0.0))
-        else:  # put
-            # Approximate put boundary at S_min
-            V = V.at[0, j].set(S[0] * jnp.exp(-r * time_to_maturity))
-            V = V.at[-1, j].set(0.0)
+            lower_boundary = 0.0
+            upper_boundary = jnp.maximum(
+                S[-1] * jnp.exp(-q * tau) - strike * jnp.exp(-r * tau), 0.0
+            )
+        else:
+            lower_boundary = jnp.maximum(
+                strike * jnp.exp(-r * tau) - S[0] * jnp.exp(-q * tau), 0.0
+            )
+            upper_boundary = 0.0
 
-        # Extract interior values
-        V_interior = V[1:-1, j + 1]
+        V = V.at[0, j].set(lower_boundary)
+        V = V.at[-1, j].set(upper_boundary)
 
-        # Right-hand side
-        rhs = B_matrix @ V_interior
+        # Known interior values at next time-step
+        V_next = V[1:-1, j + 1]
+        rhs = B_matrix @ V_next
 
-        # Adjust for boundaries
-        boundary_correction = jnp.zeros(N_interior)
-        boundary_correction = boundary_correction.at[0].add(
-            (a_lower[1] - b_lower[1]) * V[0, j]
+        # Boundary adjustments (contributions from V0 and V_N)
+        boundary = jnp.zeros((N_interior,), dtype=dtype)
+        boundary = boundary.at[0].set(
+            boundary[0] + alpha[0] * (V[0, j + 1] + V[0, j])
         )
-        boundary_correction = boundary_correction.at[-1].add(
-            (a_upper[-2] - b_upper[-2]) * V[-1, j]
+        boundary = boundary.at[-1].set(
+            boundary[-1] + gamma[-1] * (V[-1, j + 1] + V[-1, j])
         )
+        rhs = rhs + boundary
 
-        rhs = rhs + boundary_correction
-
-        # Solve linear system A * V^{n} = rhs
-        V_new_interior = jnp.linalg.solve(A_matrix, rhs)
-
-        # Update interior points
-        V = V.at[1:-1, j].set(V_new_interior)
+        # Solve for current interior values
+        V_current = jnp.linalg.solve(A_matrix, rhs)
+        V = V.at[1:-1, j].set(V_current)
 
     return V, S
 
@@ -326,7 +297,7 @@ def price_european_option_pde(
         payoff_fn = lambda S: jnp.maximum(K - S, 0.0)
 
     # Solve PDE
-    V, S_grid = crank_nicolson_european(grid, payoff_fn, r, q, sigma, option_type)
+    V, S_grid = crank_nicolson_european(grid, payoff_fn, r, q, sigma, option_type, strike=K)
 
     # Interpolate to get value at S0
     price = jnp.interp(S0, S_grid, V[:, 0])

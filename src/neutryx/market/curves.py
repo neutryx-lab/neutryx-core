@@ -187,9 +187,15 @@ class BootstrappedCurve:
 
         df0 = self.df(t0_arr)
         df1 = self.df(t1_arr)
+        delta = t1_arr - t0_arr
+        if jnp.isscalar(delta):
+            if float(delta) == 0.0:
+                raise ValueError("t1 must be greater than t0 for forward_rate computation")
+            return (df0 / df1 - 1.0) / float(delta)
 
-        # Forward rate: -ln(df1/df0) / (t1-t0)
-        return -jnp.log(df1 / df0) / (t1_arr - t0_arr)
+        delta_safe = jnp.where(delta == 0.0, jnp.nan, delta)
+        forward = (df0 / df1 - 1.0) / delta_safe
+        return jnp.where(delta == 0.0, jnp.nan, forward)
 
 
 def _instrument_maturity(instrument: Union[Deposit, FixedRateSwap]) -> float:
