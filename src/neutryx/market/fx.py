@@ -537,3 +537,408 @@ class CrossCurrencyBasisSpread:
         basis_dec = self.spread_decimal(t)
         t_arr = jnp.asarray(t)
         return forward_no_basis * jnp.exp(basis_dec * t_arr)
+
+
+# ============================================================================
+# FX Volatility Market Conventions (BF/RR Quotes)
+# ============================================================================
+
+@dataclass
+class FXVolatilityQuote:
+    """
+    FX volatility market quote for a single tenor.
+
+    FX options are typically quoted in terms of:
+    - ATM (At-The-Money) volatility
+    - 25Δ Risk Reversal (RR): vol_25d_call - vol_25d_put
+    - 25Δ Butterfly (BF): (vol_25d_call + vol_25d_put)/2 - vol_ATM
+
+    Attributes:
+        expiry: Time to expiry in years
+        atm_vol: ATM volatility (e.g., 0.10 for 10%)
+        rr_25d: 25-delta risk reversal (e.g., 0.01 for 1%)
+        bf_25d: 25-delta butterfly (e.g., 0.005 for 0.5%)
+        forward: Forward FX rate for this expiry
+        domestic_rate: Domestic risk-free rate (for delta calculation)
+        foreign_rate: Foreign risk-free rate (for delta calculation)
+
+    Example:
+        >>> quote = FXVolatilityQuote(
+        ...     expiry=1.0,
+        ...     atm_vol=0.10,
+        ...     rr_25d=0.015,
+        ...     bf_25d=0.005,
+        ...     forward=1.10,
+        ...     domestic_rate=0.02,
+        ...     foreign_rate=0.01
+        ... )
+        >>> vols = quote.extract_pillar_vols()
+    """
+
+    expiry: float
+    atm_vol: float
+    rr_25d: float
+    bf_25d: float
+    forward: float
+    domestic_rate: float = 0.0
+    foreign_rate: float = 0.0
+
+    def extract_pillar_vols(self) -> dict[str, float]:
+        """
+        Extract theoretical volatilities at market pillars.
+
+        From market quotes (ATM, RR, BF), compute:
+        - vol_25d_call = ATM + BF + RR/2
+        - vol_25d_put = ATM + BF - RR/2
+        - vol_ATM = ATM
+
+        Returns:
+            Dictionary with keys: 'atm', '25d_call', '25d_put'
+        """
+        vol_25d_call = self.atm_vol + self.bf_25d + self.rr_25d / 2.0
+        vol_25d_put = self.atm_vol + self.bf_25d - self.rr_25d / 2.0
+        vol_atm = self.atm_vol
+
+        return {
+            'atm': vol_atm,
+            '25d_call': vol_25d_call,
+            '25d_put': vol_25d_put,
+        }
+
+    def __repr__(self) -> str:
+        return (
+            f"FXVolatilityQuote(expiry={self.expiry:.2f}y, "
+            f"ATM={self.atm_vol*100:.2f}%, "
+            f"RR={self.rr_25d*100:.2f}%, "
+            f"BF={self.bf_25d*100:.2f}%)"
+        )
+
+
+def _standard_normal_cdf(x: float | Array) -> float | Array:
+    """Standard normal cumulative distribution function."""
+    from jax.scipy.stats import norm
+    return norm.cdf(x)
+
+
+def delta_to_strike_iterative(
+    delta: float,
+    forward: float,
+    expiry: float,
+    vol_initial: float,
+    is_call: bool = True,
+    domestic_rate: float = 0.0,
+    foreign_rate: float = 0.0,
+    max_iterations: int = 10,
+    tolerance: float = 1e-6,
+) -> tuple[float, float]:
+    """
+    Convert delta to strike using iterative solver.
+
+    For FX options, delta depends on the strike through the volatility smile.
+    This function iteratively solves for the strike that matches the target delta.
+
+    Uses forward delta convention (premium in foreign currency):
+    - Call delta: Δ = exp(-r_f * T) * N(d1)
+    - Put delta: Δ = -exp(-r_f * T) * N(-d1)
+
+    where d1 = [ln(F/K) + (σ²/2)*T] / (σ*√T)
+
+    Args:
+        delta: Target delta (e.g., 0.25 for 25-delta call, -0.25 for 25-delta put)
+        forward: Forward FX rate
+        expiry: Time to expiry in years
+        vol_initial: Initial volatility guess
+        is_call: True for call, False for put
+        domestic_rate: Domestic risk-free rate
+        foreign_rate: Foreign risk-free rate
+        max_iterations: Maximum number of iterations
+        tolerance: Convergence tolerance for delta
+
+    Returns:
+        Tuple of (strike, final_volatility)
+
+    Example:
+        >>> # Find strike for 25-delta call
+        >>> strike, vol = delta_to_strike_iterative(
+        ...     delta=0.25, forward=1.10, expiry=1.0, vol_initial=0.10, is_call=True
+        ... )
+    """
+    import jax.numpy as jnp
+    from jax.scipy.stats import norm
+
+    # Handle negative delta for puts
+    delta_target = abs(delta)
+
+    # Initial guess: use ATM strike and iterate
+    vol = vol_initial
+    strike = forward  # Initial guess
+
+    discount_factor = jnp.exp(-foreign_rate * expiry)
+    sqrt_t = jnp.sqrt(expiry)
+
+    for _ in range(max_iterations):
+        # Calculate d1 and d2
+        if strike <= 0 or vol <= 0:
+            break
+
+        d1 = (jnp.log(forward / strike) + (vol**2 / 2) * expiry) / (vol * sqrt_t)
+
+        # Calculate delta based on option type
+        if is_call:
+            calculated_delta = discount_factor * norm.cdf(d1)
+        else:
+            calculated_delta = discount_factor * (norm.cdf(d1) - 1.0)
+            calculated_delta = abs(calculated_delta)
+
+        # Check convergence
+        delta_diff = abs(calculated_delta - delta_target)
+        if delta_diff < tolerance:
+            return float(strike), float(vol)
+
+        # Update strike using Newton-Raphson step
+        # For simplicity, use a fixed-point iteration
+        # More sophisticated: use vega-weighted adjustment
+
+        # Simple adjustment: move strike in direction of delta error
+        if calculated_delta > delta_target:
+            # Need lower delta -> increase strike for call, decrease for put
+            strike *= 1.01 if is_call else 0.99
+        else:
+            # Need higher delta -> decrease strike for call, increase for put
+            strike *= 0.99 if is_call else 1.01
+
+    return float(strike), float(vol)
+
+
+def strike_from_delta_atm(
+    forward: float,
+    expiry: float,
+    vol: float,
+    domestic_rate: float = 0.0,
+    foreign_rate: float = 0.0,
+) -> float:
+    """
+    Calculate ATM strike from forward.
+
+    For FX options, ATM can be defined as:
+    - ATM Forward: K = F (used here)
+    - ATM Delta Neutral: K such that call_delta + put_delta = 0
+    - ATM DNS (Delta Neutral Straddle): K such that |call_delta| = |put_delta|
+
+    Args:
+        forward: Forward FX rate
+        expiry: Time to expiry in years
+        vol: Volatility
+        domestic_rate: Domestic risk-free rate
+        foreign_rate: Foreign risk-free rate
+
+    Returns:
+        ATM strike
+    """
+    # ATM forward convention (most common for FX)
+    return forward
+
+
+def build_smile_from_market_quote(
+    quote: FXVolatilityQuote,
+    num_strikes: int = 5,
+) -> tuple[Array, Array]:
+    """
+    Build volatility smile from market quote (ATM, BF, RR).
+
+    Constructs strike-vol pairs from market conventions:
+    1. Extract theoretical vols at 25-delta pillars
+    2. Convert deltas to strikes
+    3. Interpolate to create full smile
+
+    Args:
+        quote: FX volatility market quote
+        num_strikes: Number of strike points to generate
+
+    Returns:
+        Tuple of (strikes, vols) arrays
+
+    Example:
+        >>> quote = FXVolatilityQuote(
+        ...     expiry=1.0, atm_vol=0.10, rr_25d=0.015, bf_25d=0.005,
+        ...     forward=1.10, domestic_rate=0.02, foreign_rate=0.01
+        ... )
+        >>> strikes, vols = build_smile_from_market_quote(quote)
+    """
+    import jax.numpy as jnp
+
+    # Extract pillar vols
+    pillar_vols = quote.extract_pillar_vols()
+
+    # Get strikes for each pillar
+    # 25-delta put (typically delta = -0.25 or 0.25 for put using positive convention)
+    strike_25p, vol_25p = delta_to_strike_iterative(
+        delta=-0.25,
+        forward=quote.forward,
+        expiry=quote.expiry,
+        vol_initial=pillar_vols['25d_put'],
+        is_call=False,
+        domestic_rate=quote.domestic_rate,
+        foreign_rate=quote.foreign_rate,
+    )
+
+    # ATM
+    strike_atm = strike_from_delta_atm(
+        forward=quote.forward,
+        expiry=quote.expiry,
+        vol=pillar_vols['atm'],
+        domestic_rate=quote.domestic_rate,
+        foreign_rate=quote.foreign_rate,
+    )
+    vol_atm = pillar_vols['atm']
+
+    # 25-delta call
+    strike_25c, vol_25c = delta_to_strike_iterative(
+        delta=0.25,
+        forward=quote.forward,
+        expiry=quote.expiry,
+        vol_initial=pillar_vols['25d_call'],
+        is_call=True,
+        domestic_rate=quote.domestic_rate,
+        foreign_rate=quote.foreign_rate,
+    )
+
+    # Create arrays of pillar points
+    pillar_strikes = jnp.array([strike_25p, strike_atm, strike_25c])
+    pillar_vols_array = jnp.array([vol_25p, vol_atm, vol_25c])
+
+    # Generate full smile by interpolation
+    # Extend range slightly beyond pillars
+    min_strike = strike_25p * 0.9
+    max_strike = strike_25c * 1.1
+    strikes = jnp.linspace(min_strike, max_strike, num_strikes)
+
+    # Linear interpolation (can be enhanced with splines or SABR)
+    vols = jnp.interp(strikes, pillar_strikes, pillar_vols_array)
+
+    return strikes, vols
+
+
+@dataclass
+class FXVolatilitySurfaceBuilder:
+    """
+    Builder for FX volatility surface from market quotes.
+
+    Constructs a complete volatility surface from ATM/BF/RR market quotes
+    across multiple tenors. Each tenor produces a smile, and the surface
+    interpolates across both strike and tenor dimensions.
+
+    Attributes:
+        from_ccy: Source currency
+        to_ccy: Target currency
+        quotes: List of FXVolatilityQuote for different tenors
+
+    Example:
+        >>> builder = FXVolatilitySurfaceBuilder(
+        ...     from_ccy="EUR",
+        ...     to_ccy="USD",
+        ...     quotes=[
+        ...         FXVolatilityQuote(expiry=0.25, atm_vol=0.095, rr_25d=0.010, bf_25d=0.003, forward=1.10),
+        ...         FXVolatilityQuote(expiry=0.5, atm_vol=0.100, rr_25d=0.012, bf_25d=0.004, forward=1.105),
+        ...         FXVolatilityQuote(expiry=1.0, atm_vol=0.105, rr_25d=0.015, bf_25d=0.005, forward=1.11),
+        ...     ]
+        ... )
+        >>> surface = builder.build_surface()
+        >>> vol = surface.implied_vol(0.75, 1.12)  # Get vol at 9M, strike 1.12
+    """
+
+    from_ccy: str
+    to_ccy: str
+    quotes: list[FXVolatilityQuote]
+
+    def build_surface(self, num_strikes_per_tenor: int = 11) -> FXVolatilitySurface:
+        """
+        Build complete volatility surface from market quotes.
+
+        For each tenor:
+        1. Extract ATM/BF/RR
+        2. Compute theoretical vols at 25-delta pillars
+        3. Convert deltas to strikes
+        4. Interpolate to create smile
+
+        Then combine all tenors into a surface.
+
+        Args:
+            num_strikes_per_tenor: Number of strike points per tenor
+
+        Returns:
+            FXVolatilitySurface with full strike-tenor grid
+
+        Example:
+            >>> surface = builder.build_surface(num_strikes_per_tenor=15)
+        """
+        if not self.quotes:
+            raise ValueError("Must provide at least one volatility quote")
+
+        # Sort quotes by expiry
+        sorted_quotes = sorted(self.quotes, key=lambda q: q.expiry)
+
+        # Build smile for each tenor
+        all_strikes = []
+        all_vols = []
+        expiries = []
+
+        for quote in sorted_quotes:
+            strikes, vols = build_smile_from_market_quote(quote, num_strikes_per_tenor)
+            all_strikes.append(strikes)
+            all_vols.append(vols)
+            expiries.append(quote.expiry)
+
+        # Create unified strike grid (use strikes from longest tenor as reference)
+        # For simplicity, use common strike range across all tenors
+        min_strike = min(jnp.min(s) for s in all_strikes)
+        max_strike = max(jnp.max(s) for s in all_strikes)
+        unified_strikes = jnp.linspace(min_strike, max_strike, num_strikes_per_tenor)
+
+        # Interpolate each tenor's smile onto unified strike grid
+        unified_vols = []
+        for strikes, vols in zip(all_strikes, all_vols):
+            interpolated_vols = jnp.interp(unified_strikes, strikes, vols)
+            unified_vols.append(interpolated_vols)
+
+        # Create surface
+        expiries_array = jnp.array(expiries)
+        vols_grid = jnp.array(unified_vols)  # Shape: (n_tenors, n_strikes)
+
+        return FXVolatilitySurface(
+            from_ccy=self.from_ccy,
+            to_ccy=self.to_ccy,
+            expiries=expiries_array,
+            strikes=unified_strikes,
+            vols=vols_grid,
+        )
+
+    def get_quote(self, expiry: float) -> Optional[FXVolatilityQuote]:
+        """
+        Get market quote for specific expiry.
+
+        Args:
+            expiry: Time to expiry in years
+
+        Returns:
+            FXVolatilityQuote if found, None otherwise
+        """
+        for quote in self.quotes:
+            if abs(quote.expiry - expiry) < 1e-6:
+                return quote
+        return None
+
+    def add_quote(self, quote: FXVolatilityQuote) -> None:
+        """
+        Add a new market quote.
+
+        Args:
+            quote: FXVolatilityQuote to add
+        """
+        self.quotes.append(quote)
+
+    def __repr__(self) -> str:
+        return (
+            f"FXVolatilitySurfaceBuilder({self.from_ccy}/{self.to_ccy}, "
+            f"{len(self.quotes)} tenors)"
+        )
