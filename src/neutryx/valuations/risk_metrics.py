@@ -3,8 +3,20 @@
 This module provides functions for computing Value at Risk (VaR),
 Conditional Value at Risk (CVaR), and other risk measures from
 simulated portfolio or option value distributions.
+
+Includes multiple VaR methodologies:
+- Historical VaR: Based on historical return distribution
+- Parametric VaR: Assumes normal distribution
+- Monte Carlo VaR: From simulated scenarios
 """
+from __future__ import annotations
+
+from enum import Enum
+from typing import Optional
+
+import jax
 import jax.numpy as jnp
+from scipy import stats
 
 from neutryx.core.engine import Array
 
@@ -290,6 +302,417 @@ def compute_all_risk_metrics(
     return metrics
 
 
+class VaRMethod(str, Enum):
+    """VaR calculation methodology."""
+
+    HISTORICAL = "Historical"  # Based on historical returns
+    PARAMETRIC = "Parametric"  # Assumes normal distribution (variance-covariance)
+    MONTE_CARLO = "MonteCarlo"  # From Monte Carlo simulations
+    CORNISH_FISHER = "CornishFisher"  # Parametric with skewness/kurtosis adjustment
+
+
+def historical_var(
+    returns: Array,
+    confidence_level: float = 0.95,
+    window: Optional[int] = None,
+) -> float:
+    """Calculate Historical VaR from empirical return distribution.
+
+    Parameters
+    ----------
+    returns : Array
+        Historical returns or P&L values
+    confidence_level : float
+        Confidence level (e.g., 0.95 for 95% VaR)
+    window : int, optional
+        Rolling window size. If None, uses all returns
+
+    Returns
+    -------
+    float
+        Historical VaR
+
+    Notes
+    -----
+    Historical VaR = empirical quantile of loss distribution
+    No distributional assumptions required
+    """
+    if window is not None:
+        returns = returns[-window:]
+
+    return value_at_risk(returns, confidence_level)
+
+
+def parametric_var(
+    returns: Array,
+    confidence_level: float = 0.95,
+    mean: Optional[float] = None,
+    std: Optional[float] = None,
+) -> float:
+    """Calculate Parametric VaR assuming normal distribution.
+
+    Parameters
+    ----------
+    returns : Array
+        Historical returns (used to estimate mean/std if not provided)
+    confidence_level : float
+        Confidence level
+    mean : float, optional
+        Mean return. If None, estimated from returns
+    std : float, optional
+        Standard deviation. If None, estimated from returns
+
+    Returns
+    -------
+    float
+        Parametric VaR
+
+    Notes
+    -----
+    Parametric VaR = -μ + σ * z_α
+    where z_α is the normal quantile at confidence level α
+    Assumes returns are normally distributed
+    """
+    if mean is None:
+        mean = float(jnp.mean(returns))
+    if std is None:
+        std = float(jnp.std(returns))
+
+    # Normal quantile at confidence level
+    z_score = stats.norm.ppf(confidence_level)
+
+    # VaR = -mean + std * z_score (negative of the quantile)
+    var = -mean + std * z_score
+
+    return float(var)
+
+
+def monte_carlo_var(
+    simulated_returns: Array,
+    confidence_level: float = 0.95,
+) -> float:
+    """Calculate Monte Carlo VaR from simulated scenarios.
+
+    Parameters
+    ----------
+    simulated_returns : Array
+        Simulated future returns/P&L from Monte Carlo, shape [n_scenarios]
+    confidence_level : float
+        Confidence level
+
+    Returns
+    -------
+    float
+        Monte Carlo VaR
+
+    Notes
+    -----
+    Monte Carlo VaR = quantile of simulated loss distribution
+    Can capture non-normal distributions and complex risk factors
+    """
+    return value_at_risk(simulated_returns, confidence_level)
+
+
+def cornish_fisher_var(
+    returns: Array,
+    confidence_level: float = 0.95,
+) -> float:
+    """Calculate Cornish-Fisher VaR with skewness/kurtosis adjustment.
+
+    Parameters
+    ----------
+    returns : Array
+        Historical returns
+    confidence_level : float
+        Confidence level
+
+    Returns
+    -------
+    float
+        Cornish-Fisher VaR
+
+    Notes
+    -----
+    Modified VaR that adjusts for non-normality using Cornish-Fisher expansion:
+    z_CF = z + (z²-1)*S/6 + (z³-3z)*(K-3)/24 - (2z³-5z)*S²/36
+
+    where:
+    - z is normal quantile
+    - S is skewness
+    - K is kurtosis
+    """
+    mean = float(jnp.mean(returns))
+    std = float(jnp.std(returns))
+
+    # Calculate moments
+    standardized = (returns - mean) / std
+    skewness = float(jnp.mean(standardized**3))
+    kurtosis = float(jnp.mean(standardized**4))
+
+    # Normal quantile
+    z = stats.norm.ppf(confidence_level)
+
+    # Cornish-Fisher adjustment
+    z_cf = (
+        z
+        + (z**2 - 1) * skewness / 6.0
+        + (z**3 - 3 * z) * (kurtosis - 3) / 24.0
+        - (2 * z**3 - 5 * z) * skewness**2 / 36.0
+    )
+
+    # VaR with adjustment
+    var = -mean + std * z_cf
+
+    return float(var)
+
+
+def calculate_var(
+    returns: Array,
+    confidence_level: float = 0.95,
+    method: VaRMethod = VaRMethod.HISTORICAL,
+    **kwargs,
+) -> float:
+    """Calculate VaR using specified methodology.
+
+    Parameters
+    ----------
+    returns : Array
+        Returns or P&L distribution
+    confidence_level : float
+        Confidence level
+    method : VaRMethod
+        VaR calculation method
+    **kwargs
+        Additional method-specific parameters
+
+    Returns
+    -------
+    float
+        Value at Risk
+
+    Examples
+    --------
+    >>> returns = jnp.array([-0.02, 0.01, -0.01, 0.03, -0.015])
+    >>> var_hist = calculate_var(returns, 0.95, VaRMethod.HISTORICAL)
+    >>> var_param = calculate_var(returns, 0.95, VaRMethod.PARAMETRIC)
+    """
+    if method == VaRMethod.HISTORICAL:
+        return historical_var(returns, confidence_level, **kwargs)
+    elif method == VaRMethod.PARAMETRIC:
+        return parametric_var(returns, confidence_level, **kwargs)
+    elif method == VaRMethod.MONTE_CARLO:
+        return monte_carlo_var(returns, confidence_level)
+    elif method == VaRMethod.CORNISH_FISHER:
+        return cornish_fisher_var(returns, confidence_level)
+    else:
+        raise ValueError(f"Unknown VaR method: {method}")
+
+
+def incremental_var(
+    portfolio_returns: Array,
+    position_returns: Array,
+    confidence_level: float = 0.95,
+) -> float:
+    """Calculate incremental VaR of adding a position to portfolio.
+
+    Parameters
+    ----------
+    portfolio_returns : Array
+        Current portfolio returns
+    position_returns : Array
+        Returns of position to add
+    confidence_level : float
+        Confidence level
+
+    Returns
+    -------
+    float
+        Incremental VaR (difference in VaR)
+
+    Notes
+    -----
+    IVaR = VaR(portfolio + position) - VaR(portfolio)
+    Measures marginal risk contribution of adding the position
+    """
+    var_current = value_at_risk(portfolio_returns, confidence_level)
+    combined_returns = portfolio_returns + position_returns
+    var_new = value_at_risk(combined_returns, confidence_level)
+
+    return var_new - var_current
+
+
+def component_var(
+    positions: Array,
+    returns_scenarios: Array,
+    confidence_level: float = 0.95,
+) -> Array:
+    """Calculate component VaR for each position.
+
+    Parameters
+    ----------
+    positions : Array
+        Position weights, shape [n_assets]
+    returns_scenarios : Array
+        Scenario returns, shape [n_scenarios, n_assets]
+    confidence_level : float
+        Confidence level
+
+    Returns
+    -------
+    Array
+        Component VaR for each position, shape [n_assets]
+
+    Notes
+    -----
+    Component VaR decomposes total portfolio VaR into contributions
+    from each position. Sum of component VaRs equals total VaR.
+    """
+    # Portfolio returns
+    portfolio_returns = jnp.dot(returns_scenarios, positions)
+    portfolio_var = value_at_risk(portfolio_returns, confidence_level)
+
+    # Calculate beta of each asset to portfolio
+    portfolio_std = jnp.std(portfolio_returns)
+
+    component_vars = []
+    for i in range(len(positions)):
+        asset_returns = returns_scenarios[:, i]
+        # Beta = Cov(asset, portfolio) / Var(portfolio)
+        covariance = jnp.mean(
+            (asset_returns - jnp.mean(asset_returns))
+            * (portfolio_returns - jnp.mean(portfolio_returns))
+        )
+        beta = covariance / (portfolio_std**2 + 1e-10)
+
+        # Component VaR = position * beta * VaR
+        comp_var = positions[i] * beta * portfolio_var
+        component_vars.append(comp_var)
+
+    return jnp.array(component_vars)
+
+
+def marginal_var(
+    positions: Array,
+    returns_scenarios: Array,
+    confidence_level: float = 0.95,
+    delta: float = 0.01,
+) -> Array:
+    """Calculate marginal VaR (sensitivity of VaR to position changes).
+
+    Parameters
+    ----------
+    positions : Array
+        Position weights, shape [n_assets]
+    returns_scenarios : Array
+        Scenario returns, shape [n_scenarios, n_assets]
+    confidence_level : float
+        Confidence level
+    delta : float
+        Small change in position for finite difference
+
+    Returns
+    -------
+    Array
+        Marginal VaR for each position, shape [n_assets]
+
+    Notes
+    -----
+    Marginal VaR = ∂VaR/∂position_i
+    Measures how VaR changes with small increase in position
+    """
+    marginal_vars = []
+
+    for i in range(len(positions)):
+        # Increase position i by delta
+        positions_plus = positions.at[i].add(delta)
+        var_plus = portfolio_var(positions_plus, returns_scenarios, confidence_level)
+
+        # Decrease position i by delta
+        positions_minus = positions.at[i].add(-delta)
+        var_minus = portfolio_var(positions_minus, returns_scenarios, confidence_level)
+
+        # Finite difference
+        mvar = (var_plus - var_minus) / (2 * delta)
+        marginal_vars.append(mvar)
+
+    return jnp.array(marginal_vars)
+
+
+def backtest_var(
+    realized_returns: Array,
+    var_forecasts: Array,
+    confidence_level: float = 0.95,
+) -> dict:
+    """Backtest VaR model by comparing forecasts to realized returns.
+
+    Parameters
+    ----------
+    realized_returns : Array
+        Actual realized returns
+    var_forecasts : Array
+        Forecasted VaR values (same length as realized_returns)
+    confidence_level : float
+        Confidence level used for VaR
+
+    Returns
+    -------
+    dict
+        Backtest results including:
+        - violations: number of times loss exceeded VaR
+        - violation_rate: percentage of violations
+        - expected_violations: expected number based on confidence level
+        - kupiec_pvalue: p-value from Kupiec test
+        - pass_backtest: whether model passes at 5% significance
+
+    Notes
+    -----
+    VaR should be exceeded (1 - confidence_level) % of the time.
+    Kupiec test checks if violation rate is statistically consistent.
+    """
+    # Convert returns to losses (positive = loss)
+    losses = -realized_returns
+
+    # Count violations (losses exceeding VaR)
+    violations = jnp.sum(losses > var_forecasts)
+    n = len(realized_returns)
+
+    violation_rate = float(violations / n)
+    expected_rate = 1 - confidence_level
+    expected_violations = n * expected_rate
+
+    # Kupiec Likelihood Ratio test
+    if violations == 0:
+        lr_stat = 0.0
+    elif violations == n:
+        lr_stat = float("inf")
+    else:
+        # LR = -2 * ln((p^x * (1-p)^(n-x)) / (f^x * (1-f)^(n-x)))
+        # where p = expected rate, f = observed rate
+        p = expected_rate
+        f = violation_rate
+        x = violations
+
+        lr_stat = -2 * (
+            x * jnp.log(p / f) + (n - x) * jnp.log((1 - p) / (1 - f))
+        )
+
+    # P-value from chi-squared distribution (df=1)
+    pvalue = 1 - stats.chi2.cdf(float(lr_stat), df=1)
+
+    # Pass if p-value > 0.05 (fail to reject null hypothesis)
+    pass_backtest = pvalue > 0.05
+
+    return {
+        "violations": int(violations),
+        "violation_rate": violation_rate,
+        "expected_violations": expected_violations,
+        "expected_rate": expected_rate,
+        "kupiec_lr_stat": float(lr_stat),
+        "kupiec_pvalue": pvalue,
+        "pass_backtest": pass_backtest,
+    }
+
+
 __all__ = [
     "value_at_risk",
     "conditional_value_at_risk",
@@ -301,4 +724,15 @@ __all__ = [
     "sharpe_ratio",
     "sortino_ratio",
     "compute_all_risk_metrics",
+    # Enhanced VaR methods
+    "VaRMethod",
+    "historical_var",
+    "parametric_var",
+    "monte_carlo_var",
+    "cornish_fisher_var",
+    "calculate_var",
+    "incremental_var",
+    "component_var",
+    "marginal_var",
+    "backtest_var",
 ]
