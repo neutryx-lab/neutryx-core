@@ -344,15 +344,15 @@ pytest -m performance  # Performance benchmarks
 
 Neutryx uses YAML configuration files for environment management:
 
-- `config/default.yaml` - Production defaults
-- `config/dev.yaml` - Development overrides
+- `src/neutryx/config/default.yaml` - Production defaults
+- `src/neutryx/config/dev.yaml` - Development overrides
 
 Load configurations programmatically:
 
 ```python
 from neutryx.config import get_config
 
-config = get_config("config/dev.yaml")
+config = get_config("src/neutryx/config/dev.yaml")
 ```
 
 ### API Services
