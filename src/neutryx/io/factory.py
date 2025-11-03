@@ -7,6 +7,8 @@ code changes.
 
 from __future__ import annotations
 
+import os
+import tempfile
 from typing import Optional
 
 from neutryx.io.base import DataStore, StorageBackend, StorageConfig
@@ -121,7 +123,7 @@ def create_persistent_store(
 
 
 def create_cache_store(
-    path: str = "/tmp/neutryx_cache",
+    path: Optional[str] = None,
     read_only: bool = False,
 ) -> DataStore:
     """Create a storage backend optimized for temporary caching.
@@ -132,7 +134,9 @@ def create_cache_store(
     Parameters
     ----------
     path : str, optional
-        Local storage path (default: "/tmp/neutryx_cache")
+        Local storage path. If None, uses system temp directory with
+        "neutryx_cache" subdirectory. Can be overridden via
+        NEUTRYX_CACHE_DIR environment variable.
     read_only : bool, optional
         Open in read-only mode (default: False)
 
@@ -143,12 +147,21 @@ def create_cache_store(
 
     Examples
     --------
-    >>> # Default temporary cache
+    >>> # Default temporary cache (uses system temp dir)
     >>> cache = create_cache_store()
     >>>
     >>> # Custom cache location
     >>> cache = create_cache_store("/scratch/neutryx/")
     """
+    # Determine cache path
+    if path is None:
+        # Check environment variable first
+        path = os.environ.get("NEUTRYX_CACHE_DIR")
+        if path is None:
+            # Use system temp directory
+            temp_dir = tempfile.gettempdir()
+            path = os.path.join(temp_dir, "neutryx_cache")
+
     config = StorageConfig(
         backend=StorageBackend.MMAP,
         path=path,
