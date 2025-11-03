@@ -59,6 +59,7 @@ nav:
       - Roadmap: roadmap.md
       - Design Decisions: design_decisions.md
       - Tutorials Index: tutorials.md
+      - FpML Integration: fpml_integration.md
       - API Reference: api_reference.md
       - Configuration Guide: configuration.md
       - Test Coverage: test_coverage.md

@@ -1,6 +1,6 @@
 # FpML Integration Guide
 
-Neutryx provides comprehensive support for FpML (Financial products Markup Language), the industry-standard XML format for representing derivatives trades and market data.
+Neutryx provides comprehensive support for FpML (Financial products Markup Language), the industry-standard XML format for representing derivatives trades and market data. For a high-level introduction to the platform, refer to the [project README](https://github.com/neutryx-lab/neutryx-core/blob/main/README.md).
 
 ## Overview
 
@@ -186,14 +186,39 @@ xml_output = fpml.serialize_fpml(fpml_doc)
 ### Interest Rate Swaps
 
 **Supported Features:**
-- Fixed and floating legs
-- Notional schedules
-- Payment frequencies
-- Day count conventions
-- Floating rate indices (LIBOR, SOFR, EURIBOR)
-- Calculation period dates
+- ✅ Fixed and floating legs
+- ✅ Notional schedules  
+- ✅ Payment frequencies (Monthly, Quarterly, Semiannual, Annual)
+- ✅ Day count conventions (ACT/360, ACT/365, 30/360, ACT/ACT)
+- ✅ Floating rate indices (LIBOR, SOFR, EURIBOR, ESTR)
+- ✅ Calculation period dates with business day adjustments
+- ✅ Present value calculation
+- ✅ DV01 and risk metrics
+- ✅ Cash flow schedule generation
 
-**Note:** Swap pricing uses the basic structure parsing. Full swap valuation requires additional market data modules (yield curves, etc.).
+**Valuation:**
+Full swap valuation is now implemented with JAX-accelerated pricing. The swap pricer supports:
+- Fixed vs. floating leg present value calculations
+- Discount factor curves
+- Payment schedule generation with business day conventions
+- Risk metrics including DV01 (dollar value of 1 basis point)
+
+**Example:**
+```python
+from neutryx.products.swap import price_vanilla_swap
+
+# Price a 5-year interest rate swap
+value = price_vanilla_swap(
+    notional=10_000_000,  # $10M notional
+    fixed_rate=0.05,       # 5% fixed rate
+    floating_rate=0.045,   # 4.5% current floating rate
+    maturity=5.0,          # 5 years
+    payment_frequency=2,   # Semiannual payments
+    discount_rate=0.05,    # 5% discount rate
+    pay_fixed=True         # Pay fixed, receive floating
+)
+print(f"Swap Value: ${value:,.2f}")
+```
 
 ## API Reference
 
@@ -582,5 +607,5 @@ For issues or questions:
 
 - [FpML Official Website](https://www.fpml.org/)
 - [FpML 5.x Specification](https://www.fpml.org/spec/fpml-5-0-0/)
-- [Neutryx Core Documentation](../README.md)
+- [Neutryx Core Documentation](https://github.com/neutryx-lab/neutryx-core/blob/main/README.md)
 - [REST API Reference](api_reference.md)
