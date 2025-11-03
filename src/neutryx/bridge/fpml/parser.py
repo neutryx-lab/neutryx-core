@@ -7,7 +7,8 @@ from __future__ import annotations
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Any, Optional
-from xml.etree import ElementTree as ET
+
+import defusedxml.ElementTree as ET
 
 from neutryx.bridge.fpml import schemas
 

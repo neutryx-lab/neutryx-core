@@ -6,7 +6,8 @@ from __future__ import annotations
 
 from datetime import date
 from decimal import Decimal
-from xml.dom import minidom
+
+import defusedxml.minidom as minidom
 from xml.etree import ElementTree as ET
 from xml.etree.ElementTree import Element, SubElement
 
