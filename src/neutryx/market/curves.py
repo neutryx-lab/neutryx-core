@@ -6,7 +6,9 @@ from dataclasses import dataclass
 from typing import Dict, Iterable, List, Sequence, Tuple, Union
 
 # Type alias for all supported market rate instruments
-MarketInstrument = Union["Deposit", "FRA", "Future", "FixedRateSwap"]
+MarketInstrument = Union[
+    "Deposit", "FRA", "Future", "FixedRateSwap", "OIS", "TenorBasisSwap", "CurrencyBasisSwap"
+]
 
 import jax.numpy as jnp
 from jax import Array
@@ -217,6 +219,258 @@ class Future:
         return self.end, df_end
 
 
+@dataclass
+class OIS:
+    """
+    Overnight Index Swap (OIS) for bootstrapping RFR discount curves.
+
+    OIS swaps exchange fixed vs overnight floating rate (e.g., SOFR, ESTR, TONAR).
+    Used to build the risk-free discount curve for collateralized derivatives.
+
+    Attributes:
+        fixed_rate: Fixed rate of the OIS
+        payment_times: Times of fixed leg payments (in years)
+        accrual_factors: Accrual factors for each payment period
+        compounding: Compounding convention ("compound" or "averaging")
+
+    Example:
+        >>> # 2Y SOFR OIS at 5.5% with semi-annual payments
+        >>> ois = OIS(
+        ...     fixed_rate=0.055,
+        ...     payment_times=[0.5, 1.0, 1.5, 2.0],
+        ...     accrual_factors=[0.5, 0.5, 0.5, 0.5],
+        ...     compounding="compound"
+        ... )
+    """
+
+    fixed_rate: float
+    payment_times: Sequence[float]
+    accrual_factors: Sequence[float]
+    compounding: str = "compound"  # "compound" or "averaging"
+
+    def bootstrap(self, curve: "BootstrappedCurve") -> Tuple[float, float]:
+        """
+        Bootstrap discount factor at final maturity using OIS rate.
+
+        For OIS, the floating leg is computed as:
+        - Compound: (1/DF(start) - 1/DF(end)) = compound rate
+        - Averaging: Simple average of daily rates
+
+        For simplicity, we treat OIS like a standard fixed rate swap here.
+        In production, the compounding logic would be more sophisticated.
+        """
+        if len(self.payment_times) != len(self.accrual_factors):
+            raise ValueError("Payment times and accrual factors must have the same length")
+
+        if not self.payment_times:
+            raise ValueError("OIS must contain at least one payment")
+
+        known_value = 0.0
+        for time, accrual in zip(self.payment_times[:-1], self.accrual_factors[:-1]):
+            discount = curve.node_df(time)
+            if discount is None:
+                raise ValueError(
+                    f"Discount factor for {time}y must be bootstrapped before the OIS"
+                )
+            known_value += accrual * float(discount)
+
+        final_time = self.payment_times[-1]
+        final_accrual = self.accrual_factors[-1]
+
+        # Par OIS: PV(fixed leg) = PV(floating leg)
+        # PV(fixed leg) = fixed_rate * sum(DF(t_i) * accrual_i)
+        # PV(floating leg) = 1 - DF(T) for compounded OIS
+        numerator = 1.0 - self.fixed_rate * known_value
+        denominator = 1.0 + self.fixed_rate * final_accrual
+        discount_final = numerator / denominator
+
+        return final_time, discount_final
+
+
+@dataclass
+class TenorBasisSwap:
+    """
+    Tenor basis swap for bootstrapping projection curves.
+
+    A tenor basis swap exchanges floating payments at different tenors
+    (e.g., 3M LIBOR vs 6M LIBOR) plus a basis spread.
+
+    Attributes:
+        basis_spread: Basis spread added to the shorter tenor leg (in decimal)
+        payment_times: Times of payments (in years)
+        accrual_factors: Accrual factors for each payment period
+        short_tenor: Short tenor (e.g., "3M")
+        long_tenor: Long tenor (e.g., "6M")
+        discount_curve: Discount curve for present value calculation
+
+    Example:
+        >>> # 3M vs 6M basis swap with 10bp spread
+        >>> basis = TenorBasisSwap(
+        ...     basis_spread=0.0010,
+        ...     payment_times=[0.5, 1.0],
+        ...     accrual_factors=[0.5, 0.5],
+        ...     short_tenor="3M",
+        ...     long_tenor="6M"
+        ... )
+    """
+
+    basis_spread: float
+    payment_times: Sequence[float]
+    accrual_factors: Sequence[float]
+    short_tenor: str
+    long_tenor: str
+    discount_curve: Union["BootstrappedCurve", None] = None
+
+    def bootstrap(
+        self, curve: "BootstrappedCurve", discount_curve: "BootstrappedCurve" = None
+    ) -> Tuple[float, float]:
+        """
+        Bootstrap forward rate at final maturity using tenor basis spread.
+
+        The basis swap implies:
+        PV(short_tenor + basis) = PV(long_tenor)
+
+        This is used to build projection curves for different tenors
+        given a discount curve and another projection curve.
+        """
+        if len(self.payment_times) != len(self.accrual_factors):
+            raise ValueError("Payment times and accrual factors must have the same length")
+
+        if not self.payment_times:
+            raise ValueError("Tenor basis swap must contain at least one payment")
+
+        # Use provided discount curve or fall back to the curve being built
+        disc_curve = discount_curve or self.discount_curve or curve
+
+        known_value = 0.0
+        for time, accrual in zip(self.payment_times[:-1], self.accrual_factors[:-1]):
+            # Get discount factor for present value
+            df = disc_curve.node_df(time)
+            if df is None:
+                raise ValueError(
+                    f"Discount factor for {time}y must be available before tenor basis"
+                )
+            known_value += accrual * float(df)
+
+        final_time = self.payment_times[-1]
+        final_accrual = self.accrual_factors[-1]
+
+        # Solve for the forward rate that makes PV = 0
+        # This is a simplified version; production would use iterative solving
+        df_final = disc_curve.node_df(final_time)
+        if df_final is None:
+            raise ValueError(
+                f"Discount factor for {final_time}y must be available"
+            )
+
+        # For now, return the final time and a forward rate adjustment
+        # In practice, this would bootstrap a projection curve node
+        forward_adjustment = self.basis_spread
+        return final_time, float(df_final) * (1.0 + forward_adjustment)
+
+
+@dataclass
+class CurrencyBasisSwap:
+    """
+    Cross-currency basis swap for multi-currency curve building.
+
+    A currency basis swap exchanges floating payments in different currencies,
+    typically LIBOR vs LIBOR + basis spread, with initial and final notional exchanges.
+
+    Attributes:
+        basis_spread: Basis spread added to the foreign currency leg (in decimal)
+        payment_times: Times of payments (in years)
+        accrual_factors: Accrual factors for each payment period
+        domestic_currency: Domestic currency (e.g., "USD")
+        foreign_currency: Foreign currency (e.g., "JPY")
+        fx_spot: Spot FX rate (domestic per foreign)
+        domestic_discount_curve: Domestic currency discount curve
+        foreign_projection_curve: Foreign currency projection curve (optional)
+
+    Example:
+        >>> # USD/JPY 3M basis swap with -15bp spread on JPY leg
+        >>> xcs = CurrencyBasisSwap(
+        ...     basis_spread=-0.0015,
+        ...     payment_times=[0.25, 0.5, 0.75, 1.0],
+        ...     accrual_factors=[0.25] * 4,
+        ...     domestic_currency="USD",
+        ...     foreign_currency="JPY",
+        ...     fx_spot=110.0
+        ... )
+    """
+
+    basis_spread: float
+    payment_times: Sequence[float]
+    accrual_factors: Sequence[float]
+    domestic_currency: str
+    foreign_currency: str
+    fx_spot: float
+    domestic_discount_curve: Union["BootstrappedCurve", None] = None
+    foreign_projection_curve: Union["BootstrappedCurve", None] = None
+
+    def bootstrap(
+        self,
+        curve: "BootstrappedCurve",
+        domestic_discount_curve: "BootstrappedCurve" = None,
+    ) -> Tuple[float, float]:
+        """
+        Bootstrap foreign discount curve using cross-currency basis.
+
+        The currency basis swap implies:
+        PV_domestic(domestic_leg) = FX * PV_foreign(foreign_leg + basis)
+
+        This is used to build collateralized discount curves in foreign currencies.
+        """
+        if len(self.payment_times) != len(self.accrual_factors):
+            raise ValueError("Payment times and accrual factors must have the same length")
+
+        if not self.payment_times:
+            raise ValueError("Currency basis swap must contain at least one payment")
+
+        # Use provided discount curve or fall back to stored curve
+        dom_curve = domestic_discount_curve or self.domestic_discount_curve
+
+        if dom_curve is None:
+            raise ValueError("Domestic discount curve must be provided")
+
+        known_value = 0.0
+        for time, accrual in zip(self.payment_times[:-1], self.accrual_factors[:-1]):
+            # Get discount factor from domestic curve
+            df_dom = dom_curve.node_df(time)
+            if df_dom is None:
+                raise ValueError(
+                    f"Domestic discount factor for {time}y must be available"
+                )
+
+            # Get discount factor from foreign curve being built
+            df_for = curve.node_df(time)
+            if df_for is None:
+                raise ValueError(
+                    f"Foreign discount factor for {time}y must be bootstrapped before XCS"
+                )
+
+            known_value += accrual * float(df_for)
+
+        final_time = self.payment_times[-1]
+        final_accrual = self.accrual_factors[-1]
+
+        # Solve for foreign discount factor
+        # PV_dom = FX * PV_for implies:
+        # DF_for(T) = (1 - basis * known_value) / (1 + basis * final_accrual)
+        # This is simplified; production would use full XCS pricing formula
+        df_dom_final = dom_curve.node_df(final_time)
+        if df_dom_final is None:
+            raise ValueError(
+                f"Domestic discount factor for {final_time}y must be available"
+            )
+
+        numerator = 1.0 - self.basis_spread * known_value
+        denominator = 1.0 + self.basis_spread * final_accrual
+        df_foreign_final = float(df_dom_final) * numerator / denominator
+
+        return final_time, df_foreign_final
+
+
 class BootstrappedCurve:
     """
     Piecewise log-linear discount curve built from money-market instruments.
@@ -261,6 +515,12 @@ class BootstrappedCurve:
         if isinstance(instrument, Future):
             return instrument.bootstrap(self)
         if isinstance(instrument, FixedRateSwap):
+            return instrument.bootstrap(self)
+        if isinstance(instrument, OIS):
+            return instrument.bootstrap(self)
+        if isinstance(instrument, TenorBasisSwap):
+            return instrument.bootstrap(self)
+        if isinstance(instrument, CurrencyBasisSwap):
             return instrument.bootstrap(self)
         raise TypeError(f"Unsupported instrument type: {type(instrument)!r}")
 
@@ -347,6 +607,12 @@ def _instrument_maturity(instrument: MarketInstrument) -> float:
     if isinstance(instrument, Future):
         return instrument.end
     if isinstance(instrument, FixedRateSwap):
+        return instrument.payment_times[-1]
+    if isinstance(instrument, OIS):
+        return instrument.payment_times[-1]
+    if isinstance(instrument, TenorBasisSwap):
+        return instrument.payment_times[-1]
+    if isinstance(instrument, CurrencyBasisSwap):
         return instrument.payment_times[-1]
     raise TypeError(f"Unsupported instrument type: {type(instrument)!r}")
 
