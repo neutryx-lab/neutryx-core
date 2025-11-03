@@ -506,17 +506,17 @@ book_repo.save_book(book)
 
 For detailed API documentation, see:
 
-- [ID Generator API](../src/neutryx/portfolio/id_generator.py)
-- [Book Hierarchy API](../src/neutryx/portfolio/books.py)
-- [Counterparty Codes API](../src/neutryx/contracts/counterparty_codes.py)
-- [Lifecycle Management API](../src/neutryx/portfolio/lifecycle.py)
-- [Pricing Bridge API](../src/neutryx/portfolio/pricing_bridge.py)
-- [Repository Pattern API](../src/neutryx/portfolio/repository.py)
-- [Portfolio API](../src/neutryx/portfolio/portfolio.py)
+- **ID Generator API**: `neutryx.portfolio.id_generator`
+- **Book Hierarchy API**: `neutryx.portfolio.books`
+- **Counterparty Codes API**: `neutryx.contracts.counterparty_codes`
+- **Lifecycle Management API**: `neutryx.portfolio.lifecycle`
+- **Pricing Bridge API**: `neutryx.portfolio.pricing_bridge`
+- **Repository Pattern API**: `neutryx.portfolio.repository`
+- **Portfolio API**: `neutryx.portfolio.portfolio`
 
 ## Testing
 
-Comprehensive tests are available in [test_trade_management.py](../src/neutryx/tests/test_trade_management.py).
+Comprehensive tests are available in `src/neutryx/tests/test_trade_management.py`.
 
 Run tests with:
 ```bash
