@@ -8,15 +8,19 @@ import jax.numpy as jnp
 from jax import lax
 
 
-def american_put_lsm(ST_paths, K, r, dt):
-    """Price American put option using Longstaff-Schwartz algorithm.
+def _lsm_backward_induction(ST_paths, payoff, r, dt):
+    """Core Longstaff-Schwartz backward induction algorithm.
+
+    This function implements the backward induction step of the LSM algorithm,
+    performing regression at each time step to estimate continuation values
+    and determine optimal exercise decisions.
 
     Parameters
     ----------
     ST_paths : Array
         Simulated price paths of shape [paths, steps+1]
-    K : float
-        Strike price
+    payoff : Array
+        Immediate payoff matrix of shape [paths, steps+1]
     r : float
         Risk-free rate
     dt : float
@@ -25,18 +29,16 @@ def american_put_lsm(ST_paths, K, r, dt):
     Returns
     -------
     float
-        Present value of the American put option
+        Present value of the American option
 
     Notes
     -----
     This implementation uses jax.lax.fori_loop for JIT compatibility and
-    optimal performance on GPU/TPU hardware.
+    optimal performance on GPU/TPU hardware. The regression uses a quadratic
+    polynomial basis [1, S, S^2] with regularization for numerical stability.
     """
     paths, steps_plus = ST_paths.shape
     steps = steps_plus - 1
-
-    # Immediate payoff matrix for put
-    payoff = jnp.maximum(K - ST_paths, 0.0)
 
     # Initialize continuation value as terminal payoff
     V = payoff[:, -1]
@@ -86,6 +88,30 @@ def american_put_lsm(ST_paths, K, r, dt):
     return V_0.mean()
 
 
+def american_put_lsm(ST_paths, K, r, dt):
+    """Price American put option using Longstaff-Schwartz algorithm.
+
+    Parameters
+    ----------
+    ST_paths : Array
+        Simulated price paths of shape [paths, steps+1]
+    K : float
+        Strike price
+    r : float
+        Risk-free rate
+    dt : float
+        Time step size
+
+    Returns
+    -------
+    float
+        Present value of the American put option
+    """
+    # Immediate payoff matrix for put
+    payoff = jnp.maximum(K - ST_paths, 0.0)
+    return _lsm_backward_induction(ST_paths, payoff, r, dt)
+
+
 def american_call_lsm(ST_paths, K, r, dt):
     """Price American call option using Longstaff-Schwartz algorithm.
 
@@ -105,46 +131,9 @@ def american_call_lsm(ST_paths, K, r, dt):
     float
         Present value of the American call option
     """
-    paths, steps_plus = ST_paths.shape
-    steps = steps_plus - 1
-
     # Immediate payoff matrix for call
     payoff = jnp.maximum(ST_paths - K, 0.0)
-
-    # Initialize continuation value as terminal payoff
-    V = payoff[:, -1]
-
-    # Backward induction
-    def backward_step(t_idx, V_current):
-        t = steps - 1 - t_idx
-
-        immediate = payoff[:, t]
-        itm_mask = immediate > 1e-10
-
-        X = ST_paths[:, t]
-        Y = V_current * jnp.exp(-r * dt)
-
-        A = jnp.stack([jnp.ones_like(X), X, X * X], axis=1)
-
-        ATA = A.T @ (A * itm_mask[:, None])
-        ATY = A.T @ (Y * itm_mask)
-
-        regularization = 1e-8 * jnp.eye(3)
-        beta = jnp.linalg.solve(ATA + regularization, ATY)
-
-        continuation = A @ beta
-
-        exercise = (immediate > continuation) & itm_mask
-
-        V_new = jnp.where(exercise, immediate, V_current * jnp.exp(-r * dt))
-
-        return V_new
-
-    V_final = lax.fori_loop(0, steps - 1, backward_step, V)
-
-    V_0 = jnp.maximum(payoff[:, 0], V_final * jnp.exp(-r * dt))
-
-    return V_0.mean()
+    return _lsm_backward_induction(ST_paths, payoff, r, dt)
 
 
 # Maintain backward compatibility

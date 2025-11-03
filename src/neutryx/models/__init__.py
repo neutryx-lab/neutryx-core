@@ -1,4 +1,4 @@
-"""Model level utilities including workflow checkpointing."""
+"""Model level utilities."""
 
 from . import bs, heston_cf, jump_diffusion, sde
 from .rough_vol import (
@@ -7,7 +7,8 @@ from .rough_vol import (
     price_european_call_mc,
     simulate_rough_bergomi,
 )
-from .workflows import CheckpointManager, ModelWorkflow
+# Workflow utilities moved to core.infrastructure.workflows
+from neutryx.core.infrastructure.workflows import CheckpointManager, ModelWorkflow
 
 __all__ = [
     "bs",

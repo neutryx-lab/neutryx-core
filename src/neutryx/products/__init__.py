@@ -4,6 +4,8 @@ from .barrier import UpAndOutCall
 from .base import PathProduct, Product
 from .lookback import LookbackFloatStrikeCall
 from .vanilla import European
+from . import basket
+from . import digital
 
 PAYOFF_CATALOGUE = {
     "european": European,
@@ -20,4 +22,6 @@ __all__ = [
     "AsianArithmetic",
     "UpAndOutCall",
     "LookbackFloatStrikeCall",
+    "basket",
+    "digital",
 ]

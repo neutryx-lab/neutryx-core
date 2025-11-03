@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    FpML 5.x Equity Call Option Example
+
+    Product: European Call Option on Apple Inc. Stock
+    Underlyer: AAPL (US0378331005)
+    Strike: $150.00
+    Expiration: 1 year from trade date
+-->
+<dataDocument xmlns="http://www.fpml.org/FpML-5/confirmation"
+              xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+              xsi:schemaLocation="http://www.fpml.org/FpML-5/confirmation http://www.fpml.org/spec/fpml-5-0-0-confirmation.xsd"
+              fpmlVersion="5-0">
+
+    <!-- Party Definitions -->
+    <party id="party1">
+        <partyName>Investment Bank ABC</partyName>
+    </party>
+    <party id="party2">
+        <partyName>Hedge Fund XYZ</partyName>
+    </party>
+
+    <!-- Trade -->
+    <trade>
+        <tradeHeader>
+            <tradeDate>2024-01-15</tradeDate>
+        </tradeHeader>
+
+        <equityOption>
+            <buyerPartyReference href="party2"/>
+            <sellerPartyReference href="party1"/>
+
+            <!-- Call Option -->
+            <optionType>Call</optionType>
+
+            <!-- Underlying Asset -->
+            <underlyer>
+                <instrumentId>US0378331005</instrumentId>
+                <description>Apple Inc. Common Stock</description>
+                <exchangeId>XNAS</exchangeId>
+                <currency>USD</currency>
+            </underlyer>
+
+            <!-- Number of Options -->
+            <numberOfOptions>1000</numberOfOptions>
+
+            <!-- Option Entitlement (1 share per option) -->
+            <optionEntitlement>1.0</optionEntitlement>
+
+            <!-- Strike Price -->
+            <strike>
+                <strikePrice>150.00</strikePrice>
+            </strike>
+
+            <!-- Exercise Terms -->
+            <equityExercise>
+                <equityEuropeanExercise>
+                    <expirationDate>
+                        <adjustableDate>
+                            <unadjustedDate>2025-01-15</unadjustedDate>
+                        </adjustableDate>
+                    </expirationDate>
+                    <equityExpirationTimeType>Close</equityExpirationTimeType>
+                </equityEuropeanExercise>
+                <automaticExercise>true</automaticExercise>
+            </equityExercise>
+
+            <!-- Settlement -->
+            <settlementType>Cash</settlementType>
+        </equityOption>
+    </trade>
+</dataDocument>

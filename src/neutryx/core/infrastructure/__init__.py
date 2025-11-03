@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from .cluster import *  # noqa: F401, F403
 from .tracking import *  # noqa: F401, F403
+from .workflows import CheckpointManager, ModelWorkflow
 
 __all__ = [
     # tracking
@@ -16,4 +17,7 @@ __all__ = [
     # cluster
     "ClusterConfig",
     "load_cluster_config",
+    # workflows
+    "CheckpointManager",
+    "ModelWorkflow",
 ]

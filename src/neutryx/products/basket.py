@@ -134,6 +134,36 @@ def rainbow_max_call_payoff(ST_basket: Array, K1: float, K2: float) -> Array:
     return jnp.maximum(jnp.maximum(payoff1, payoff2), 0.0)
 
 
+def basket_option_mc(paths_basket: Array, payoff_fn, K: float, r: float, T: float,
+                     **payoff_kwargs) -> float:
+    """Generic Monte Carlo pricing for basket options.
+
+    Parameters
+    ----------
+    paths_basket : Array
+        Simulated price paths for basket, shape [paths, steps+1, n_assets]
+    payoff_fn : callable
+        Payoff function that takes (ST_basket, K, **kwargs) and returns payoffs
+    K : float
+        Strike price
+    r : float
+        Risk-free rate
+    T : float
+        Time to maturity
+    **payoff_kwargs
+        Additional keyword arguments to pass to the payoff function
+
+    Returns
+    -------
+    float
+        Basket option price
+    """
+    ST_basket = paths_basket[:, -1, :]
+    payoffs = payoff_fn(ST_basket, K, **payoff_kwargs)
+    discount = jnp.exp(-r * T)
+    return float((discount * payoffs).mean())
+
+
 def worst_of_call_mc(paths_basket: Array, K: float, r: float, T: float) -> float:
     """Monte Carlo pricing for worst-of call option.
 
@@ -153,11 +183,7 @@ def worst_of_call_mc(paths_basket: Array, K: float, r: float, T: float) -> float
     float
         Worst-of call option price
     """
-    # Get terminal values for all assets
-    ST_basket = paths_basket[:, -1, :]
-    payoffs = worst_of_call_payoff(ST_basket, K)
-    discount = jnp.exp(-r * T)
-    return float((discount * payoffs).mean())
+    return basket_option_mc(paths_basket, worst_of_call_payoff, K, r, T)
 
 
 def best_of_call_mc(paths_basket: Array, K: float, r: float, T: float) -> float:
@@ -179,10 +205,7 @@ def best_of_call_mc(paths_basket: Array, K: float, r: float, T: float) -> float:
     float
         Best-of call option price
     """
-    ST_basket = paths_basket[:, -1, :]
-    payoffs = best_of_call_payoff(ST_basket, K)
-    discount = jnp.exp(-r * T)
-    return float((discount * payoffs).mean())
+    return basket_option_mc(paths_basket, best_of_call_payoff, K, r, T)
 
 
 def average_basket_call_mc(paths_basket: Array, K: float, r: float, T: float,
@@ -207,16 +230,16 @@ def average_basket_call_mc(paths_basket: Array, K: float, r: float, T: float,
     float
         Average basket call option price
     """
-    ST_basket = paths_basket[:, -1, :]
-    payoffs = average_basket_call_payoff(ST_basket, K, weights)
-    discount = jnp.exp(-r * T)
-    return float((discount * payoffs).mean())
+    return basket_option_mc(paths_basket, average_basket_call_payoff, K, r, T, weights=weights)
 
 
 # Multi-asset simulation helper
 def simulate_correlated_gbm(key, S0_basket, mu_basket, sigma_basket, correlation_matrix,
                            T, steps, paths):
     """Simulate correlated GBM paths for multiple assets.
+
+    This implementation uses jax.lax.scan for efficient JIT compilation and
+    optimal performance on accelerators.
 
     Parameters
     ----------
@@ -243,6 +266,7 @@ def simulate_correlated_gbm(key, S0_basket, mu_basket, sigma_basket, correlation
         Simulated paths, shape [paths, steps+1, n_assets]
     """
     import jax
+    from jax import lax
 
     n_assets = len(S0_basket)
     dt = T / steps
@@ -256,29 +280,49 @@ def simulate_correlated_gbm(key, S0_basket, mu_basket, sigma_basket, correlation
     # Apply correlation
     correlated_normals = jnp.einsum('ptn,nm->ptm', normals, L)
 
-    # Initialize paths
-    log_paths = jnp.zeros((paths, steps + 1, n_assets))
-    log_S0 = jnp.log(S0_basket)
-    log_paths = log_paths.at[:, 0, :].set(log_S0)
+    # Precompute drift term
+    drift = (mu_basket - 0.5 * sigma_basket ** 2) * dt
+    diffusion_scale = sigma_basket * jnp.sqrt(dt)
 
-    # Simulate paths
-    for t in range(steps):
-        drift = (mu_basket - 0.5 * sigma_basket ** 2) * dt
-        diffusion = sigma_basket * jnp.sqrt(dt) * correlated_normals[:, t, :]
-        log_paths = log_paths.at[:, t + 1, :].set(log_paths[:, t, :] + drift + diffusion)
+    # Initial log prices
+    log_S0 = jnp.log(S0_basket)
+
+    # Scan function for time stepping
+    def step_fn(log_S_prev, t_idx):
+        """Single time step of GBM simulation."""
+        diffusion = diffusion_scale * correlated_normals[:, t_idx, :]
+        log_S_next = log_S_prev + drift + diffusion
+        return log_S_next, log_S_next
+
+    # Run simulation using scan
+    _, log_paths_scan = lax.scan(step_fn, log_S0, jnp.arange(steps))
+
+    # Combine initial state with scanned results
+    # log_paths_scan shape: [steps, paths, n_assets]
+    # Need to transpose to [paths, steps, n_assets] and prepend initial values
+    log_paths_scan = jnp.transpose(log_paths_scan, (1, 0, 2))  # [paths, steps, n_assets]
+
+    # Prepend initial log prices
+    log_S0_expanded = jnp.broadcast_to(log_S0, (paths, 1, n_assets))
+    log_paths = jnp.concatenate([log_S0_expanded, log_paths_scan], axis=1)
 
     return jnp.exp(log_paths)
 
 
 __all__ = [
+    # Payoff functions
     "worst_of_call_payoff",
     "best_of_call_payoff",
     "worst_of_put_payoff",
     "best_of_put_payoff",
     "average_basket_call_payoff",
     "rainbow_max_call_payoff",
+    # Unified pricing function
+    "basket_option_mc",
+    # Convenience wrappers
     "worst_of_call_mc",
     "best_of_call_mc",
     "average_basket_call_mc",
+    # Simulation
     "simulate_correlated_gbm",
 ]

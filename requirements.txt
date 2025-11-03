@@ -13,3 +13,7 @@ pydantic>=2.6.0
 grpcio>=1.62.0
 protobuf>=4.25.0
 httpx>=0.27.0
+
+# Optional: FpML support (uses standard library xml.etree, but these enhance performance)
+# lxml>=5.0.0              # Faster XML parsing (optional)
+# xmlschema>=3.0.0         # FpML schema validation (optional)

@@ -1,7 +1,7 @@
 """REST API exposing pricing workflows via FastAPI."""
 from __future__ import annotations
 
-from typing import List, Sequence
+from typing import Any, List, Sequence
 
 import jax
 import jax.numpy as jnp
@@ -54,6 +54,30 @@ class MVARequest(BaseModel):
     initial_margin: ProfileRequest
     discount: ProfileRequest
     spread: Sequence[float] | float
+
+
+class FpMLPriceRequest(BaseModel):
+    """Request to price an FpML document."""
+
+    fpml_xml: str = Field(..., description="FpML XML document")
+    market_data: dict[str, Any] = Field(
+        ..., description="Market data: spot, volatility, rate, dividend, etc."
+    )
+    steps: int = Field(252, gt=0, description="Number of time steps")
+    paths: int = Field(100_000, gt=0, description="Number of Monte Carlo paths")
+    seed: int = Field(42, description="Random seed")
+
+
+class FpMLParseRequest(BaseModel):
+    """Request to parse an FpML document."""
+
+    fpml_xml: str = Field(..., description="FpML XML document")
+
+
+class FpMLValidateRequest(BaseModel):
+    """Request to validate an FpML document."""
+
+    fpml_xml: str = Field(..., description="FpML XML document")
 
 
 def _to_array(values: Sequence[float] | float, *, match: int) -> jnp.ndarray:
@@ -111,6 +135,139 @@ def create_app() -> FastAPI:
         spread = _to_array(payload.spread, match=margin.shape[0])
         value = mva(margin, discount, spread)
         return {"mva": float(value)}
+
+    # FpML endpoints
+    @app.post("/fpml/price")
+    def price_fpml(payload: FpMLPriceRequest) -> dict[str, Any]:
+        """Price an FpML trade document.
+
+        Accepts an FpML XML document and market data, parses the trade,
+        converts it to Neutryx format, and returns the computed price.
+        """
+        try:
+            from neutryx.bridge import fpml
+
+            # Parse FpML
+            fpml_doc = fpml.parse_fpml(payload.fpml_xml)
+
+            # Add MC config to market data
+            market_data = payload.market_data.copy()
+            market_data.setdefault("steps", payload.steps)
+            market_data.setdefault("paths", payload.paths)
+
+            # Convert to Neutryx request
+            request = fpml.fpml_to_neutryx(fpml_doc, market_data)
+
+            # Price
+            key = jax.random.PRNGKey(payload.seed)
+            mc_cfg = MCConfig(steps=payload.steps, paths=payload.paths)
+            price = price_vanilla_mc(
+                key,
+                request.spot,
+                request.strike,
+                request.maturity,
+                request.rate,
+                request.dividend,
+                request.volatility,
+                mc_cfg,
+                is_call=request.call,
+            )
+
+            # Extract trade info
+            trade = fpml_doc.primary_trade
+            trade_info = {}
+            if trade.equityOption:
+                trade_info = {
+                    "product_type": "EquityOption",
+                    "option_type": trade.equityOption.optionType.value,
+                    "strike": float(trade.equityOption.strike.strikePrice),
+                    "underlyer": trade.equityOption.underlyer.instrumentId,
+                }
+            elif trade.fxOption:
+                trade_info = {
+                    "product_type": "FxOption",
+                    "strike": float(trade.fxOption.strike.rate),
+                }
+
+            return {
+                "price": float(price),
+                "trade_date": trade.tradeHeader.tradeDate.isoformat(),
+                "trade_info": trade_info,
+            }
+        except fpml.FpMLParseError as e:
+            raise HTTPException(status_code=400, detail=f"FpML parse error: {e}")
+        except fpml.FpMLMappingError as e:
+            raise HTTPException(status_code=400, detail=f"FpML mapping error: {e}")
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Pricing error: {e}")
+
+    @app.post("/fpml/parse")
+    def parse_fpml_doc(payload: FpMLParseRequest) -> dict[str, Any]:
+        """Parse an FpML document and return its structure.
+
+        Useful for validating FpML documents and inspecting trade details.
+        """
+        try:
+            from neutryx.bridge import fpml
+
+            fpml_doc = fpml.parse_fpml(payload.fpml_xml)
+            trade = fpml_doc.primary_trade
+
+            result = {
+                "trade_date": trade.tradeHeader.tradeDate.isoformat(),
+                "parties": [{"id": p.id, "name": p.name} for p in fpml_doc.party],
+            }
+
+            if trade.equityOption:
+                opt = trade.equityOption
+                result["product"] = {
+                    "type": "EquityOption",
+                    "option_type": opt.optionType.value,
+                    "exercise_type": opt.equityExercise.optionType.value,
+                    "strike": float(opt.strike.strikePrice),
+                    "underlyer": opt.underlyer.instrumentId,
+                    "expiration": opt.equityExercise.expirationDate.unadjustedDate.isoformat(),
+                    "number_of_options": float(opt.numberOfOptions),
+                }
+            elif trade.fxOption:
+                opt = trade.fxOption
+                result["product"] = {
+                    "type": "FxOption",
+                    "exercise_type": opt.fxExercise.optionType.value,
+                    "strike": float(opt.strike.rate),
+                    "put_currency": opt.putCurrencyAmount.currency.value,
+                    "put_amount": float(opt.putCurrencyAmount.amount),
+                    "call_currency": opt.callCurrencyAmount.currency.value,
+                    "call_amount": float(opt.callCurrencyAmount.amount),
+                    "expiry": opt.fxExercise.expiryDate.isoformat(),
+                }
+            elif trade.swap:
+                result["product"] = {
+                    "type": "InterestRateSwap",
+                    "streams": len(trade.swap.swapStream),
+                }
+
+            return result
+        except fpml.FpMLParseError as e:
+            raise HTTPException(status_code=400, detail=f"FpML parse error: {e}")
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Parse error: {e}")
+
+    @app.post("/fpml/validate")
+    def validate_fpml_doc(payload: FpMLValidateRequest) -> dict[str, Any]:
+        """Validate an FpML document structure.
+
+        Returns validation status and any errors found.
+        """
+        try:
+            from neutryx.bridge import fpml
+
+            fpml.parse_fpml(payload.fpml_xml)
+            return {"valid": True, "message": "FpML document is valid"}
+        except fpml.FpMLParseError as e:
+            return {"valid": False, "message": f"Parse error: {e}"}
+        except Exception as e:
+            return {"valid": False, "message": f"Validation error: {e}"}
 
     return app
 
