@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: GitHub Discussions
+    url: https://github.com/neutryx-lab/neutryx-core/discussions
+    about: Ask questions and discuss ideas with the community
+  - name: Security Issue
+    url: mailto:dev@neutryx.tech
+    about: Report security vulnerabilities privately via email

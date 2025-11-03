@@ -19,3 +19,11 @@ examples/data/
 tools/profiling/flamegraphs/
 tools/profiling/xla_hlo_dumps/
 *.prof
+# MkDocs build output
+site/
+# Coverage reports
+.coverage
+htmlcov/
+coverage.xml
+*.cover
+.hypothesis/
