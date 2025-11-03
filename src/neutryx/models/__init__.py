@@ -1,6 +1,7 @@
 """Model level utilities."""
 
-from . import bs, heston_cf, hull_white, jump_diffusion, sde, vasicek
+from . import bs, cir, heston_cf, hull_white, jump_diffusion, sde, vasicek
+from .cir import CIRParams
 from .hull_white import HullWhiteParams
 from .rough_vol import (
     RoughBergomiParams,
@@ -15,7 +16,9 @@ from neutryx.core.infrastructure.workflows import CheckpointManager, ModelWorkfl
 __all__ = [
     "bs",
     "CheckpointManager",
+    "CIRParams",
     "HullWhiteParams",
+    "cir",
     "heston_cf",
     "hull_white",
     "jump_diffusion",
