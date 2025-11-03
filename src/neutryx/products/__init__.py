@@ -1,6 +1,17 @@
 """Product catalogue and helper utilities."""
 from .asian import AsianArithmetic
-from .barrier import UpAndOutCall
+from .barrier import (
+    DoubleBarrierCall,
+    DoubleBarrierPut,
+    DownAndInCall,
+    DownAndInPut,
+    DownAndOutCall,
+    DownAndOutPut,
+    UpAndInCall,
+    UpAndInPut,
+    UpAndOutCall,
+    UpAndOutPut,
+)
 from .base import PathProduct, Product
 from .fx_options import (
     FXBarrierOption,
@@ -31,8 +42,18 @@ __all__ = [
     "PathProduct",
     "European",
     "AsianArithmetic",
-    "UpAndOutCall",
     "LookbackFloatStrikeCall",
+    # Barrier options
+    "UpAndOutCall",
+    "UpAndOutPut",
+    "DownAndOutCall",
+    "DownAndOutPut",
+    "UpAndInCall",
+    "UpAndInPut",
+    "DownAndInCall",
+    "DownAndInPut",
+    "DoubleBarrierCall",
+    "DoubleBarrierPut",
     # FX products
     "FXVanillaOption",
     "FXBarrierOption",
