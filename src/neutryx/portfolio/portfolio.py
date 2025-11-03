@@ -404,3 +404,241 @@ class Portfolio(BaseModel):
             if t.maturity_date is not None
             and start_date <= t.maturity_date <= end_date
         ]
+
+    # -------------------------------------------------------------------------
+    # Book Hierarchy Queries
+    # -------------------------------------------------------------------------
+
+    def get_trades_by_book(self, book_id: str) -> List[Trade]:
+        """Get all trades assigned to a specific book.
+
+        Parameters
+        ----------
+        book_id : str
+            Book ID
+
+        Returns
+        -------
+        list[Trade]
+            List of trades in the book
+        """
+        return [t for t in self.trades.values() if t.book_id == book_id]
+
+    def get_trades_by_desk(self, desk_id: str) -> List[Trade]:
+        """Get all trades assigned to a specific desk.
+
+        Parameters
+        ----------
+        desk_id : str
+            Desk ID
+
+        Returns
+        -------
+        list[Trade]
+            List of trades on the desk
+        """
+        return [t for t in self.trades.values() if t.desk_id == desk_id]
+
+    def get_trades_by_trader(self, trader_id: str) -> List[Trade]:
+        """Get all trades assigned to a specific trader.
+
+        Parameters
+        ----------
+        trader_id : str
+            Trader ID
+
+        Returns
+        -------
+        list[Trade]
+            List of trades for the trader
+        """
+        return [t for t in self.trades.values() if t.trader_id == trader_id]
+
+    def calculate_mtm_by_book(self, book_id: str) -> float:
+        """Calculate total MTM for a specific book.
+
+        Parameters
+        ----------
+        book_id : str
+            Book ID
+
+        Returns
+        -------
+        float
+            Sum of MTM for all trades in the book
+        """
+        trades = self.get_trades_by_book(book_id)
+        return sum(t.get_mtm(default=0.0) for t in trades)
+
+    def calculate_mtm_by_desk(self, desk_id: str) -> float:
+        """Calculate total MTM for a specific desk.
+
+        Parameters
+        ----------
+        desk_id : str
+            Desk ID
+
+        Returns
+        -------
+        float
+            Sum of MTM for all trades on the desk
+        """
+        trades = self.get_trades_by_desk(desk_id)
+        return sum(t.get_mtm(default=0.0) for t in trades)
+
+    def calculate_mtm_by_trader(self, trader_id: str) -> float:
+        """Calculate total MTM for a specific trader.
+
+        Parameters
+        ----------
+        trader_id : str
+            Trader ID
+
+        Returns
+        -------
+        float
+            Sum of MTM for all trades by the trader
+        """
+        trades = self.get_trades_by_trader(trader_id)
+        return sum(t.get_mtm(default=0.0) for t in trades)
+
+    def calculate_notional_by_book(self, book_id: str) -> float:
+        """Calculate total notional for a specific book.
+
+        Parameters
+        ----------
+        book_id : str
+            Book ID
+
+        Returns
+        -------
+        float
+            Sum of absolute notional amounts in the book
+        """
+        trades = self.get_trades_by_book(book_id)
+        return sum(abs(t.notional) for t in trades if t.notional is not None)
+
+    def calculate_notional_by_desk(self, desk_id: str) -> float:
+        """Calculate total notional for a specific desk.
+
+        Parameters
+        ----------
+        desk_id : str
+            Desk ID
+
+        Returns
+        -------
+        float
+            Sum of absolute notional amounts on the desk
+        """
+        trades = self.get_trades_by_desk(desk_id)
+        return sum(abs(t.notional) for t in trades if t.notional is not None)
+
+    def get_book_summary(self, book_id: str) -> Dict[str, any]:
+        """Get summary statistics for a book.
+
+        Parameters
+        ----------
+        book_id : str
+            Book ID
+
+        Returns
+        -------
+        dict
+            Summary with keys: num_trades, total_mtm, total_notional, active_trades
+        """
+        trades = self.get_trades_by_book(book_id)
+        active_trades = [t for t in trades if t.status == TradeStatus.ACTIVE]
+
+        return {
+            "book_id": book_id,
+            "num_trades": len(trades),
+            "active_trades": len(active_trades),
+            "total_mtm": sum(t.get_mtm(default=0.0) for t in trades),
+            "total_notional": sum(abs(t.notional) for t in trades if t.notional is not None),
+        }
+
+    def get_desk_summary(self, desk_id: str) -> Dict[str, any]:
+        """Get summary statistics for a desk.
+
+        Parameters
+        ----------
+        desk_id : str
+            Desk ID
+
+        Returns
+        -------
+        dict
+            Summary with keys: num_trades, total_mtm, total_notional, active_trades, unique_books
+        """
+        trades = self.get_trades_by_desk(desk_id)
+        active_trades = [t for t in trades if t.status == TradeStatus.ACTIVE]
+        unique_books = set(t.book_id for t in trades if t.book_id)
+
+        return {
+            "desk_id": desk_id,
+            "num_trades": len(trades),
+            "active_trades": len(active_trades),
+            "num_books": len(unique_books),
+            "total_mtm": sum(t.get_mtm(default=0.0) for t in trades),
+            "total_notional": sum(abs(t.notional) for t in trades if t.notional is not None),
+        }
+
+    def get_trader_summary(self, trader_id: str) -> Dict[str, any]:
+        """Get summary statistics for a trader.
+
+        Parameters
+        ----------
+        trader_id : str
+            Trader ID
+
+        Returns
+        -------
+        dict
+            Summary with keys: num_trades, total_mtm, total_notional, active_trades, unique_books
+        """
+        trades = self.get_trades_by_trader(trader_id)
+        active_trades = [t for t in trades if t.status == TradeStatus.ACTIVE]
+        unique_books = set(t.book_id for t in trades if t.book_id)
+
+        return {
+            "trader_id": trader_id,
+            "num_trades": len(trades),
+            "active_trades": len(active_trades),
+            "num_books": len(unique_books),
+            "total_mtm": sum(t.get_mtm(default=0.0) for t in trades),
+            "total_notional": sum(abs(t.notional) for t in trades if t.notional is not None),
+        }
+
+    def aggregate_by_book(self) -> Dict[str, Dict[str, any]]:
+        """Aggregate portfolio metrics by book.
+
+        Returns
+        -------
+        dict
+            Map of book_id -> book summary
+        """
+        book_ids = set(t.book_id for t in self.trades.values() if t.book_id)
+        return {book_id: self.get_book_summary(book_id) for book_id in book_ids}
+
+    def aggregate_by_desk(self) -> Dict[str, Dict[str, any]]:
+        """Aggregate portfolio metrics by desk.
+
+        Returns
+        -------
+        dict
+            Map of desk_id -> desk summary
+        """
+        desk_ids = set(t.desk_id for t in self.trades.values() if t.desk_id)
+        return {desk_id: self.get_desk_summary(desk_id) for desk_id in desk_ids}
+
+    def aggregate_by_trader(self) -> Dict[str, Dict[str, any]]:
+        """Aggregate portfolio metrics by trader.
+
+        Returns
+        -------
+        dict
+            Map of trader_id -> trader summary
+        """
+        trader_ids = set(t.trader_id for t in self.trades.values() if t.trader_id)
+        return {trader_id: self.get_trader_summary(trader_id) for trader_id in trader_ids}
