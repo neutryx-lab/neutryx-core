@@ -378,7 +378,13 @@ def price_vanilla_mc(
     paths = simulate_gbm(key, S0, mu_values, sigma, T, cfg)
     ST = paths[:, -1]
     intrinsic = jnp.maximum(ST - K, 0.0) if is_call else jnp.maximum(K - ST, 0.0)
-    return present_value(intrinsic, jnp.asarray(T, dtype=paths.dtype), r)
+
+    # For time-dependent rates, compute the average rate for discounting
+    # This approximates the integral ∫₀ᵀ r(t) dt using the midpoint rule
+    dt = float(T) / cfg.steps
+    avg_r = jnp.sum(r_values * dt) / float(T)
+
+    return present_value(intrinsic, jnp.asarray(T, dtype=paths.dtype), avg_r)
 
 
 def simulate_gbm_resumable(
