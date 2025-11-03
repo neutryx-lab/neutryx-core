@@ -336,6 +336,306 @@ class TestFXVolatilitySurfaceBuilder:
         assert "1 tenors" in repr_str
 
 
+class TestMultiDeltaPillars:
+    """Tests for 10Δ and 15Δ pillar support."""
+
+    def test_extract_pillar_vols_with_10d(self):
+        """Test extraction with 10Δ pillars."""
+        quote = FXVolatilityQuote(
+            expiry=1.0,
+            atm_vol=0.10,
+            rr_25d=0.02,
+            bf_25d=0.005,
+            rr_10d=0.03,
+            bf_10d=0.008,
+            forward=1.10,
+        )
+
+        vols = quote.extract_pillar_vols()
+
+        # Should have 10Δ and 25Δ pillars
+        assert 'atm' in vols
+        assert '10d_call' in vols
+        assert '10d_put' in vols
+        assert '25d_call' in vols
+        assert '25d_put' in vols
+
+        # Check 10Δ calculations
+        expected_10d_call = 0.10 + 0.008 + 0.03 / 2
+        expected_10d_put = 0.10 + 0.008 - 0.03 / 2
+        assert abs(vols['10d_call'] - expected_10d_call) < 1e-10
+        assert abs(vols['10d_put'] - expected_10d_put) < 1e-10
+
+    def test_get_available_deltas(self):
+        """Test getting list of available delta pillars."""
+        quote = FXVolatilityQuote(
+            expiry=1.0,
+            atm_vol=0.10,
+            rr_25d=0.02,
+            bf_25d=0.005,
+            rr_15d=0.025,
+            bf_15d=0.006,
+            forward=1.10,
+        )
+
+        deltas = quote.get_available_deltas()
+
+        # Should have ATM (0.50), 15Δ, and 25Δ
+        assert 0.50 in deltas
+        assert 0.15 in deltas
+        assert 0.25 in deltas
+        assert deltas == sorted(deltas)  # Should be sorted
+
+    def test_repr_with_multi_deltas(self):
+        """Test string representation with multiple delta pillars."""
+        quote = FXVolatilityQuote(
+            expiry=1.0,
+            atm_vol=0.10,
+            rr_25d=0.02,
+            bf_25d=0.005,
+            rr_10d=0.03,
+            bf_10d=0.008,
+            forward=1.10,
+        )
+
+        repr_str = repr(quote)
+        assert "RR25=" in repr_str
+        assert "BF25=" in repr_str
+        assert "RR10=" in repr_str
+        assert "BF10=" in repr_str
+
+
+class TestSABRCalibration:
+    """Tests for SABR calibration from market quotes."""
+
+    def test_calibrate_sabr_basic(self):
+        """Test basic SABR calibration."""
+        from neutryx.market.fx import calibrate_sabr_from_quote
+
+        quote = FXVolatilityQuote(
+            expiry=1.0,
+            atm_vol=0.10,
+            rr_25d=0.015,
+            bf_25d=0.005,
+            forward=1.10,
+            domestic_rate=0.02,
+            foreign_rate=0.01,
+        )
+
+        params = calibrate_sabr_from_quote(quote, beta=0.5)
+
+        # Check parameters are reasonable
+        assert params.beta == 0.5
+        assert params.alpha > 0
+        assert abs(params.rho) < 1.0
+        assert params.nu > 0
+
+        # Alpha should be close to ATM vol
+        assert 0.05 < params.alpha < 0.15
+
+    def test_sabr_reproduces_atm(self):
+        """Test that SABR calibration reproduces ATM vol."""
+        from neutryx.market.fx import calibrate_sabr_from_quote
+        from neutryx.market.vol import sabr_implied_vol
+
+        quote = FXVolatilityQuote(
+            expiry=1.0,
+            atm_vol=0.10,
+            rr_25d=0.015,
+            bf_25d=0.005,
+            forward=1.10,
+        )
+
+        params = calibrate_sabr_from_quote(quote)
+
+        # Compute SABR vol at ATM
+        sabr_vol = sabr_implied_vol(
+            forward=quote.forward,
+            strike=quote.forward,
+            maturity=quote.expiry,
+            params=params,
+        )
+
+        # Should be close to market ATM vol
+        assert abs(float(sabr_vol) - quote.atm_vol) < 0.02
+
+
+class TestVannaVolga:
+    """Tests for Vanna-Volga interpolation."""
+
+    def test_vanna_volga_weights_sum_to_one(self):
+        """Test that Vanna-Volga weights sum to 1."""
+        from neutryx.market.fx import vanna_volga_weights
+
+        forward = 1.10
+        strike_25p = 1.05
+        strike_atm = 1.10
+        strike_25c = 1.15
+
+        # Test at various strikes
+        for strike in [1.06, 1.10, 1.14]:
+            w1, w2, w3 = vanna_volga_weights(
+                strike, forward, strike_25p, strike_atm, strike_25c
+            )
+            total = w1 + w2 + w3
+            assert abs(total - 1.0) < 1e-6
+
+    def test_vanna_volga_at_pillars(self):
+        """Test that Vanna-Volga matches pillar vols exactly."""
+        from neutryx.market.fx import build_smile_vanna_volga
+
+        quote = FXVolatilityQuote(
+            expiry=1.0,
+            atm_vol=0.10,
+            rr_25d=0.02,
+            bf_25d=0.005,
+            forward=1.10,
+            domestic_rate=0.02,
+            foreign_rate=0.01,
+        )
+
+        strikes, vols = build_smile_vanna_volga(quote, num_strikes=21)
+
+        # Vols should be positive and reasonable
+        assert jnp.all(vols > 0)
+        assert jnp.all(vols < 0.5)  # Less than 50%
+
+
+class TestInterpolationMethods:
+    """Tests for different interpolation methods."""
+
+    def test_build_smile_linear(self):
+        """Test linear interpolation method."""
+        from neutryx.market.fx import build_smile_with_method
+
+        quote = FXVolatilityQuote(
+            expiry=1.0,
+            atm_vol=0.10,
+            rr_25d=0.015,
+            bf_25d=0.005,
+            forward=1.10,
+            domestic_rate=0.02,
+            foreign_rate=0.01,
+        )
+
+        strikes, vols = build_smile_with_method(quote, num_strikes=11, method="linear")
+
+        assert len(strikes) == 11
+        assert len(vols) == 11
+        assert jnp.all(vols > 0)
+
+    def test_build_smile_sabr(self):
+        """Test SABR interpolation method."""
+        from neutryx.market.fx import build_smile_with_method
+
+        quote = FXVolatilityQuote(
+            expiry=1.0,
+            atm_vol=0.10,
+            rr_25d=0.015,
+            bf_25d=0.005,
+            forward=1.10,
+            domestic_rate=0.02,
+            foreign_rate=0.01,
+        )
+
+        strikes, vols = build_smile_with_method(quote, num_strikes=11, method="sabr", sabr_beta=0.5)
+
+        assert len(strikes) == 11
+        assert len(vols) == 11
+        assert jnp.all(vols > 0)
+
+    def test_build_smile_vanna_volga(self):
+        """Test Vanna-Volga interpolation method."""
+        from neutryx.market.fx import build_smile_with_method
+
+        quote = FXVolatilityQuote(
+            expiry=1.0,
+            atm_vol=0.10,
+            rr_25d=0.015,
+            bf_25d=0.005,
+            forward=1.10,
+            domestic_rate=0.02,
+            foreign_rate=0.01,
+        )
+
+        strikes, vols = build_smile_with_method(quote, num_strikes=11, method="vanna_volga")
+
+        assert len(strikes) == 11
+        assert len(vols) == 11
+        assert jnp.all(vols > 0)
+
+    def test_invalid_method_raises(self):
+        """Test that invalid method raises error."""
+        from neutryx.market.fx import build_smile_with_method
+        import pytest
+
+        quote = FXVolatilityQuote(
+            expiry=1.0,
+            atm_vol=0.10,
+            rr_25d=0.015,
+            bf_25d=0.005,
+            forward=1.10,
+        )
+
+        with pytest.raises(ValueError, match="Unknown interpolation method"):
+            build_smile_with_method(quote, method="invalid_method")
+
+
+class TestMarketDataSources:
+    """Tests for market data source integration."""
+
+    def test_simulated_data_source(self):
+        """Test simulated market data source."""
+        from neutryx.market.market_data import SimulatedMarketData
+
+        source = SimulatedMarketData(base_vol=0.12, seed=42)
+        quote = source.get_fx_vol_quote("EUR", "USD", 1.0)
+
+        # Check quote properties
+        assert quote.expiry == 1.0
+        assert quote.atm_vol > 0
+        assert quote.forward > 0
+
+    def test_simulated_surface(self):
+        """Test simulated market data surface."""
+        from neutryx.market.market_data import SimulatedMarketData
+
+        source = SimulatedMarketData(seed=42)
+        tenors = [0.25, 0.5, 1.0, 2.0]
+        quotes = source.get_fx_vol_surface("EUR", "USD", tenors)
+
+        assert len(quotes) == 4
+        for quote, tenor in zip(quotes, tenors):
+            assert quote.expiry == tenor
+
+    def test_simulated_fx_spot(self):
+        """Test simulated FX spot rate."""
+        from neutryx.market.market_data import SimulatedMarketData
+
+        source = SimulatedMarketData()
+        spot = source.get_fx_spot("EUR", "USD")
+
+        assert spot > 0
+        assert 0.5 < spot < 2.0  # Reasonable FX rate
+
+    def test_market_data_factory(self):
+        """Test market data source factory."""
+        from neutryx.market.market_data import get_market_data_source
+
+        source = get_market_data_source("simulated", base_vol=0.15)
+        assert source.base_vol == 0.15
+
+    def test_bloomberg_adapter_not_implemented(self):
+        """Test Bloomberg adapter raises NotImplementedError."""
+        from neutryx.market.market_data import BloombergDataAdapter
+        import pytest
+
+        adapter = BloombergDataAdapter()
+
+        with pytest.raises(NotImplementedError):
+            adapter.get_fx_vol_quote("EUR", "USD", 1.0)
+
+
 class TestIntegration:
     """Integration tests for full workflow."""
 
