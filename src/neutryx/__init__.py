@@ -9,6 +9,7 @@ __all__ = [
     "market",
     "xva",
     "portfolio",
+    "contracts",
     "utils",
     "credit",
     "cli",

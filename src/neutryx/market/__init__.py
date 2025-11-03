@@ -9,7 +9,14 @@ from .base import (
     date_to_time,
     years_from_reference,
 )
-from .curves import BootstrappedCurve, Deposit, FixedRateSwap, FlatCurve
+from .curves import (
+    BootstrappedCurve,
+    Deposit,
+    DividendYieldCurve,
+    FixedRateSwap,
+    FlatCurve,
+    ForwardRateCurve,
+)
 from .environment import MarketDataEnvironment
 from .vol import ImpliedVolSurface, SABRParameters, SABRSurface, sabr_implied_vol
 
@@ -27,8 +34,10 @@ __all__ = [
     # Curves
     "BootstrappedCurve",
     "Deposit",
+    "DividendYieldCurve",
     "FixedRateSwap",
     "FlatCurve",
+    "ForwardRateCurve",
     # Volatility
     "ImpliedVolSurface",
     "SABRParameters",
