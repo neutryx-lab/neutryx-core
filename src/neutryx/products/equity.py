@@ -10,6 +10,7 @@ Implements various equity-linked products:
 from __future__ import annotations
 
 from dataclasses import dataclass
+from functools import partial
 from typing import Callable
 
 import jax.numpy as jnp
@@ -73,7 +74,7 @@ def equity_forward_price(
     return spot * jnp.exp((risk_free_rate - dividend_yield) * maturity)
 
 
-@jit
+@partial(jit, static_argnames=["position"])
 def equity_forward_value(
     spot: float,
     strike: float,
@@ -342,7 +343,8 @@ def volatility_swap_convexity_adjustment(variance_strike: float) -> float:
     """
     vol_strike = jnp.sqrt(variance_strike)
     # Simple approximation without vega skew
-    adjustment = vol_strike / (8.0 * variance_strike)
+    # Adjustment ≈ K_var / (8 * sqrt(K_var)) for first-order approximation
+    adjustment = variance_strike / (8.0 * vol_strike)
     return vol_strike - adjustment
 
 

@@ -9,6 +9,7 @@ Implements commodity-specific products:
 from __future__ import annotations
 
 from dataclasses import dataclass
+from functools import partial
 
 import jax.numpy as jnp
 from jax import jit
@@ -80,7 +81,7 @@ def commodity_forward_price(
     return spot * jnp.exp(carry_cost * maturity)
 
 
-@jit
+@partial(jit, static_argnames=["position"])
 def commodity_forward_value(
     spot: float,
     strike: float,
@@ -130,7 +131,7 @@ def commodity_forward_value(
     return jnp.where(position == "long", value, -value)
 
 
-@jit
+@partial(jit, static_argnames=["option_type"])
 def commodity_option_price(
     spot: float,
     strike: float,
@@ -207,7 +208,7 @@ class CommoditySwap:
     floating_prices: list[float] | None = None
 
 
-@jit
+@partial(jit, static_argnames=["position"])
 def commodity_swap_value(
     quantity: float,
     fixed_price: float,
@@ -295,7 +296,7 @@ def multi_period_commodity_swap_value(
     return float(jnp.where(position == "fixed_payer", pv, -pv))
 
 
-@jit
+@partial(jit, static_argnames=["option_type"])
 def spread_option_price(
     spot1: float,
     spot2: float,
@@ -380,7 +381,7 @@ def spread_option_price(
     )
 
 
-@jit
+@partial(jit, static_argnames=["option_type"])
 def asian_commodity_price(
     spot: float,
     strike: float,

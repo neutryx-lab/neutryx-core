@@ -335,16 +335,17 @@ def mandatory_convertible_price(
 
     # Simplified valuation (approximation)
     # Expected payoff based on forward price
-    if forward < threshold_low:
-        expected_shares = conversion_ratio_high
-    elif forward > threshold_high:
-        expected_shares = conversion_ratio_low
-    else:
-        # Linear interpolation in the middle range
-        weight = (forward - threshold_low) / (threshold_high - threshold_low)
-        # In the middle range, gets par value worth of shares
-        # Par / S(T) shares, but we approximate with average
-        expected_shares = conversion_ratio_high * (1 - weight) + conversion_ratio_low * weight
+
+    # Linear interpolation in the middle range
+    weight = (forward - threshold_low) / (threshold_high - threshold_low)
+    shares_middle = conversion_ratio_high * (1 - weight) + conversion_ratio_low * weight
+
+    # Use jnp.where to handle conditions
+    expected_shares = jnp.where(
+        forward < threshold_low,
+        conversion_ratio_high,
+        jnp.where(forward > threshold_high, conversion_ratio_low, shares_middle)
+    )
 
     # Discount expected value
     discount_factor = jnp.exp(-risk_free_rate * maturity)

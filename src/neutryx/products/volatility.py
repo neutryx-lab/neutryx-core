@@ -12,6 +12,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 import jax.numpy as jnp
+from functools import partial
 from jax import jit
 
 from neutryx.models.bs import price as bs_price
@@ -72,18 +73,21 @@ def vix_futures_price(
     >>> vix_futures_price(25.0, 0.5, 0.0, 2.0, 20.0)
     22.347...
     """
-    if mean_reversion > 0.0 and long_term_vol > 0.0:
-        # Mean-reverting model
-        decay = jnp.exp(-mean_reversion * maturity)
-        futures_price = long_term_vol + (vix_spot - long_term_vol) * decay
-    else:
-        # Simple model (martingale)
-        futures_price = vix_spot
+    # Mean-reverting model
+    decay = jnp.exp(-mean_reversion * maturity)
+    futures_price_mr = long_term_vol + (vix_spot - long_term_vol) * decay
+
+    # Simple model (martingale)
+    futures_price_simple = vix_spot
+
+    # Use mean reversion if both parameters are positive
+    use_mr = (mean_reversion > 0.0) & (long_term_vol > 0.0)
+    futures_price = jnp.where(use_mr, futures_price_mr, futures_price_simple)
 
     return futures_price
 
 
-@jit
+@partial(jit, static_argnames=["option_type"])
 def vix_option_price(
     vix_futures_price: float,
     strike: float,
