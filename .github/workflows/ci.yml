@@ -28,7 +28,7 @@ jobs:
           pip install -e .
 
       - name: Run unit tests
-        run: pytest tests --ignore=tests/regression --ignore=tests/performance
+        run: PYTHONPATH=$PWD:$PYTHONPATH pytest src/neutryx/tests --ignore=src/neutryx/tests/regression --ignore=src/neutryx/tests/performance
 
   regression:
     name: Regression suite
@@ -50,7 +50,7 @@ jobs:
           pip install -e .
 
       - name: Run regression tests
-        run: pytest tests/regression
+        run: PYTHONPATH=$PWD:$PYTHONPATH pytest src/neutryx/tests/regression
 
   benchmarks:
     name: Performance benchmarks
@@ -72,7 +72,7 @@ jobs:
           pip install -e .
 
       - name: Run benchmarks
-        run: pytest tests/performance --benchmark-only --benchmark-json=benchmark-results.json
+        run: PYTHONPATH=$PWD:$PYTHONPATH pytest src/neutryx/tests/performance --benchmark-only --benchmark-json=benchmark-results.json
 
       - name: Upload benchmark results
         uses: actions/upload-artifact@v5
@@ -105,7 +105,7 @@ jobs:
       - name: Static analysis security scan
         run: bandit -r src -ll
       - name: Run tests
-        run: pytest
+        run: PYTHONPATH=$PWD:$PYTHONPATH pytest src/neutryx/tests
       - name: Generate SBOM
         uses: CycloneDX/gh-actions-generate-sbom@v2
         with:
