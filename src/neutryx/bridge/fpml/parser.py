@@ -73,18 +73,30 @@ class FpMLParser:
 
     def _find(self, element: ET.Element, path: str, ns_prefix: str = "") -> Optional[ET.Element]:
         """Find element with namespace handling."""
-        if ns_prefix:
-            path = path.replace("/", f"/{ns_prefix}").replace(f"//{ns_prefix}", "//")
-            if not path.startswith("//"):
-                path = ns_prefix + path
+        if ns_prefix and self.ns.get("fpml"):
+            # For namespaced documents, prefix each element name
+            parts = path.split("/")
+            prefixed_parts = []
+            for part in parts:
+                if part and not part.startswith("{") and part != "." and part != "..":
+                    prefixed_parts.append(f"fpml:{part}")
+                else:
+                    prefixed_parts.append(part)
+            path = "/".join(prefixed_parts)
         return element.find(path, self.ns)
 
     def _findall(self, element: ET.Element, path: str, ns_prefix: str = "") -> list[ET.Element]:
         """Find all elements with namespace handling."""
-        if ns_prefix:
-            path = path.replace("/", f"/{ns_prefix}").replace(f"//{ns_prefix}", "//")
-            if not path.startswith("//"):
-                path = ns_prefix + path
+        if ns_prefix and self.ns.get("fpml"):
+            # For namespaced documents, prefix each element name
+            parts = path.split("/")
+            prefixed_parts = []
+            for part in parts:
+                if part and not part.startswith("{") and part != "." and part != "..":
+                    prefixed_parts.append(f"fpml:{part}")
+                else:
+                    prefixed_parts.append(part)
+            path = "/".join(prefixed_parts)
         return element.findall(path, self.ns)
 
     def _get_text(
@@ -268,7 +280,7 @@ class FpMLParser:
 
         # Exercise
         exercise_elem = self._find(option_elem, "europeanExercise", ns_prefix)
-        if not exercise_elem:
+        if exercise_elem is None:
             exercise_elem = self._find(option_elem, "americanExercise", ns_prefix)
             exercise_type = schemas.OptionTypeEnum.AMERICAN
         else:

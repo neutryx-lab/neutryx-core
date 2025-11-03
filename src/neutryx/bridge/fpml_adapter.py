@@ -98,10 +98,27 @@ class FpMLPricingAdapter:
             is_call=request.call,
         )
 
+        # Extract trade info
+        trade = fpml_doc.primary_trade
+        trade_info = {}
+        if trade.equityOption:
+            trade_info = {
+                "product_type": "EquityOption",
+                "option_type": trade.equityOption.optionType.value,
+                "strike": float(trade.equityOption.strike.strikePrice),
+                "underlyer": trade.equityOption.underlyer.instrumentId,
+            }
+        elif trade.fxOption:
+            trade_info = {
+                "product_type": "FxOption",
+                "strike": float(trade.fxOption.strike.rate),
+            }
+
         return {
             "price": float(price),
             "trade": fpml_doc.primary_trade,
             "request": request,
+            "trade_info": trade_info,
         }
 
     def price_from_document(
@@ -132,10 +149,27 @@ class FpMLPricingAdapter:
             is_call=request.call,
         )
 
+        # Extract trade info
+        trade = fpml_doc.primary_trade
+        trade_info = {}
+        if trade.equityOption:
+            trade_info = {
+                "product_type": "EquityOption",
+                "option_type": trade.equityOption.optionType.value,
+                "strike": float(trade.equityOption.strike.strikePrice),
+                "underlyer": trade.equityOption.underlyer.instrumentId,
+            }
+        elif trade.fxOption:
+            trade_info = {
+                "product_type": "FxOption",
+                "strike": float(trade.fxOption.strike.rate),
+            }
+
         return {
             "price": float(price),
             "trade": fpml_doc.primary_trade,
             "request": request,
+            "trade_info": trade_info,
         }
 
     def export_to_fpml(
