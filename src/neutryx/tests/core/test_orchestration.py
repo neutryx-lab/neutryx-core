@@ -8,7 +8,7 @@ for candidate in (ROOT, ROOT / "src"):
     if path_str not in sys.path:
         sys.path.append(path_str)
 
-from tools.orchestration import (
+from dev.orchestration import (
     JobSpec,
     RayJobSpec,
     RaySubmitter,

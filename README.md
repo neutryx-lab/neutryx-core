@@ -158,11 +158,11 @@ neutryx-Core/
 ├── .github/              # Continuous integration workflows and repository automation
 ├── config/               # YAML configuration presets for different environments
 ├── docs/                 # Lightweight design notes and reference documents
-├── examples/             # Executable examples, dashboards, tutorials, and notebooks
+├── demos/             # Executable examples, dashboards, tutorials, and notebooks
 ├── src/                  # Source code for the Neutryx Python package
-└── tools/                # Developer tooling for profiling, reproducibility, and automation
+└── dev/                # Developer tooling for profiling, reproducibility, and automation
 
-examples/
+demos/
 ├── 01_bs_vanilla.py      # Vanilla Black–Scholes comparison
 ├── 02_path_dependents.py # Asian, lookback, and barrier payoffs
 ├── 03_american_lsm.py    # Longstaff–Schwartz pricing workflow
@@ -196,16 +196,16 @@ To keep automated tooling from scattering files in the wrong locations, refer to
 | `.vscode/` | Editor settings and recommended workspace configuration for VS Code. |
 | `config/` | Base and development YAML settings consumed by the runtime configuration loader. |
 | `docs/` | High-level documentation delivered with the repository (API notes, architecture decisions, roadmap). |
-| `examples/` | Scripted examples demonstrating pricing flows and benchmarking scenarios. |
-| `examples/dashboard/` | Dash app for interactive pricing and risk exploration. |
-| `examples/dashboard/assets/` | Static assets (CSS/images) loaded by the dashboard. |
-| `examples/data/` | Auxiliary datasets referenced by example scripts (keep lightweight sample data here). |
-| `examples/notebooks/` | Jupyter notebooks for exploratory analyses and tutorials. |
-| `examples/perf/` | Performance benchmark scripts focusing on runtime comparisons. |
-| `examples/tutorials/` | Guided walkthroughs broken into topical subfolders. |
-| `examples/tutorials/01_vanilla_pricing/` | Step-by-step vanilla option pricing tutorial resources. |
-| `examples/tutorials/02_asian_scenario/` | Scenario analysis tutorial for Asian options. |
-| `examples/tutorials/03_counterparty_cva/` | Counterparty credit valuation adjustment tutorial assets. |
+| `demos/` | Scripted examples demonstrating pricing flows and benchmarking scenarios. |
+| `demos/dashboard/` | Dash app for interactive pricing and risk exploration. |
+| `demos/dashboard/assets/` | Static assets (CSS/images) loaded by the dashboard. |
+| `demos/data/` | Auxiliary datasets referenced by example scripts (keep lightweight sample data here). |
+| `demos/notebooks/` | Jupyter notebooks for exploratory analyses and tutorials. |
+| `demos/perf/` | Performance benchmark scripts focusing on runtime comparisons. |
+| `demos/tutorials/` | Guided walkthroughs broken into topical subfolders. |
+| `demos/tutorials/01_vanilla_pricing/` | Step-by-step vanilla option pricing tutorial resources. |
+| `demos/tutorials/02_asian_scenario/` | Scenario analysis tutorial for Asian options. |
+| `demos/tutorials/03_counterparty_cva/` | Counterparty credit valuation adjustment tutorial assets. |
 | `src/` | Python package source tree (installable via `pip`). |
 | `src/neutryx/` | Root package namespace. New library modules should live underneath this path. |
 | `src/neutryx/api/` | REST and gRPC endpoints exposing pricing services. |
@@ -241,16 +241,16 @@ To keep automated tooling from scattering files in the wrong locations, refer to
 | `src/neutryx/valuations/greeks/` | Sensitivity and Greek calculators tied to valuations. |
 | `src/neutryx/valuations/scenarios/` | Scenario generation utilities for valuation analytics. |
 | `src/neutryx/valuations/xva/` | Counterparty valuation adjustment components. |
-| `tools/` | Developer utilities for profiling, reproducibility, and scripted workflows. |
-| `tools/benchmarks/` | Stand-alone benchmarking harnesses and reports. |
-| `tools/ci/` | Helper scripts used in continuous integration pipelines. |
-| `tools/orchestration/` | Deployment and orchestration helpers (e.g., batch scripts). |
-| `tools/profiling/` | Artefacts and configuration for performance profiling. |
-| `tools/profiling/flamegraphs/` | Placeholder directory for generated flamegraph SVGs. |
-| `tools/profiling/notebooks/` | Profiling-focused notebooks and analysis aids. |
-| `tools/profiling/xla_hlo_dumps/` | Storage for XLA HLO dumps produced during JAX profiling runs. |
-| `tools/repro/` | Environment capture files (pip freeze, backend info) supporting reproducibility. |
-| `tools/scripts/` | Shell and Python automation scripts (benchmarks, profiling helpers). |
+| `dev/` | Developer utilities for profiling, reproducibility, and scripted workflows. |
+| `dev/benchmarks/` | Stand-alone benchmarking harnesses and reports. |
+| `dev/ci/` | Helper scripts used in continuous integration pipelines. |
+| `dev/orchestration/` | Deployment and orchestration helpers (e.g., batch scripts). |
+| `dev/profiling/` | Artefacts and configuration for performance profiling. |
+| `dev/profiling/flamegraphs/` | Placeholder directory for generated flamegraph SVGs. |
+| `dev/profiling/notebooks/` | Profiling-focused notebooks and analysis aids. |
+| `dev/profiling/xla_hlo_dumps/` | Storage for XLA HLO dumps produced during JAX profiling runs. |
+| `dev/repro/` | Environment capture files (pip freeze, backend info) supporting reproducibility. |
+| `dev/scripts/` | Shell and Python automation scripts (benchmarks, profiling helpers). |
 
 ---
 
@@ -282,26 +282,26 @@ Run the included examples to explore different features:
 
 ```bash
 # Vanilla option pricing (Monte Carlo vs. analytical)
-python examples/01_bs_vanilla.py
+python demos/01_bs_vanilla.py
 
 # Path-dependent options (Asian, Lookback, Barrier)
-python examples/02_path_dependents.py
+python demos/02_path_dependents.py
 
 # American options with Longstaff–Schwartz
-python examples/03_american_lsm.py
+python demos/03_american_lsm.py
 ```
 
 ### Performance Benchmarks
 
 ```bash
 # Compare Monte Carlo vs. analytical pricing performance
-python examples/perf/run_mc_vs_analytic.py
+python demos/perf/run_mc_vs_analytic.py
 ```
 
 ### Dash Dashboard
 
 ```bash
-cd examples/dashboard
+cd demos/dashboard
 python app.py
 ```
 
@@ -309,9 +309,9 @@ Visit `http://localhost:8050` to explore interactive pricing, Greeks, and scenar
 
 ### Notebooks & Tutorials
 
-- The `examples/notebooks/` directory hosts exploratory Jupyter notebooks such as `benchmark.ipynb` and `calibration_heston.ipynb`.
-- Guided walkthrough material lives under `examples/tutorials/`, grouped by numbered subfolders.
-- Place any lightweight CSV or JSON assets required by the scripts under `examples/data/`.
+- The `demos/notebooks/` directory hosts exploratory Jupyter notebooks such as `benchmark.ipynb` and `calibration_heston.ipynb`.
+- Guided walkthrough material lives under `demos/tutorials/`, grouped by numbered subfolders.
+- Place any lightweight CSV or JSON assets required by the scripts under `demos/data/`.
 
 ---
 

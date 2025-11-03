@@ -497,7 +497,7 @@ tests/
 ├── performance/             # Benchmarks
 ├── precision/               # Numerical accuracy
 ├── regression/              # Stability tests
-└── tools/                   # Profiling utilities
+└── dev/                   # Profiling utilities
 ```
 
 ---

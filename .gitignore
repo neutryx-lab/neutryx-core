@@ -14,10 +14,10 @@ dist/
 .prof/
 .hlo/
 # Ignore local example data
-examples/data/
+demos/data/
 # Large profiling dumps (local only)
-tools/profiling/flamegraphs/
-tools/profiling/xla_hlo_dumps/
+dev/profiling/flamegraphs/
+dev/profiling/xla_hlo_dumps/
 *.prof
 # MkDocs build output
 site/

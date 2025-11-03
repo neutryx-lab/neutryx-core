@@ -18,13 +18,13 @@ if __package__ is None or __package__ == "":  # pragma: no cover - CLI execution
     sys.path.append(str(repo_root))
     sys.path.append(str(repo_root / "src"))
 
-    from tools.benchmarks.hardware import HardwareTarget, parse_targets
-    from tools.benchmarks.monte_carlo import (
+    from dev.benchmarks.hardware import HardwareTarget, parse_targets
+    from dev.benchmarks.monte_carlo import (
         MonteCarloBenchmarkConfig,
         run_monte_carlo_benchmark,
     )
-    from tools.benchmarks.pde import PDEBenchmarkConfig, run_pde_benchmark
-    from tools.benchmarks.reporting import (
+    from dev.benchmarks.pde import PDEBenchmarkConfig, run_pde_benchmark
+    from dev.benchmarks.reporting import (
         BenchmarkResult,
         save_results,
         summarise_results,

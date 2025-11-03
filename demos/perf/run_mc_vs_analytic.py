@@ -13,7 +13,7 @@ import jax.numpy as jnp
 
 from neutryx.core.engine import MCConfig, present_value, simulate_gbm
 from neutryx.models.bs import price as bs_price
-from tools.profiling import KernelProfiler
+from dev.profiling import KernelProfiler
 
 
 def run_benchmark(paths: int, profile_dir: str | None = None) -> KernelProfiler | None:

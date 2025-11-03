@@ -4,4 +4,4 @@ set -euo pipefail
 ROOT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
 export PYTHONPATH="${PYTHONPATH:-}:$ROOT_DIR/src"
 
-python "$ROOT_DIR/examples/perf/run_mc_vs_analytic.py" "$@"
+python "$ROOT_DIR/demos/perf/run_mc_vs_analytic.py" "$@"
