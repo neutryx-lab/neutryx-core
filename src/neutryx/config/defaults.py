@@ -58,7 +58,7 @@ def get_default_config() -> ConfigDict:
 
     cfg.storage.cache = ConfigDict()
     cfg.storage.cache.backend = "mmap"
-    cfg.storage.cache.path = "/tmp/neutryx_cache/"
+    cfg.storage.cache.path = None  # Uses system temp dir (configurable via NEUTRYX_CACHE_DIR)
     cfg.storage.cache.compression = None
 
     # Compute configuration
