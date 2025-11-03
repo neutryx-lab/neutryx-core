@@ -62,7 +62,13 @@ class Product:
     def payoff_path(self, path: Array) -> Array:
         """Return the payoff for a single simulated path."""
 
-        terminal = jnp.asarray(path)[-1]
+        path_arr = jnp.asarray(path)
+        if path_arr.ndim == 0:
+            # Scalar input - treat as terminal value directly
+            terminal = path_arr
+        else:
+            # Array input - extract last element
+            terminal = path_arr[-1]
         return self.payoff_terminal(terminal)
 
     def payoff(self, path: Array) -> Array:

@@ -529,7 +529,7 @@ We welcome contributions from the community! Here's how to get started:
 
 - **Issues:** Report bugs or request features via [GitHub Issues](https://github.com/neutryx-lab/neutryx-core/issues)
 - **Discussions:** Ask questions and share ideas in [GitHub Discussions](https://github.com/neutryx-lab/neutryx-core/discussions)
-- **Email:** For private inquiries, contact `dev@neutryx.ai`
+- **Email:** For private inquiries, contact `dev@neutryx.tech`
 
 ### Code of Conduct
 
@@ -565,7 +565,7 @@ See [CHANGELOG.md](CHANGELOG.md) for detailed version history.
 
 Neutryx Core is research-oriented software intended for development and prototyping.
 
-- **Vulnerability Reports:** Please report security issues privately to `dev@neutryx.ai`
+- **Vulnerability Reports:** Please report security issues privately to `dev@neutryx.tech`
 - **Security Audits:** See [docs/security_audit.md](docs/security_audit.md) for procedures
 - **Dependencies:** Regularly updated via Dependabot
 - **SBOM:** Software Bill of Materials available upon request
@@ -581,7 +581,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ```text
 MIT License
 
-Copyright (c) 2024 Neutryx
+Copyright (c) 2025 Neutryx
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -617,10 +617,10 @@ Neutryx Core builds upon the incredible work of the scientific computing communi
 
 ## 🔗 Links
 
-- **Documentation:** [https://neutryx-lab.github.io](https://neutryx-lab.github.io)
-- **Repository:** [https://github.com/neutryx-lab/neutryx-core](https://github.com/neutryx-lab/neutryx-lab)
-- **Issues:** [https://github.com/neutryx-lab/neutryx-core/issues](https://github.com/neutryx-lab/neutryx-lab/issues)
-- **Website:** [https://neutryx.ai](https://neutryx.ai)
+- **Documentation:** [https://neutryx-lab.github.io/neutryx-core](https://neutryx-lab.github.io/neutryx-core)
+- **Repository:** [https://github.com/neutryx-lab/neutryx-core](https://github.com/neutryx-lab/neutryx-core)
+- **Issues:** [https://github.com/neutryx-lab/neutryx-core/issues](https://github.com/neutryx-lab/neutryx-core/issues)
+- **Website:** [https://neutryx.tech](https://neutryx.tech)
 
 ---
 

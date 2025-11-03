@@ -8,8 +8,8 @@ that provide rich error messages while keeping the rest of the code base importa
 
 from __future__ import annotations
 
+from . import eigen, performance, quantlib
 from .base import OptionalExtension
-from . import quantlib, eigen, performance
 
 __all__ = [
     "OptionalExtension",

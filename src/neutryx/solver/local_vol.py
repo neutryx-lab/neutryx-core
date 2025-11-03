@@ -9,7 +9,6 @@ import jax.numpy as jnp
 
 from ..models import bs as bs_model
 
-
 Array = jnp.ndarray
 
 

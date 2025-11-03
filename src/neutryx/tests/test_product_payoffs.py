@@ -1,11 +1,12 @@
 """Unit tests for product payoff implementations."""
-import jax.numpy as jnp
 import jax
-from neutryx.products.vanilla import European
+import jax.numpy as jnp
+
+from neutryx.products.american import american_put_lsm
 from neutryx.products.asian import AsianArithmetic
 from neutryx.products.barrier import UpAndOutCall
 from neutryx.products.lookback import LookbackFloatStrikeCall
-from neutryx.products.american import american_put_lsm
+from neutryx.products.vanilla import European
 
 
 def test_european_payoff_call_and_put():

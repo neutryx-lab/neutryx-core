@@ -4,7 +4,6 @@ from pathlib import Path
 
 import pytest
 
-from neutryx.core.engine import MCConfig
 from neutryx.core.config.schemas import (
     AppConfig,
     ConfigValidationError,
@@ -12,6 +11,7 @@ from neutryx.core.config.schemas import (
     collect_and_validate,
     load_config,
 )
+from neutryx.core.engine import MCConfig
 
 
 def test_load_config_produces_valid_app_config(tmp_path: Path) -> None:

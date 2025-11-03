@@ -1,11 +1,11 @@
 """Test path-dependent options: barrier, lookback, and American."""
 import jax
 import jax.numpy as jnp
-import pytest
+
+from neutryx.core.engine import MCConfig, simulate_gbm
+from neutryx.products.american import american_put_lsm
 from neutryx.products.barrier import UpAndOutCall
 from neutryx.products.lookback import LookbackFloatStrikeCall
-from neutryx.products.american import american_put_lsm
-from neutryx.core.engine import simulate_gbm, MCConfig
 
 
 def test_barrier_knockout():

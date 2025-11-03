@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from .tracking import *  # noqa: F401, F403
 from .cluster import *  # noqa: F401, F403
+from .tracking import *  # noqa: F401, F403
 
 __all__ = [
     # tracking

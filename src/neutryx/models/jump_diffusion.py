@@ -12,7 +12,6 @@ from jax.scipy.stats import norm
 
 from .sde import SDE
 
-
 Array = jnp.ndarray
 
 

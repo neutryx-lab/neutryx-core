@@ -41,7 +41,7 @@ def test_asian_requires_path_and_vectorises():
     option = AsianArithmetic(K=100.0, T=1.0, is_call=True)
     assert option.requires_path
     with pytest.raises(NotImplementedError):
-        option.terminal_payoff(jnp.array(100.0))
+        option.payoff_terminal(jnp.array(100.0))
 
     paths = jnp.array(
         [

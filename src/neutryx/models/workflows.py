@@ -6,8 +6,7 @@ import json
 import pickle
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Dict, MutableMapping, Optional, Tuple
-
+from typing import Any, Callable, MutableMapping, Optional, Tuple
 
 State = MutableMapping[str, Any]
 StepFn = Callable[[int, State], State]

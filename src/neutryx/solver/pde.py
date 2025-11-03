@@ -4,10 +4,10 @@ This module implements various finite difference methods for solving
 the Black-Scholes PDE and related PDEs.
 """
 
-import jax
-import jax.numpy as jnp
-from typing import Callable, Optional, Tuple
 from dataclasses import dataclass
+from typing import Callable, Tuple
+
+import jax.numpy as jnp
 
 
 @dataclass

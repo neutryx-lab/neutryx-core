@@ -3,10 +3,10 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "neutryx-lab"
+name = "neutryx-core"
 version = "0.1.0"
 description = "A compact JAX-based quant finance library (pricing, risk, XVA, calibration)."
-authors = [{ name = "Neutryx", email = "dev@neutryx.ai" }]
+authors = [{ name = "Neutryx", email = "dev@neutryx.tech" }]
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }

@@ -4,6 +4,7 @@ This module provides the characteristic function for the Heston (1993) stochasti
 """
 import jax.numpy as jnp
 
+
 def characteristic_function(u, t, v0, kappa, theta, sigma, rho, r, q=0.0):
     """Compute the Heston characteristic function under risk-neutral measure.
 

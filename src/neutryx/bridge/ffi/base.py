@@ -8,9 +8,9 @@ interface to consumers.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 import importlib
 import logging
+from dataclasses import dataclass, field
 from types import ModuleType
 from typing import Any, Callable, Optional
 

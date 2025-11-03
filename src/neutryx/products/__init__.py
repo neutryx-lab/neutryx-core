@@ -1,9 +1,9 @@
 """Product catalogue and helper utilities."""
-from .base import PathProduct, Product
-from .vanilla import European
 from .asian import AsianArithmetic
 from .barrier import UpAndOutCall
+from .base import PathProduct, Product
 from .lookback import LookbackFloatStrikeCall
+from .vanilla import European
 
 PAYOFF_CATALOGUE = {
     "european": European,

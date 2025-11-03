@@ -6,13 +6,6 @@ from .fourier import (
     carr_madan_fft,
     cos_method,
 )
-from .tree import (
-    BinomialModel,
-    ExerciseStyle,
-    binomial_parameters,
-    generate_binomial_tree,
-    price_binomial,
-)
 from .pathwise import (
     AMCInputs,
     american_put_lsm,
@@ -30,7 +23,13 @@ from .qmc import (
     price_european_mlmc,
     price_european_qmc,
 )
-
+from .tree import (
+    BinomialModel,
+    ExerciseStyle,
+    binomial_parameters,
+    generate_binomial_tree,
+    price_binomial,
+)
 
 __all__ = [
     "BlackScholesCharacteristicModel",

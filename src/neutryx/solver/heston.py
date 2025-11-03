@@ -1,13 +1,11 @@
 # Heston model calibration using characteristic function and Optax optimizer.
 from dataclasses import dataclass
+from typing import Any, Mapping, Optional
 
 import jax
 import jax.numpy as jnp
 import optax
-from dataclasses import dataclass
-from typing import Any, Mapping, Optional
 
-from ..models.heston_cf import characteristic_function
 from ..core.infrastructure.tracking import (
     BaseTracker,
     TrackingConfig,
@@ -15,6 +13,8 @@ from ..core.infrastructure.tracking import (
     calibration_param_template,
     resolve_tracker,
 )
+from ..models.heston_cf import characteristic_function
+
 
 @dataclass
 class HestonParams:

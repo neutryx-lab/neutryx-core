@@ -2,7 +2,6 @@ from fastapi.testclient import TestClient
 
 from neutryx.api.rest import create_app
 
-
 client = TestClient(create_app())
 
 

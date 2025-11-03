@@ -2,7 +2,12 @@ import jax
 import jax.numpy as jnp
 
 from neutryx.core.engine import MCConfig, simulate_gbm
-from neutryx.valuations.xva import AggregationEngine, CapitalCalculator, ExposureSimulator, XVAScenario
+from neutryx.valuations.xva import (
+    AggregationEngine,
+    CapitalCalculator,
+    ExposureSimulator,
+    XVAScenario,
+)
 
 
 def _gbm_generator(key, params):

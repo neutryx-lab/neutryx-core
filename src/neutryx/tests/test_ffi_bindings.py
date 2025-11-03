@@ -15,7 +15,7 @@ def test_quantlib_binding_reports_availability() -> None:
         assert module is None
         fallback = quantlib.load_quantlib(prefer_fallback=True)
         with pytest.raises(RuntimeError):
-            getattr(fallback, "SomeClass")
+            fallback.SomeClass
 
 
 def test_eigen_binding_returns_stub_when_missing() -> None:
@@ -26,7 +26,7 @@ def test_eigen_binding_returns_stub_when_missing() -> None:
         assert module is None
         stub = eigen.load_eigen_kernels()
         with pytest.raises(RuntimeError):
-            getattr(stub, "dot")
+            stub.dot
 
 
 def test_require_helpers_raise_meaningful_errors() -> None:

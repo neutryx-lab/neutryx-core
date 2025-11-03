@@ -5,6 +5,7 @@ from jax.scipy.stats import norm
 
 from neutryx.core.autodiff import value_grad_hvp
 
+
 def _d1d2(S, K, T, r, q, sigma):
     vol = jnp.maximum(sigma, 1e-12)
     sqrtT = jnp.sqrt(jnp.maximum(T, 1e-12))

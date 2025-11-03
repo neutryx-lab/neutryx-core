@@ -1,5 +1,6 @@
 # Simple demonstration of LSM for an American put (educational; not production-ready).
-import jax, jax.numpy as jnp
+import jax.numpy as jnp
+
 
 def american_put_lsm(ST_paths, K, r, dt):
     # ST_paths: [paths, steps+1]

@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 from .math import *  # noqa: F401, F403
-from .precision import *  # noqa: F401, F403
 from .parallel import *  # noqa: F401, F403
+from .precision import *  # noqa: F401, F403
 from .registry import *  # noqa: F401, F403
 from .types import *  # noqa: F401, F403
 

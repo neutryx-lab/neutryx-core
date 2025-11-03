@@ -1,6 +1,8 @@
-import jax, jax.numpy as jnp
+import jax
+
 from neutryx.core.engine import MCConfig, simulate_gbm
 from neutryx.valuations.exposure import epe
+
 
 def test_epe_nonnegative():
     key = jax.random.PRNGKey(0)

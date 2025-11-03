@@ -4,7 +4,7 @@ This module provides Monte Carlo simulation, automatic differentiation,
 configuration management, infrastructure, and utility functions.
 """
 
-from . import autodiff, config, infrastructure, monte_carlo, utils
+from . import autodiff, config, infrastructure, utils
 from .engine import (
     Array,
     MCConfig,
@@ -24,10 +24,16 @@ from .grid import (
     log_uniform,
     merge_grids,
     refine_grid,
+)
+from .grid import (
     time_grid as grid_time_grid,
+)
+from .grid import (
     uniform as uniform_grid,
 )
-from .rng import KeySeq, normal as rng_normal, split_key, uniform as rng_uniform
+from .rng import KeySeq, split_key
+from .rng import normal as rng_normal
+from .rng import uniform as rng_uniform
 
 __all__ = [
     "Array",
@@ -47,7 +53,6 @@ __all__ = [
     "mesh_named_sharding",
     "mesh_pjit",
     "mesh_xmap",
-    "monte_carlo",
     "present_value",
     "price_vanilla_jump_diffusion_mc",
     "price_vanilla_mc",

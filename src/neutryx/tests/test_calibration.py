@@ -1,6 +1,5 @@
 """Tests for calibration controllers on synthetic data."""
 
-import jax
 import jax.numpy as jnp
 
 from neutryx.calibration.heston import (

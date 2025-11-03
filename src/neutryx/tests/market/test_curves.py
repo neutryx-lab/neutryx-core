@@ -9,13 +9,14 @@ for path in (SRC, ROOT):
     if str(path) not in sys.path:
         sys.path.insert(0, str(path))
 
-from neutryx.market.curves import BootstrappedCurve, Deposit, FixedRateSwap
 from tests.market.sample_data import (
     DEPOSIT_FIXTURES,
-    SWAP_FIXTURES,
     EXPECTED_DISCOUNT_FACTORS,
     EXPECTED_ZERO_RATES,
+    SWAP_FIXTURES,
 )
+
+from neutryx.market.curves import BootstrappedCurve, Deposit, FixedRateSwap
 
 
 def build_curve():

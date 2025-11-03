@@ -9,16 +9,17 @@ for path in (SRC, ROOT):
     if str(path) not in sys.path:
         sys.path.insert(0, str(path))
 
+from tests.market.sample_data import (
+    IMPLIED_VOL_SURFACE,
+    SABR_SURFACE_DATA,
+    SABR_VALIDATION_POINT,
+)
+
 from neutryx.market.vol import (
     ImpliedVolSurface,
     SABRParameters,
     SABRSurface,
     sabr_implied_vol,
-)
-from tests.market.sample_data import (
-    IMPLIED_VOL_SURFACE,
-    SABR_SURFACE_DATA,
-    SABR_VALIDATION_POINT,
 )
 
 

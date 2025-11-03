@@ -1,6 +1,8 @@
-import jax, jax.numpy as jnp
-from neutryx.core.engine import MCConfig, simulate_gbm, present_value
-from neutryx.products.vanilla import European
+import jax
+import jax.numpy as jnp
+
+from neutryx.core.engine import MCConfig, simulate_gbm
+
 
 def test_mc_vanilla_close_to_bs():
     key = jax.random.PRNGKey(0)

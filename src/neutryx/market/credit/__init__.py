@@ -1,7 +1,7 @@
 """Credit risk models including hazard-rate, structural, and CDS valuation tools."""
 
-from .hazard import HazardRateCurve, calibrate_piecewise_hazard
 from .cds import cds_par_spread, cds_pv
+from .hazard import HazardRateCurve, calibrate_piecewise_hazard
 from .structural import (
     BlackCoxModel,
     MertonModel,

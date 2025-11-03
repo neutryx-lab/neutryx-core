@@ -7,10 +7,10 @@ This module provides the foundational Monte Carlo simulation infrastructure incl
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field, replace
-from functools import lru_cache
 import math
 import pickle
+from dataclasses import dataclass, field, replace
+from functools import lru_cache
 from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, Protocol, Sequence
 
 import jax
@@ -18,11 +18,10 @@ import jax.numpy as jnp
 from jax import device_get
 
 if TYPE_CHECKING:
-    from neutryx.models.workflows import CheckpointManager, ModelWorkflow
-
-from neutryx.core.utils.precision import canonicalize_dtype, get_compute_dtype
+    from neutryx.models.workflows import CheckpointManager
 
 from neutryx.core.utils.parallel import ParallelConfig, ParallelExecutable, compile_parallel
+from neutryx.core.utils.precision import canonicalize_dtype, get_compute_dtype
 
 Array = jnp.ndarray
 
@@ -234,9 +233,11 @@ def simulate_gbm(
     drift, vol, mu_values, sigma_values = _prepare_increments(
         mu, sigma, T, cfg, timeline=timeline
     )
-    base_keys = jax.random.split(key, cfg.base_paths)
+    log_S0 = jnp.log(S0)
 
-    executor = _get_gbm_executor(cfg.steps, cfg.base_paths, dtype.name, cfg.antithetic)
+    executor = _get_gbm_executor(
+        cfg.steps, cfg.base_paths, jnp.dtype(cfg.dtype).name, cfg.antithetic
+    )
     log_paths = executor(key, drift, vol, log_S0)
     paths = jnp.exp(log_paths)
     if not return_full:
@@ -248,7 +249,7 @@ def simulate_gbm(
         "mu": mu_values,
         "sigma": sigma_values,
         "antithetic": cfg.antithetic,
-        "paths": total_paths,
+        "paths": cfg.paths,
         "steps": cfg.steps,
     }
     return MCPaths(values=paths, times=timeline, log_values=log_values, metadata=metadata)
@@ -314,6 +315,7 @@ def simulate_jump_diffusion(
         return paths
 
     log_values = log_paths if store_log else None
+    total_paths = paths.shape[0]
     metadata = {
         "model": "merton_jump_diffusion",
         "mu": float(mu),
@@ -324,7 +326,6 @@ def simulate_jump_diffusion(
         "antithetic": cfg.antithetic,
         "paths": total_paths,
         "steps": cfg.steps,
-        "strategy": executor.strategy,
     }
     return MCPaths(values=paths, times=timeline, log_values=log_values, metadata=metadata)
 

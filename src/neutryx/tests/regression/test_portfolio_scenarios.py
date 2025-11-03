@@ -1,12 +1,11 @@
 import pytest
+from tests.fixtures.sample_portfolios import SAMPLE_PORTFOLIO
 
 from neutryx.portfolio.aggregation import (
     aggregate_sensitivities,
     format_sensitivity_report,
 )
 from neutryx.valuations.scenarios.scenario import Scenario, ScenarioSet, Shock
-
-from tests.fixtures.sample_portfolios import SAMPLE_PORTFOLIO
 
 
 @pytest.fixture

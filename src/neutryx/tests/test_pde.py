@@ -1,14 +1,13 @@
 """Tests for PDE solvers."""
 
 import jax.numpy as jnp
-import pytest
+
+from neutryx.models.bs import price as bs_price
 from neutryx.solver.pde import (
     PDEGrid,
-    price_european_option_pde,
     price_american_put_pde,
-    crank_nicolson_european
+    price_european_option_pde,
 )
-from neutryx.models.bs import price as bs_price
 
 
 def test_pde_grid_properties():

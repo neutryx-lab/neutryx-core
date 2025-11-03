@@ -1,9 +1,8 @@
 import jax
 import jax.numpy as jnp
 
-from neutryx.autodiff import value_grad_hvp
+from neutryx.core.autodiff import value_grad_hvp
 from neutryx.models.bs import price, second_order_greeks
-
 
 jax.config.update("jax_enable_x64", True)
 

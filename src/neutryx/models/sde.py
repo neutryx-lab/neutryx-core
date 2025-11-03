@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 
+
 @dataclass
 class SDE:
     """Base marker for SDEs; implement drift() and diffusion()."""

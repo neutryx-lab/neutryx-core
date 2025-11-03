@@ -12,9 +12,8 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Any, Callable, Iterable, Mapping, Sequence
 
-import numpy as np
-
 import jax
+import numpy as np
 from jax.experimental import pjit as pjit_lib
 from jax.sharding import Mesh, NamedSharding, PartitionSpec
 

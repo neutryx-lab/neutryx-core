@@ -6,9 +6,8 @@ import os
 from dataclasses import dataclass
 from typing import Any, Mapping, MutableMapping, Sequence
 
-import yaml
-
 import jax
+import yaml
 
 from neutryx.core.execution import MeshConfig
 

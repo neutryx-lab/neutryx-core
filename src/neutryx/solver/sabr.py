@@ -1,7 +1,4 @@
 # SABR (Hagan) implied volatility + robust calibration with parameter constraints.
-import jax
-import jax.numpy as jnp
-import optax
 from dataclasses import dataclass
 
 import jax
@@ -9,6 +6,7 @@ import jax.numpy as jnp
 import optax
 
 from ..core.utils.precision import apply_loss_scaling, get_loss_scale, undo_loss_scaling
+
 
 @dataclass
 class SABRParams:

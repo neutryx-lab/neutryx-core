@@ -6,8 +6,8 @@ from typing import Any, Callable, Dict, Iterable, Mapping, Optional
 
 import jax
 import jax.numpy as jnp
-import optax
 import numpy as np
+import optax
 
 jax.config.update("jax_enable_x64", True)
 

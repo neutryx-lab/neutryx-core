@@ -9,8 +9,9 @@ import jax.numpy as jnp
 from jax.scipy.stats import norm
 from scipy.stats import qmc
 
-from ..engine import MCConfig, simulate_gbm
 from neutryx.products.vanilla import European
+
+from ..engine import MCConfig, simulate_gbm
 
 Array = jnp.ndarray
 Payoff = Callable[[Array], Array]

@@ -29,10 +29,9 @@ from typing import Any, Callable, Iterable, Iterator, Optional, Sequence
 import jax
 import jax.numpy as jnp
 import numpy as np
+from jax import tree_util
 from jax.experimental import pjit
 from jax.sharding import Mesh
-from jax import tree_util
-
 
 PyTree = Any
 
