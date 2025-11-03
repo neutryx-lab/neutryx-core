@@ -5,6 +5,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Dict, Iterable, List, Sequence, Tuple, Union
 
+# Type alias for all supported market rate instruments
+MarketInstrument = Union["Deposit", "FRA", "Future", "FixedRateSwap"]
+
 import jax.numpy as jnp
 from jax import Array
 
@@ -97,18 +100,151 @@ class FixedRateSwap:
         return final_time, discount_final
 
 
+@dataclass
+class FRA:
+    """
+    Forward Rate Agreement (FRA) for bootstrapping.
+
+    A FRA is a contract that fixes the interest rate for a future period.
+    For example, a 3x6 FRA fixes the 3-month rate starting in 3 months.
+
+    Attributes:
+        start: Start time of the forward period (in years)
+        end: End time of the forward period (in years)
+        rate: Fixed rate of the FRA (simple rate, not continuously compounded)
+
+    Example:
+        >>> # 3x6 FRA at 5.5%
+        >>> fra = FRA(start=0.25, end=0.5, rate=0.055)
+    """
+
+    start: float
+    end: float
+    rate: float
+
+    def bootstrap(self, curve: "BootstrappedCurve") -> Tuple[float, float]:
+        """
+        Bootstrap discount factor at end time using FRA rate.
+
+        The FRA rate implies:
+        DF(start) / DF(end) = 1 + rate * (end - start)
+
+        Therefore:
+        DF(end) = DF(start) / (1 + rate * (end - start))
+        """
+        if self.start >= self.end:
+            raise ValueError("FRA start must be before end")
+
+        if self.start < 0 or self.end < 0:
+            raise ValueError("FRA times must be non-negative")
+
+        # Get discount factor at start time
+        df_start = curve.node_df(self.start)
+        if df_start is None:
+            raise ValueError(
+                f"Discount factor for {self.start}y must be bootstrapped before the FRA"
+            )
+
+        # Calculate discount factor at end time
+        accrual = self.end - self.start
+        df_end = float(df_start) / (1.0 + self.rate * accrual)
+
+        return self.end, df_end
+
+
+@dataclass
+class Future:
+    """
+    Interest rate future for bootstrapping.
+
+    Interest rate futures are standardized exchange-traded contracts.
+    The future price is quoted as 100 - implied rate (%).
+
+    Attributes:
+        start: Start time of the forward period (in years)
+        end: End time of the forward period (in years)
+        price: Future price (e.g., 94.5 implies 5.5% rate)
+        convexity_adjustment: Adjustment for difference between futures and forwards (default 0.0)
+
+    Example:
+        >>> # 3-month future starting in 0.25 years, price 94.5 (5.5% implied)
+        >>> future = Future(start=0.25, end=0.5, price=94.5, convexity_adjustment=0.0001)
+    """
+
+    start: float
+    end: float
+    price: float
+    convexity_adjustment: float = 0.0
+
+    def bootstrap(self, curve: "BootstrappedCurve") -> Tuple[float, float]:
+        """
+        Bootstrap discount factor at end time using future price.
+
+        The future price implies a rate:
+        implied_rate = (100 - price) / 100
+
+        Adjusting for convexity:
+        forward_rate = implied_rate - convexity_adjustment
+
+        Then apply FRA formula:
+        DF(end) = DF(start) / (1 + forward_rate * (end - start))
+        """
+        if self.start >= self.end:
+            raise ValueError("Future start must be before end")
+
+        if self.start < 0 or self.end < 0:
+            raise ValueError("Future times must be non-negative")
+
+        # Get discount factor at start time
+        df_start = curve.node_df(self.start)
+        if df_start is None:
+            raise ValueError(
+                f"Discount factor for {self.start}y must be bootstrapped before the future"
+            )
+
+        # Extract implied rate from future price
+        # Price = 100 - rate(%), so rate = (100 - price) / 100
+        implied_rate = (100.0 - self.price) / 100.0
+
+        # Apply convexity adjustment
+        # Futures are margined daily, creating convexity bias vs forwards
+        forward_rate = implied_rate - self.convexity_adjustment
+
+        # Calculate discount factor at end time
+        accrual = self.end - self.start
+        df_end = float(df_start) / (1.0 + forward_rate * accrual)
+
+        return self.end, df_end
+
+
 class BootstrappedCurve:
     """
     Piecewise log-linear discount curve built from money-market instruments.
 
     Implements the DiscountCurve protocol with log-linear interpolation between nodes.
 
-    The curve is bootstrapped from deposits and swaps, producing a discount factor
-    at each instrument maturity. Between nodes, log-linear interpolation is used
-    to ensure smooth forward rates.
+    The curve is bootstrapped from deposits, FRAs, futures, and swaps, producing
+    a discount factor at each instrument maturity. Between nodes, log-linear
+    interpolation is used to ensure smooth forward rates.
+
+    Supported instruments:
+        - Deposit: Simple money market deposits
+        - FRA: Forward Rate Agreements
+        - Future: Interest rate futures (e.g., Eurodollar, SOFR futures)
+        - FixedRateSwap: Par swaps for longer maturities
+
+    Example:
+        >>> instruments = [
+        ...     Deposit(maturity=0.25, rate=0.05),
+        ...     FRA(start=0.25, end=0.5, rate=0.052),
+        ...     Future(start=0.5, end=0.75, price=94.7),
+        ...     FixedRateSwap(fixed_rate=0.055, payment_times=[1.0, 2.0], accrual_factors=[1.0, 1.0])
+        ... ]
+        >>> curve = BootstrappedCurve(instruments)
+        >>> curve.df(1.5)  # Get discount factor at 1.5 years
     """
 
-    def __init__(self, instruments: Iterable[Union[Deposit, FixedRateSwap]]):
+    def __init__(self, instruments: Iterable[MarketInstrument]):
         self._nodes: Dict[float, float] = {0.0: 1.0}
         ordered_instruments = sorted(instruments, key=_instrument_maturity)
         for instrument in ordered_instruments:
@@ -117,9 +253,13 @@ class BootstrappedCurve:
 
         self._rebuild_arrays()
 
-    def _bootstrap_instrument(self, instrument: Union[Deposit, FixedRateSwap]) -> Tuple[float, float]:
+    def _bootstrap_instrument(self, instrument: MarketInstrument) -> Tuple[float, float]:
         if isinstance(instrument, Deposit):
             return instrument.bootstrap()
+        if isinstance(instrument, FRA):
+            return instrument.bootstrap(self)
+        if isinstance(instrument, Future):
+            return instrument.bootstrap(self)
         if isinstance(instrument, FixedRateSwap):
             return instrument.bootstrap(self)
         raise TypeError(f"Unsupported instrument type: {type(instrument)!r}")
@@ -198,9 +338,14 @@ class BootstrappedCurve:
         return jnp.where(delta == 0.0, jnp.nan, forward)
 
 
-def _instrument_maturity(instrument: Union[Deposit, FixedRateSwap]) -> float:
+def _instrument_maturity(instrument: MarketInstrument) -> float:
+    """Extract the maturity time from a market instrument."""
     if isinstance(instrument, Deposit):
         return instrument.maturity
+    if isinstance(instrument, FRA):
+        return instrument.end
+    if isinstance(instrument, Future):
+        return instrument.end
     if isinstance(instrument, FixedRateSwap):
         return instrument.payment_times[-1]
     raise TypeError(f"Unsupported instrument type: {type(instrument)!r}")
