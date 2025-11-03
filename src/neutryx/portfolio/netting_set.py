@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, model_validator
 
 
 class NettingSet(BaseModel):
@@ -45,13 +45,12 @@ class NettingSet(BaseModel):
     is_cleared: bool = False
     clearinghouse_id: Optional[str] = None
 
-    @field_validator("clearinghouse_id")
-    @classmethod
-    def validate_clearinghouse(cls, v: Optional[str], info) -> Optional[str]:
+    @model_validator(mode="after")
+    def validate_clearinghouse(self) -> "NettingSet":
         """Validate that clearinghouse_id is set if is_cleared is True."""
-        if info.data.get("is_cleared", False) and v is None:
+        if self.is_cleared and self.clearinghouse_id is None:
             raise ValueError("clearinghouse_id must be set when is_cleared=True")
-        return v
+        return self
 
     def __repr__(self) -> str:
         """String representation."""
