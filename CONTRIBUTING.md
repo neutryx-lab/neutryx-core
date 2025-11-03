@@ -50,12 +50,8 @@ This project adheres to a Code of Conduct that all contributors are expected to 
 python -m venv .venv
 source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 
-# Install dependencies
-pip install -r requirements.txt
-pip install -r requirements-dev.txt
-
-# Install in editable mode
-pip install -e .
+# Install dependencies (includes dev tools)
+pip install -e ".[dev]"
 
 # Verify installation
 pytest -q

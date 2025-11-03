@@ -24,8 +24,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt -r requirements-dev.txt
-          pip install -e .
+          pip install -e ".[dev]"
 
       - name: Run unit tests
         run: |
@@ -60,8 +59,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt -r requirements-dev.txt
-          pip install -e .
+          pip install -e ".[dev]"
 
       - name: Run regression tests
         run: |
@@ -86,8 +84,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt -r requirements-dev.txt
-          pip install -e .
+          pip install -e ".[dev]"
 
       - name: Run benchmarks
         run: PYTHONPATH=$PWD:$PYTHONPATH pytest src/neutryx/tests/performance --benchmark-only --benchmark-json=benchmark-results.json
@@ -114,8 +111,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt -r requirements-dev.txt
-          pip install -e .
+          pip install -e ".[dev]"
 
       - name: Dependency vulnerability scan
         run: pip-audit

@@ -27,6 +27,12 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+dev = [
+  "pytest-benchmark>=4.0.0",
+  "pip-audit>=2.6.1",
+  "bandit>=1.7.7",
+  "jupyterlab>=4.4.8",
+]
 quantlib = ["QuantLib>=1.29"]
 eigen = ["pybind11>=2.11"]
 native = ["QuantLib>=1.29", "pybind11>=2.11"]
