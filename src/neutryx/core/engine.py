@@ -10,7 +10,7 @@ from __future__ import annotations
 import math
 import pickle
 from dataclasses import dataclass, field, replace
-from functools import lru_cache
+from functools import lru_cache, partial
 from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, Protocol, Sequence
 
 import jax
@@ -330,7 +330,7 @@ def simulate_jump_diffusion(
     return MCPaths(values=paths, times=timeline, log_values=log_values, metadata=metadata)
 
 
-@jax.jit
+@partial(jax.jit, static_argnames=["dtype"])
 def discount_factor(r: float, t: float | Array, *, dtype: Any = None) -> Array:
     """Return discount factor(s) e^{-r t}."""
     comp_dtype = canonicalize_dtype(dtype) if dtype is not None else None
