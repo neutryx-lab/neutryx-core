@@ -477,7 +477,9 @@ def simulate_gbm_resumable(
         assert checkpoint_manager is not None
         path = checkpoint_manager.directory / filename
         with path.open("rb") as fh:
-            return pickle.load(fh)
+            # nosec B301: Loading trusted checkpoint files written by this application
+            # Users should ensure checkpoint_manager.directory is properly secured
+            return pickle.load(fh)  # nosec B301
 
     def _assemble(chunks: Sequence[Dict[str, Any]]) -> Array | MCPaths:
         if not chunks:

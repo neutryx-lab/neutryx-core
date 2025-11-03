@@ -59,7 +59,9 @@ class CheckpointManager:
         if not path.exists():
             return None
         with path.open("rb") as fh:
-            payload = pickle.load(fh)
+            # nosec B301: Loading trusted workflow state files written by this application
+            # Users should ensure the checkpoint directory is properly secured
+            payload = pickle.load(fh)  # nosec B301
         return int(payload["step"]), copy.deepcopy(payload["state"])
 
     def mark_complete(self) -> None:
