@@ -21,12 +21,14 @@ dist/
 htmlcov/
 coverage.xml
 *.cover
+.benchmarks/
 
 # Development
 .ipynb_checkpoints/
 .prof/
 .hlo/
 *.prof
+.ruff_cache/
 
 # Local demo data
 demos/data/
@@ -40,8 +42,9 @@ dev/profiling/xla_hlo_dumps/
 site/
 
 # IDE
-.vscode/settings.json
+.vscode/
 .idea/
+.claude/
 *.swp
 *.swo
 *~

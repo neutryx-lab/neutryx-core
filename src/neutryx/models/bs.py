@@ -1,3 +1,4 @@
+from functools import partial
 from typing import Dict, Literal, Tuple
 
 import jax
@@ -15,7 +16,7 @@ def _d1d2(S, K, T, r, q, sigma):
     d2 = d1 - vol * sqrtT
     return d1, d2
 
-@jax.jit
+@partial(jax.jit, static_argnames=["kind"])
 def price(S: float, K: float, T: float, r: float, q: float, sigma: float, kind: Literal["call","put"]="call") -> float:
     d1, d2 = _d1d2(S, K, T, r, q, sigma)
     if kind == "call":
@@ -56,7 +57,7 @@ def second_order_greeks(S: float, K: float, T: float, r: float, q: float, sigma:
         "vomma": float(column_sigma[1]),
     }
 
-@jax.jit
+@partial(jax.jit, static_argnames=["kind"])
 def implied_vol(S, K, T, r, q, price_target, kind="call", tol=1e-8, max_iter=100):
     """Calculate implied volatility using bisection method with JAX while_loop."""
 

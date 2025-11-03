@@ -1,0 +1,269 @@
+================================================================================
+CODE DUPLICATION ANALYSIS SUMMARY
+neutryx-core/src/neutryx/models
+================================================================================
+
+ANALYSIS SCOPE:
+- 12 model files: bs.py, heston_cf.py, jump_diffusion.py, kou.py, 
+  variance_gamma.py, rough_vol.py, vasicek.py, cir.py, hull_white.py, 
+  sde.py, workflows.py
+- Focus: Cross-file duplication patterns
+
+================================================================================
+TOP 5 DUPLICATION HOTSPOTS (by impact)
+================================================================================
+
+1. OPTION PAYOFF COMPUTATION (8+ occurrences, 4+ files)
+   -----------------------------------------------
+   Pattern: if-elif-else for call/put payoff calculation
+   
+   Files: bs.py, jump_diffusion.py, kou.py, variance_gamma.py, rough_vol.py
+   
+   Example from kou.py:179-184:
+   ```
+   if kind == "call":
+       payoffs = jnp.maximum(ST - K, 0.0)
+   elif kind == "put":
+       payoffs = jnp.maximum(K - ST, 0.0)
+   else:
+       raise ValueError(f"Unknown option kind: {kind}")
+   ```
+   
+   Also appears identically in: variance_gamma.py:154-159
+   
+   EXTRACTION: Create utility function compute_payoff(S, K, kind)
+   BENEFIT: Reduce 8 code blocks to 1 function
+
+
+2. DISCOUNT FACTOR / PRESENT VALUE (4+ occurrences)
+   -----------------------------------------------
+   Pattern: jnp.exp(-r * T) applied to payoffs
+   
+   Files: bs.py, jump_diffusion.py, kou.py, variance_gamma.py, rough_vol.py
+   
+   Examples:
+   - variance_gamma.py:161: discount = jnp.exp(-r * T)
+                             return float((discount * payoffs).mean())
+   - kou.py:186: discount = jnp.exp(-r * T)
+                 return float((discount * payoffs).mean())
+   - rough_vol.py:204-205: discount = jnp.exp(-r * T)
+                            return discount * payoff.mean(axis=0)
+   
+   EXTRACTION: Create utility function discount_payoff(payoffs, r, T)
+   BENEFIT: Standardize pricing formula, ensure consistency
+
+
+3. SIMULATE_PATHS() PATTERN (3 identical implementations)
+   -----------------------------------------------
+   Pattern: Generic vmap over n_paths using single-path simulator
+   
+   Files: vasicek.py:200-235, cir.py:249-289, hull_white.py:216-251
+   
+   All three follow identical structure:
+   ```
+   keys = jax.random.split(key, n_paths)
+   def sim_single_path(k):
+       return simulate_path(params, T, n_steps, k, method=method)
+   return jax.vmap(sim_single_path)(keys)
+   ```
+   
+   EXTRACTION: Create generic_vmap_simulate_paths(fn, key, n_paths)
+   BENEFIT: Eliminate 3 duplicate function definitions
+
+
+4. LOG-NORMAL PATH CONSTRUCTION (3 occurrences)
+   -----------------------------------------------
+   Pattern: log-transform initial price, cumsum increments, rebuild prices
+   
+   Files: variance_gamma.py:94-100, kou.py:113-120, rough_vol.py:149-154
+   
+   Example from variance_gamma.py:94-100:
+   ```
+   log_S0 = jnp.log(jnp.asarray(S0, dtype=dtype))
+   total_paths = increments.shape[0]
+   cum_returns = jnp.cumsum(increments, axis=1)
+   log_paths = jnp.concatenate(
+       [jnp.full((total_paths, 1), log_S0, dtype=dtype), log_S0 + cum_returns],
+       axis=1,
+   )
+   return jnp.exp(log_paths)
+   ```
+   
+   Identical code in kou.py:113-120
+   Similar in rough_vol.py:149-154 (with minor dtype handling differences)
+   
+   EXTRACTION: Create build_log_paths(S0, increments, dtype)
+   BENEFIT: Reduce 7-line block to 1 function call
+
+
+5. INITIAL VALUE PREPENDING (3 identical, simpler patterns)
+   -----------------------------------------------
+   Pattern: Concatenate initial value to start of path array
+   
+   Files: vasicek.py:197, cir.py:246, hull_white.py:213
+   
+   All three: return jnp.concatenate([jnp.array([r0]), r_path])
+   
+   EXTRACTION: Create prepend_initial_value(initial, path, dtype=None)
+   BENEFIT: Reduce 3 nearly identical lines; improve readability
+
+
+================================================================================
+MEDIUM PRIORITY DUPLICATIONS (2-3 occurrences)
+================================================================================
+
+6. PARAMETER VALIDATION (5+ checks across 3 files)
+   -----------------------------------------------
+   Files: vasicek.py:51-56, cir.py:53-62, hull_white.py:53-58
+   
+   Pattern: Repetitive if-checks for positive parameters
+   
+   EXTRACTION: Create validate_positive_param(name, value, min_val=0)
+   BENEFIT: Consolidate 15+ lines of validation code
+
+
+7. YIELD CURVE COMPUTATION (2 identical implementations)
+   -----------------------------------------------
+   Files: vasicek.py:120-124, cir.py:145-149
+   
+   Identical code:
+   ```
+   def yield_curve(params, maturities):
+       def yield_at_maturity(T):
+           P_T = zero_coupon_bond_price(params, T)
+           return -jnp.log(P_T) / T
+       return jax.vmap(yield_at_maturity)(maturities)
+   ```
+   
+   EXTRACTION: Create generic_yield_curve(bond_price_fn, maturities)
+   BENEFIT: Single implementation for all bond models
+
+
+8. BOND PRICING FORMULAS (3 model-specific variations)
+   -----------------------------------------------
+   Files: vasicek.py:88-99, cir.py:105-127, hull_white.py:91-114
+   
+   Each model has unique formula but similar structure:
+   - Extract A(T) and B(T) components
+   - Return A(T) * exp(-B(T) * r0)
+   
+   EXTRACTION: Model-specific subclasses or parameterized formula
+   BENEFIT: Clarify model-specific vs. generic pricing logic
+
+
+================================================================================
+LOWER PRIORITY (Specialized but repetitive)
+================================================================================
+
+9. SAFE SQUARE ROOT WITH CLIPPING (4+ occurrences)
+   Pattern: jnp.sqrt(jnp.maximum(x, min_val))
+   Files: bs.py:10-11, jump_diffusion.py:76, cir.py:216, rough_vol.py:142
+   EXTRACTION: safe_sqrt(x, min_val=1e-12)
+   BENEFIT: Consistency in numerical stability
+
+
+10. RANDOM KEY SPLITTING (3+ variations)
+    Pattern: Structured key management for multiple RNG streams
+    Files: kou.py:76-77, variance_gamma.py:68-69, rough_vol.py:112
+    EXTRACTION: Structured utilities for key management
+    BENEFIT: Cleaner RNG initialization
+
+
+================================================================================
+CONCRETE EXAMPLES OF IDENTICAL CODE BLOCKS
+================================================================================
+
+BLOCK 1: Simulation Multiple Paths (3 copies)
+Files: vasicek.py:200-235, cir.py:249-289, hull_white.py:216-251
+
+def simulate_paths(params, T, n_steps, n_paths, key, method="exact"):
+    keys = jax.random.split(key, n_paths)
+    def sim_single_path(k):
+        return simulate_path(params, T, n_steps, k, method=method)
+    return jax.vmap(sim_single_path)(keys)
+
+BLOCK 2: Call/Put Payoff (2+ copies, identical)
+Files: kou.py:179-184, variance_gamma.py:154-159
+
+if kind == "call":
+    payoffs = jnp.maximum(ST - K, 0.0)
+elif kind == "put":
+    payoffs = jnp.maximum(K - ST, 0.0)
+else:
+    raise ValueError(f"Unknown option kind: {kind}")
+
+BLOCK 3: Log-Paths from Increments (2 copies)
+Files: variance_gamma.py:94-100, kou.py:113-120
+
+log_S0 = jnp.log(jnp.asarray(S0, dtype=dtype))
+total_paths = increments.shape[0]
+cum_returns = jnp.cumsum(increments, axis=1)
+log_paths = jnp.concatenate(
+    [jnp.full((total_paths, 1), log_S0, dtype=dtype), log_S0 + cum_returns],
+    axis=1,
+)
+return jnp.exp(log_paths)
+
+BLOCK 4: Initial Value Prepending (3 copies)
+Files: vasicek.py:197, cir.py:246, hull_white.py:213
+
+return jnp.concatenate([jnp.array([r0]), r_path])
+
+BLOCK 5: Discount & Average Payoff (2+ copies)
+Files: variance_gamma.py:161, kou.py:186
+
+discount = jnp.exp(-r * T)
+return float((discount * payoffs).mean())
+
+
+================================================================================
+IMPACT ASSESSMENT TABLE
+================================================================================
+
+Utility                  | Files | Copies | LOC   | Priority | Effort
+-------------------------+-------+--------+-------+----------+--------
+compute_payoff()         |   4+  |   8+   |   6   | HIGH     | LOW
+discount_payoff()        |   4+  |   4+   |   2   | HIGH     | LOW
+generic_vmap_sim()       |   3   |   3    |   6   | HIGH     | LOW
+build_log_paths()        |   3   |   3    |   7   | HIGH     | LOW
+prepend_initial_value()  |   3   |   3    |   1   | HIGH     | LOW
+validate_positive()      |   3   |   5+   |   3   | MEDIUM   | LOW
+generic_yield_curve()    |   2   |   2    |   5   | MEDIUM   | LOW
+safe_sqrt()              |   4+  |   4+   |   1   | MEDIUM   | LOW
+bond_pricing_templates   |   3   |   3    |  15   | MEDIUM   | MEDIUM
+unified_calibration()    |   2   |   2    |  50   | LOW      | HIGH
+
+
+TOTAL DUPLICATION ESTIMATE: 50-60 LOC of identical/near-identical code
+MAXIMUM CONSOLIDATION POTENTIAL: 20-25 LOC in utilities (with extraction)
+
+
+================================================================================
+RECOMMENDED EXTRACTION ORDER (Phase 1 - High Impact)
+================================================================================
+
+1. compute_payoff(spot, strike, kind="call") -> Array
+   Location: Create neutryx/core/math/payoffs.py
+   Impact: Replaces 8 code blocks
+
+2. discount_payoff(payoffs, rate, maturity) -> float | Array
+   Location: Same module as compute_payoff
+   Impact: Replaces 4+ pricing calculations
+
+3. build_log_paths(S0, increments, dtype) -> prices
+   Location: neutryx/core/engine/simulation.py (or new)
+   Impact: Replaces 3 identical blocks
+
+4. prepend_initial_value(initial, path, dtype=None)
+   Location: Same simulation utilities module
+   Impact: Replaces 3 identical lines
+
+5. safe_sqrt(x, min_val=1e-12)
+   Location: neutryx/core/math/numerics.py
+   Impact: Improves robustness, reduces repetition
+
+6. generic_vmap_simulate_paths(simulate_fn, key, n_paths)
+   Location: neutryx/core/engine/simulation.py
+   Impact: Replaces 3 identical function definitions
+
+================================================================================
