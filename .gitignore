@@ -15,6 +15,7 @@ dist/
 .hlo/
 # Ignore local example data
 demos/data/
+demos/outputs/
 # Large profiling dumps (local only)
 dev/profiling/flamegraphs/
 dev/profiling/xla_hlo_dumps/

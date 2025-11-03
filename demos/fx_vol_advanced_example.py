@@ -11,6 +11,7 @@ This example demonstrates the advanced features:
 
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
+from pathlib import Path
 
 from neutryx.market.fx import (
     FXVolatilityQuote,
@@ -20,6 +21,10 @@ from neutryx.market.fx import (
     vanna_volga_weights,
 )
 from neutryx.market.market_data import get_market_data_source
+
+# Create outputs directory
+OUTPUT_DIR = Path(__file__).parent / "outputs"
+OUTPUT_DIR.mkdir(exist_ok=True)
 
 
 def example_multi_delta_pillars():
@@ -149,8 +154,9 @@ def example_interpolation_comparison():
     ax2.grid(True, alpha=0.3)
 
     plt.tight_layout()
-    plt.savefig('fx_vol_interpolation_comparison.png', dpi=150)
-    print("\n✓ Saved plot to: fx_vol_interpolation_comparison.png")
+    output_file = OUTPUT_DIR / 'fx_vol_interpolation_comparison.png'
+    plt.savefig(output_file, dpi=150)
+    print(f"\n✓ Saved plot to: {output_file}")
 
     print("\n" + "=" * 70)
 
@@ -349,8 +355,9 @@ def example_end_to_end_workflow():
         ax.grid(True, alpha=0.3)
 
     plt.tight_layout()
-    plt.savefig('fx_vol_end_to_end.png', dpi=150)
-    print("\n  ✓ Saved plot to: fx_vol_end_to_end.png")
+    output_file = OUTPUT_DIR / 'fx_vol_end_to_end.png'
+    plt.savefig(output_file, dpi=150)
+    print(f"\n  ✓ Saved plot to: {output_file}")
 
     print("\n" + "=" * 70)
     print("✓ End-to-end workflow completed successfully!")

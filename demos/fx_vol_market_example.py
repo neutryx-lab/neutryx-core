@@ -12,12 +12,17 @@ Market quotes are the standard way FX options are quoted:
 
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
+from pathlib import Path
 
 from neutryx.market.fx import (
     FXVolatilityQuote,
     FXVolatilitySurfaceBuilder,
     build_smile_from_market_quote,
 )
+
+# Create outputs directory
+OUTPUT_DIR = Path(__file__).parent / "outputs"
+OUTPUT_DIR.mkdir(exist_ok=True)
 
 
 def example_single_tenor():
@@ -63,8 +68,9 @@ def example_single_tenor():
     plt.legend()
     plt.grid(True, alpha=0.3)
     plt.tight_layout()
-    plt.savefig('fx_vol_smile_single.png', dpi=150)
-    print("\n✓ Saved plot to: fx_vol_smile_single.png")
+    output_file = OUTPUT_DIR / 'fx_vol_smile_single.png'
+    plt.savefig(output_file, dpi=150)
+    print(f"\n✓ Saved plot to: {output_file}")
 
 
 def example_multi_tenor_surface():
@@ -186,8 +192,9 @@ def example_multi_tenor_surface():
     ax2.grid(True, alpha=0.3)
 
     plt.tight_layout()
-    plt.savefig('fx_vol_surface.png', dpi=150)
-    print("\n✓ Saved plot to: fx_vol_surface.png")
+    output_file = OUTPUT_DIR / 'fx_vol_surface.png'
+    plt.savefig(output_file, dpi=150)
+    print(f"\n✓ Saved plot to: {output_file}")
 
     # 3D surface plot
     fig = plt.figure(figsize=(12, 8))
@@ -205,8 +212,9 @@ def example_multi_tenor_surface():
     fig.colorbar(surf, shrink=0.5)
 
     plt.tight_layout()
-    plt.savefig('fx_vol_surface_3d.png', dpi=150)
-    print("✓ Saved plot to: fx_vol_surface_3d.png")
+    output_file = OUTPUT_DIR / 'fx_vol_surface_3d.png'
+    plt.savefig(output_file, dpi=150)
+    print(f"✓ Saved plot to: {output_file}")
 
 
 def example_market_conventions():
