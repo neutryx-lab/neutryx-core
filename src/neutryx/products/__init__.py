@@ -14,6 +14,7 @@ from .fx_options import (
 from .lookback import LookbackFloatStrikeCall
 from .vanilla import European
 from . import basket
+from . import bonds
 from . import digital
 
 PAYOFF_CATALOGUE = {
@@ -41,5 +42,6 @@ __all__ = [
     "fx_theta",
     # Modules
     "basket",
+    "bonds",
     "digital",
 ]
