@@ -256,9 +256,21 @@ Practical example: Building USD SOFR curve using:
             f"Convexity={convexity*10000:.1f}bps, Forward={forward_rate*100:.2f}%"
         )
 
-    # OIS swaps for long end
+    # OIS swaps for intermediate and long end
     print("\n  OIS Swaps:")
     ois_swaps = [
+        OIS(
+            fixed_rate=0.0555,
+            payment_times=[1.0],
+            accrual_factors=[1.0],
+            compounding="compound",
+        ),  # 1Y
+        OIS(
+            fixed_rate=0.0557,
+            payment_times=[1.0, 2.0],
+            accrual_factors=[1.0, 1.0],
+            compounding="compound",
+        ),  # 2Y
         OIS(
             fixed_rate=0.0560,
             payment_times=[1.0, 2.0, 3.0],
