@@ -8,7 +8,7 @@ from neutryx.core.engine import MCConfig, price_vanilla_mc, simulate_gbm, time_g
 def test_simulate_gbm_time_dependent_coefficients():
     """Deterministic schedule with zero volatility should match analytic path."""
 
-    cfg = MCConfig(steps=4, paths=1, dtype=jnp.float64)
+    cfg = MCConfig(steps=4, paths=1, dtype="float32")
     T = 1.0
     S0 = 100.0
 
@@ -19,7 +19,7 @@ def test_simulate_gbm_time_dependent_coefficients():
     key = jax.random.PRNGKey(0)
     paths = simulate_gbm(key, S0, mu_schedule, sigma, T, cfg, return_full=True)
 
-    timeline = time_grid(T, cfg.steps, dtype=jnp.float64)
+    timeline = time_grid(T, cfg.steps, dtype="float32")
     midpoints = 0.5 * (timeline[:-1] + timeline[1:])
     expected_ST = S0 * jnp.exp(jnp.sum(mu_schedule(midpoints) * (T / cfg.steps)))
 
@@ -29,7 +29,7 @@ def test_simulate_gbm_time_dependent_coefficients():
 def test_price_vanilla_mc_time_dependent_rates():
     """Pricing with time-dependent rates should respect deterministic evolution."""
 
-    cfg = MCConfig(steps=5, paths=32, dtype=jnp.float64)
+    cfg = MCConfig(steps=5, paths=32, dtype="float32")
     T = 1.0
     S0, K = 100.0, 90.0
 
@@ -44,7 +44,7 @@ def test_price_vanilla_mc_time_dependent_rates():
 
     price = price_vanilla_mc(key, S0, K, T, r_schedule, q_schedule, sigma, cfg)
 
-    timeline = time_grid(T, cfg.steps, dtype=jnp.float64)
+    timeline = time_grid(T, cfg.steps, dtype="float32")
     midpoints = 0.5 * (timeline[:-1] + timeline[1:])
     drift = r_schedule(midpoints) - q_schedule(midpoints)
     ST = S0 * jnp.exp(jnp.sum(drift * (T / cfg.steps)))

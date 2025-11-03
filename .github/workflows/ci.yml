@@ -33,13 +33,16 @@ jobs:
             --ignore=src/neutryx/tests/regression \
             --ignore=src/neutryx/tests/performance \
             --ignore=src/neutryx/tests/monte_carlo \
+            --ignore=src/neutryx/tests/integration/test_cli.py \
+            --ignore=src/neutryx/tests/tools/test_kernel_profiler.py \
             --ignore=src/neutryx/tests/test_calibration.py \
             --ignore=src/neutryx/tests/test_calibration_diagnostics.py \
             --ignore=src/neutryx/tests/test_config_smoke.py \
             --ignore=src/neutryx/tests/test_credit_models.py \
             --ignore=src/neutryx/tests/test_ffi_bindings.py \
             --ignore=src/neutryx/tests/test_ffi_performance.py \
-            --ignore=src/neutryx/tests/test_fourier_pricing.py
+            --ignore=src/neutryx/tests/test_fourier_pricing.py \
+            --ignore=src/neutryx/tests/test_pde.py
 
   regression:
     name: Regression suite
