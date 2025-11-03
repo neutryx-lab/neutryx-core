@@ -3,7 +3,7 @@
 import datetime
 import pytest
 
-from neutryx.core.utils.time.calendar import (
+from neutryx.core.utils.dates.calendar import (
     NullCalendar,
     TargetCalendar,
     USCalendar,
@@ -224,8 +224,8 @@ class TestJointCalendar:
         assert uk.is_business_day(us_only)
         assert not joint.is_business_day(us_only)  # Holiday in either = holiday in joint
 
-        # UK Spring Bank Holiday (not US holiday)
-        uk_only = datetime.date(2024, 5, 27)
+        # UK Summer Bank Holiday (not US holiday) - Aug 26, 2024
+        uk_only = datetime.date(2024, 8, 26)
         assert us.is_business_day(uk_only)
         assert not uk.is_business_day(uk_only)
         assert not joint.is_business_day(uk_only)

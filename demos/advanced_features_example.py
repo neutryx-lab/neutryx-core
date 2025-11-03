@@ -227,9 +227,22 @@ Practical example: Building USD SOFR curve using:
     futures_prices = [94.70, 94.60, 94.50, 94.40, 94.35, 94.30, 94.25, 94.20]
     futures = []
 
-    for i, (code, imm_date, t_end) in enumerate(futures_schedule):
+    # Skip first IMM date if it's before 3M deposit end
+    start_idx = 0
+    deposit_3m_end = 0.25
+    while start_idx < len(futures_schedule) and futures_schedule[start_idx][2] < deposit_3m_end:
+        start_idx += 1
+
+    for i in range(start_idx, len(futures_schedule)):
+        code, imm_date, t_end = futures_schedule[i]
         price = futures_prices[i]
-        t_start = futures_schedule[i - 1][2] if i > 0 else 0.25
+
+        # Start from previous IMM date or 3M deposit end
+        if i > start_idx:
+            t_start = futures_schedule[i - 1][2]
+        else:
+            t_start = deposit_3m_end
+
         convexity = 0.0001 * (i + 1)  # Convexity increases with maturity
 
         futures.append(

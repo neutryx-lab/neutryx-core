@@ -9,13 +9,13 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import List, Optional
 
-from neutryx.core.utils.time.business_day import (
+from neutryx.core.utils.dates.business_day import (
     BusinessDayConvention,
     MODIFIED_FOLLOWING,
 )
-from neutryx.core.utils.time.calendar import Calendar, NullCalendar
-from neutryx.core.utils.time.date_utils import add_months, DateLike
-from neutryx.core.utils.time.day_count import DayCountConvention, ACT_360
+from neutryx.core.utils.dates.calendar import Calendar, NullCalendar
+from neutryx.core.utils.dates.date_utils import add_months, DateLike
+from neutryx.core.utils.dates.day_count import DayCountConvention, ACT_360
 
 
 class Frequency(Enum):

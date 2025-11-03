@@ -101,7 +101,7 @@ class TestIMMCodes:
 
     def test_imm_code_invalid_month(self):
         """Test that non-IMM month raises ValueError."""
-        with pytest.raises(ValueError, match="Date 2025-01-15 is not an IMM date"):
+        with pytest.raises(ValueError, match="Date 2025-01-15 is not in an IMM month"):
             get_imm_code(date(2025, 1, 15))
 
     def test_parse_imm_code_2025(self):
@@ -126,16 +126,16 @@ class TestIMMCodes:
 
     def test_parse_invalid_code_format(self):
         """Test that invalid code formats raise ValueError."""
-        with pytest.raises(ValueError, match="Invalid IMM code format"):
+        with pytest.raises(ValueError, match="Invalid month code|IMM code must be 2 characters"):
             parse_imm_code("XX")
-        with pytest.raises(ValueError, match="Invalid IMM code format"):
+        with pytest.raises(ValueError, match="IMM code must be 2 characters"):
             parse_imm_code("H")
-        with pytest.raises(ValueError, match="Invalid IMM code format"):
+        with pytest.raises(ValueError, match="IMM code must be 2 characters"):
             parse_imm_code("123")
 
     def test_parse_invalid_month_code(self):
         """Test that invalid month codes raise ValueError."""
-        with pytest.raises(ValueError, match="Invalid IMM month code"):
+        with pytest.raises(ValueError, match="Invalid month code"):
             parse_imm_code("X5")
 
     def test_roundtrip_conversion(self):

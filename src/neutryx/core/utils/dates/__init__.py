@@ -10,7 +10,7 @@ instrument pricing, including:
 - Date adjustment utilities
 """
 
-from neutryx.core.utils.time.calendar import (
+from neutryx.core.utils.dates.calendar import (
     Calendar,
     HolidayCalendar,
     NullCalendar,
@@ -20,7 +20,7 @@ from neutryx.core.utils.time.calendar import (
     JPCalendar,
     JointCalendar,
 )
-from neutryx.core.utils.time.business_day import (
+from neutryx.core.utils.dates.business_day import (
     BusinessDayConvention,
     Following,
     ModifiedFollowing,
@@ -28,7 +28,7 @@ from neutryx.core.utils.time.business_day import (
     ModifiedPreceding,
     Unadjusted,
 )
-from neutryx.core.utils.time.day_count import (
+from neutryx.core.utils.dates.day_count import (
     DayCountConvention,
     Actual360,
     Actual365Fixed,
@@ -38,7 +38,7 @@ from neutryx.core.utils.time.day_count import (
     ActualActualISDA,
     ActualActualICMA,
 )
-from neutryx.core.utils.time.date_utils import (
+from neutryx.core.utils.dates.date_utils import (
     is_weekend,
     is_leap_year,
     days_in_month,
@@ -49,7 +49,7 @@ from neutryx.core.utils.time.date_utils import (
     date_to_serial,
     serial_to_date,
 )
-from neutryx.core.utils.time.schedule import (
+from neutryx.core.utils.dates.schedule import (
     Schedule,
     generate_schedule,
     Frequency,

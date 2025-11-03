@@ -8,7 +8,7 @@ import datetime
 from abc import ABC, abstractmethod
 from typing import Union
 
-from neutryx.core.utils.time.date_utils import (
+from neutryx.core.utils.dates.date_utils import (
     date_diff_days,
     days_in_year,
     is_leap_year,

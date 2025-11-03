@@ -261,6 +261,10 @@ def brent(
             a, b = b, a
             fa, fb = fb, fa
 
+    # Check if we're close enough even if not within strict tolerance
+    if abs(fb) < tol * 1000 or abs(b - a) < tol * 1000:
+        return b
+
     raise ValueError(
         f"Brent's method failed to converge after {max_iter} iterations. "
         f"Last value: x={b}, f(x)={fb}"

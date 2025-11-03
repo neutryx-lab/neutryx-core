@@ -515,7 +515,22 @@ def get_next_imm_date(ref_date: date, num_imm: int = 1) -> date:
     current_month = ref_date.month
     current_year = ref_date.year
 
-    count = 0
+    # Check if current month is an IMM month and if we're before the IMM date
+    if is_imm_month(current_month):
+        imm_date_this_month = get_imm_date(current_year, current_month)
+        if imm_date_this_month > ref_date:
+            # Use this month's IMM date as starting point
+            if num_imm == 1:
+                return imm_date_this_month
+            # Otherwise continue from this month for subsequent IMM dates
+            current_month = current_month
+            count = 1
+        else:
+            # Past this month's IMM date, start from next IMM month
+            count = 0
+    else:
+        count = 0
+
     while count < num_imm:
         # Find next IMM month
         next_imm_months = [m for m in imm_months if m > current_month]
@@ -662,13 +677,13 @@ def get_imm_dates_between(start_date: date, end_date: date) -> list[date]:
         raise ValueError("end_date must be >= start_date")
 
     imm_dates = []
-    current_date = start_date
 
     # Find first IMM date at or after start_date
-    first_imm = get_next_imm_date(current_date - timedelta(days=1), num_imm=1)
+    # Subtract 1 day so that if start_date is an IMM date, it will be included
+    first_imm = get_next_imm_date(start_date - timedelta(days=1), num_imm=1)
 
     current_imm = first_imm
-    while current_imm <= end_date:
+    while current_imm < end_date:  # Changed from <= to < to exclude end_date
         imm_dates.append(current_imm)
         # Get next IMM date
         current_imm = get_next_imm_date(current_imm, num_imm=1)

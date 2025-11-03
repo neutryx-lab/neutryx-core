@@ -8,10 +8,10 @@ import datetime
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING
 
-from neutryx.core.utils.time.date_utils import DateLike
+from neutryx.core.utils.dates.date_utils import DateLike
 
 if TYPE_CHECKING:
-    from neutryx.core.utils.time.calendar import Calendar
+    from neutryx.core.utils.dates.calendar import Calendar
 
 
 class BusinessDayConvention(ABC):

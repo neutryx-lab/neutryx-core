@@ -3,7 +3,7 @@
 import datetime
 import pytest
 
-from neutryx.core.utils.time.business_day import (
+from neutryx.core.utils.dates.business_day import (
     Unadjusted,
     Following,
     Preceding,
@@ -11,7 +11,7 @@ from neutryx.core.utils.time.business_day import (
     ModifiedPreceding,
     Nearest,
 )
-from neutryx.core.utils.time.calendar import NullCalendar, USCalendar
+from neutryx.core.utils.dates.calendar import NullCalendar, USCalendar
 
 
 class TestUnadjusted:
