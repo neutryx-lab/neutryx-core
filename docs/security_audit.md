@@ -145,7 +145,7 @@ If you discover a security vulnerability in Neutryx Core, please report it respo
 
 ### Open Source License
 
-Neutryx Core is licensed under the MIT License. See [LICENSE](../LICENSE) for details.
+Neutryx Core is licensed under the MIT License. See the LICENSE file in the repository root for details.
 
 ### Data Privacy
 

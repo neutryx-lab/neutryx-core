@@ -302,7 +302,7 @@ Features are prioritized based on:
 
 Want to help build these features?
 
-1. Check [CONTRIBUTING.md](../CONTRIBUTING.md) for guidelines
+1. Check the contributing guidelines in the repository for contribution instructions
 2. Look for issues tagged with `help-wanted` or `good-first-issue`
 3. Propose new features in GitHub Discussions
 4. Join our community calls (quarterly)
