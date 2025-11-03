@@ -1,7 +1,7 @@
 import numpy as np
 
 from neutryx.models.bs import price as bs_price
-from neutryx.pricing import (
+from neutryx.engines import (
     BlackScholesCharacteristicModel,
     carr_madan_fft,
     cos_method,

@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 
 from neutryx.models import bs
-from neutryx.pricing.tree import BinomialModel, price_binomial
+from neutryx.engines.tree import BinomialModel, price_binomial
 
 
 def _vanilla_payoff(K: float, *, is_call: bool):

@@ -26,8 +26,13 @@ from .lookback import LookbackFloatStrikeCall
 from .vanilla import European
 from . import basket
 from . import bonds
+from . import commodity
+from . import convertible
 from . import digital
+from . import equity
+from . import inflation
 from . import swaptions
+from . import volatility
 
 PAYOFF_CATALOGUE = {
     "european": European,
@@ -65,6 +70,11 @@ __all__ = [
     # Modules
     "basket",
     "bonds",
+    "commodity",
+    "convertible",
     "digital",
+    "equity",
+    "inflation",
     "swaptions",
+    "volatility",
 ]

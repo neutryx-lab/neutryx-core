@@ -1,7 +1,7 @@
 """Interactive pricing dashboard powered by Gradio.
 
 This dashboard exposes the Black-Scholes pricing routines implemented in
-:mod:`neutryx.pricing.fourier` and wraps them in an easy-to-use web UI.  Users
+:mod:`neutryx.engines.fourier` and wraps them in an easy-to-use web UI.  Users
 can explore how option prices respond to changes in spot, volatility and other
 parameters and stress-test scenarios with a single click.
 """
@@ -14,7 +14,7 @@ import gradio as gr
 import jax.numpy as jnp
 import pandas as pd
 
-from neutryx.pricing.fourier import (
+from neutryx.engines.fourier import (
     BlackScholesCharacteristicModel,
     carr_madan_fft,
     cos_method,

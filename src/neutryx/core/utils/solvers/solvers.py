@@ -295,7 +295,7 @@ def implied_volatility_newton(
 
     Example:
         >>> # Calculate implied volatility from Black-Scholes price
-        >>> from neutryx.pricing.black_scholes import black_scholes_call, vega
+        >>> from neutryx.engines.black_scholes import black_scholes_call, vega
         >>> # Suppose we observe a call option trading at $10
         >>> target_price = 10.0
         >>> S, K, T, r = 100.0, 100.0, 1.0, 0.05

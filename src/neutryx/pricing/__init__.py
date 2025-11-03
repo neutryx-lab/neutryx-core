@@ -1,57 +1,40 @@
-"""Pricing models."""
+"""Compatibility shim for pricing engines.
 
-from .fourier import (
-    BlackScholesCharacteristicModel,
-    CharacteristicFunctionModel,
-    carr_madan_fft,
-    cos_method,
-)
-from .pathwise import (
-    AMCInputs,
-    american_put_lsm,
-    asian_arithmetic_call,
-    asian_arithmetic_put,
-    european_call,
-    european_put,
-    pathwise_price_and_greeks,
-)
-from .qmc import (
-    MLMCLevel,
-    MLMCOrchestrator,
-    MLMCResult,
-    SobolGenerator,
-    price_european_mlmc,
-    price_european_qmc,
-)
-from .tree import (
-    BinomialModel,
-    ExerciseStyle,
-    binomial_parameters,
-    generate_binomial_tree,
-    price_binomial,
-)
+This module re-exports the pricing engines that have been moved to
+``neutryx.engines``.  Keeping the shim allows older imports to remain
+functional during the package reorganisation.
+"""
 
-__all__ = [
-    "BlackScholesCharacteristicModel",
-    "CharacteristicFunctionModel",
-    "BinomialModel",
-    "ExerciseStyle",
-    "carr_madan_fft",
-    "cos_method",
-    "binomial_parameters",
-    "generate_binomial_tree",
-    "price_binomial",
-    "AMCInputs",
-    "american_put_lsm",
-    "asian_arithmetic_call",
-    "asian_arithmetic_put",
-    "european_call",
-    "european_put",
-    "pathwise_price_and_greeks",
-    "SobolGenerator",
-    "MLMCLevel",
-    "MLMCResult",
-    "MLMCOrchestrator",
-    "price_european_qmc",
-    "price_european_mlmc",
-]
+from __future__ import annotations
+
+import importlib
+import pkgutil
+import sys
+from types import ModuleType
+
+from neutryx import engines as _engines
+from neutryx.engines import *  # noqa: F401,F403
+
+__all__ = getattr(_engines, "__all__", [])
+__path__ = getattr(_engines, "__path__", [])  # type: ignore[assignment]
+
+
+def _register_submodules(source: ModuleType, alias: str) -> None:
+    if not hasattr(source, "__path__"):
+        return
+    for module_info in pkgutil.iter_modules(source.__path__):  # type: ignore[attr-defined]
+        target_name = f"{alias}.{module_info.name}"
+        if target_name in sys.modules:
+            continue
+        sys.modules[target_name] = importlib.import_module(f"{source.__name__}.{module_info.name}")
+
+
+_register_submodules(_engines, __name__)
+
+
+def __getattr__(name: str):
+    return getattr(_engines, name)
+
+
+def __dir__() -> list[str]:
+    return sorted(set(__all__) | set(dir(_engines)))
