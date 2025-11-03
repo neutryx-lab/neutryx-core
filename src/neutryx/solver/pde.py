@@ -372,3 +372,124 @@ def price_american_put_pde(
     price = jnp.interp(S0, S_grid, V[:, 0])
 
     return price
+
+
+def price_european_local_vol_pde(
+    S0: float,
+    K: float,
+    T: float,
+    r: float,
+    q: float,
+    local_vol_fn: Callable[[float, float], float],
+    option_type: str = "call",
+    N_S: int = 200,
+    N_T: int = 100
+) -> float:
+    """Price European option under local volatility model using PDE.
+
+    The PDE is:
+    ∂V/∂t + (r-q)S ∂V/∂S + 0.5*σ_local(S,t)²*S² ∂²V/∂S² - rV = 0
+
+    Args:
+        S0: Initial spot price
+        K: Strike price
+        T: Time to maturity
+        r: Risk-free rate
+        q: Dividend yield
+        local_vol_fn: Function σ_local(S, t) returning local volatility
+        option_type: "call" or "put"
+        N_S: Number of spatial grid points
+        N_T: Number of time steps
+
+    Returns:
+        Option price
+    """
+    S_min = 0.0
+    S_max = max(3 * K, 3 * S0)
+    grid = PDEGrid(S_min=S_min, S_max=S_max, T=T, N_S=N_S, N_T=N_T)
+
+    N_S = grid.N_S
+    N_T = grid.N_T
+    dt = grid.dt
+    dS = grid.dS
+    S = grid.S_grid
+
+    # Initialize solution matrix
+    V = jnp.zeros((N_S, N_T + 1))
+
+    # Set terminal condition
+    if option_type == "call":
+        V = V.at[:, -1].set(jnp.maximum(S - K, 0.0))
+    else:
+        V = V.at[:, -1].set(jnp.maximum(K - S, 0.0))
+
+    # Time-stepping (backward in time)
+    for j in range(N_T - 1, -1, -1):
+        t = j * dt
+        time_to_maturity = T - t
+
+        # Compute local volatility at current time
+        sigma_local = jnp.array([local_vol_fn(S_i, t) for S_i in S])
+
+        # Coefficients with time-dependent local vol
+        alpha = 0.5 * dt * (sigma_local ** 2 * S ** 2) / (dS ** 2)
+        beta = 0.25 * dt * (r - q) * S / dS
+        gamma = -0.5 * r * dt
+
+        # Build matrices
+        a_lower = -alpha + beta
+        a_diag = 1 + 2 * alpha - gamma
+        a_upper = -alpha - beta
+
+        b_lower = alpha - beta
+        b_diag = 1 - 2 * alpha + gamma
+        b_upper = alpha + beta
+
+        N_interior = N_S - 2
+
+        # Build matrix A
+        A_matrix = jnp.zeros((N_interior, N_interior))
+        for i in range(N_interior):
+            idx = i + 1
+            A_matrix = A_matrix.at[i, i].set(a_diag[idx])
+            if i > 0:
+                A_matrix = A_matrix.at[i, i - 1].set(a_lower[idx])
+            if i < N_interior - 1:
+                A_matrix = A_matrix.at[i, i + 1].set(a_upper[idx])
+
+        # Build matrix B
+        B_matrix = jnp.zeros((N_interior, N_interior))
+        for i in range(N_interior):
+            idx = i + 1
+            B_matrix = B_matrix.at[i, i].set(b_diag[idx])
+            if i > 0:
+                B_matrix = B_matrix.at[i, i - 1].set(b_lower[idx])
+            if i < N_interior - 1:
+                B_matrix = B_matrix.at[i, i + 1].set(b_upper[idx])
+
+        # Boundary conditions
+        if option_type == "call":
+            V = V.at[0, j].set(0.0)
+            V = V.at[-1, j].set(jnp.maximum(S[-1] - K * jnp.exp(-r * time_to_maturity), 0.0))
+        else:
+            V = V.at[0, j].set(K * jnp.exp(-r * time_to_maturity))
+            V = V.at[-1, j].set(0.0)
+
+        # Solve linear system
+        V_interior = V[1:-1, j + 1]
+        rhs = B_matrix @ V_interior
+
+        boundary_correction = jnp.zeros(N_interior)
+        boundary_correction = boundary_correction.at[0].add(
+            (a_lower[1] - b_lower[1]) * V[0, j]
+        )
+        boundary_correction = boundary_correction.at[-1].add(
+            (a_upper[-2] - b_upper[-2]) * V[-1, j]
+        )
+
+        rhs = rhs + boundary_correction
+        V_new_interior = jnp.linalg.solve(A_matrix, rhs)
+        V = V.at[1:-1, j].set(V_new_interior)
+
+    price = jnp.interp(S0, S, V[:, 0])
+    return float(price)
