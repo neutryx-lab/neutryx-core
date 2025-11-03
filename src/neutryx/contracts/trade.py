@@ -52,6 +52,8 @@ class Trade(BaseModel):
     ----------
     id : str
         Unique internal trade identifier
+    trade_number : str, optional
+        Systematic trade number (e.g., TRD-20250315-0001)
     external_id : str, optional
         External trade ID (e.g., from front office system)
     usi : str, optional
@@ -60,6 +62,12 @@ class Trade(BaseModel):
         ID of the counterparty (references Counterparty.id)
     netting_set_id : str, optional
         ID of the netting set this trade belongs to
+    book_id : str, optional
+        ID of the book this trade is assigned to
+    desk_id : str, optional
+        ID of the trading desk (derived from book hierarchy)
+    trader_id : str, optional
+        ID of the trader responsible for this trade
     product_type : ProductType
         High-level product classification
     trade_date : date
@@ -85,6 +93,10 @@ class Trade(BaseModel):
     """
 
     id: str
+    trade_number: Optional[str] = Field(
+        default=None,
+        description="Systematic trade number (e.g., TRD-20250315-0001)",
+    )
     external_id: Optional[str] = None
     usi: Optional[str] = Field(
         default=None,
@@ -92,6 +104,18 @@ class Trade(BaseModel):
     )
     counterparty_id: str
     netting_set_id: Optional[str] = None
+    book_id: Optional[str] = Field(
+        default=None,
+        description="ID of the book this trade is assigned to",
+    )
+    desk_id: Optional[str] = Field(
+        default=None,
+        description="ID of the trading desk",
+    )
+    trader_id: Optional[str] = Field(
+        default=None,
+        description="ID of the trader responsible for this trade",
+    )
     product_type: ProductType
     trade_date: date
     effective_date: Optional[date] = None
