@@ -31,6 +31,13 @@ from neutryx.compute.batch_pricing import (
     price_portfolio_batch,
     price_vanilla_options_batch,
 )
+from neutryx.compute.chunked_simulation import (
+    ChunkedSimConfig,
+    estimate_optimal_chunk_size,
+    load_chunked_simulation,
+    price_option_chunked,
+    simulate_gbm_chunked,
+)
 
 __all__ = [
     # Batch pricing
@@ -46,4 +53,10 @@ __all__ = [
     "compute_gross_exposure",
     "compute_top_n_counterparties",
     "compute_concentration_metrics",
+    # Chunked simulation
+    "ChunkedSimConfig",
+    "simulate_gbm_chunked",
+    "load_chunked_simulation",
+    "price_option_chunked",
+    "estimate_optimal_chunk_size",
 ]

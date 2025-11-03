@@ -1,8 +1,35 @@
 seed: 12345
+
+# Legacy engine config (for backwards compatibility)
 engine:
   dtype: float32
   paths: 20000
   steps: 252
+
+# New high-performance configuration
+storage:
+  persistent:
+    backend: zarr
+    path: ./data/persistent/
+    compression: blosc
+    compression_level: 5
+  cache:
+    backend: mmap
+    path: /tmp/neutryx_cache/
+    compression: null
+
+compute:
+  backend: local_cpu  # local_cpu, local_gpu, ray_cluster
+  num_devices: null  # Auto-detect
+  chunk_size: 10000
+  batch_size: null
+
+monte_carlo:
+  default_paths: 100000
+  default_steps: 600
+  dtype: float32
+  stream_to_storage: false
+
 cluster:
   coordinator_address: null
   coordinator_port: null
@@ -12,9 +39,11 @@ cluster:
   mesh:
     axis_names: [data]
     shape: [1]
+
 market:
   r: 0.01
   q: 0.00
+
 tracking:
   enable: false
   provider: none

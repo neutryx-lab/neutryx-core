@@ -48,6 +48,33 @@ def get_default_config() -> ConfigDict:
     cfg.jax = ConfigDict()
     cfg.jax.enable_x64 = True
 
+    # Storage configuration
+    cfg.storage = ConfigDict()
+    cfg.storage.persistent = ConfigDict()
+    cfg.storage.persistent.backend = "zarr"
+    cfg.storage.persistent.path = "./data/persistent/"
+    cfg.storage.persistent.compression = "blosc"
+    cfg.storage.persistent.compression_level = 5
+
+    cfg.storage.cache = ConfigDict()
+    cfg.storage.cache.backend = "mmap"
+    cfg.storage.cache.path = "/tmp/neutryx_cache/"
+    cfg.storage.cache.compression = None
+
+    # Compute configuration
+    cfg.compute = ConfigDict()
+    cfg.compute.backend = "local_cpu"  # local_cpu, local_gpu, ray_cluster
+    cfg.compute.num_devices = None  # Auto-detect
+    cfg.compute.chunk_size = 10000  # Paths per chunk for simulations
+    cfg.compute.batch_size = None  # Auto-determine
+
+    # Monte Carlo configuration
+    cfg.monte_carlo = ConfigDict()
+    cfg.monte_carlo.default_paths = 100000
+    cfg.monte_carlo.default_steps = 600
+    cfg.monte_carlo.dtype = "float32"
+    cfg.monte_carlo.stream_to_storage = False  # Enable for >1M paths
+
     return cfg
 
 
