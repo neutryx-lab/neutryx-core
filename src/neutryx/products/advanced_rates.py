@@ -1,0 +1,509 @@
+"""Advanced interest rate products.
+
+This module implements sophisticated interest rate derivatives:
+- Bermudan swaptions (with LSM and grid methods)
+- Callable/putable bonds
+- CMS spread range accruals
+- Constant maturity swaps (CMS)
+- Yield curve options
+"""
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Callable, Literal, Optional
+
+import jax
+import jax.numpy as jnp
+from jax import lax
+
+from neutryx.products.base import Product, PathProduct
+
+Array = jnp.ndarray
+
+
+@dataclass
+class BermudanSwaption(PathProduct):
+    """Bermudan swaption - swaption with multiple exercise dates.
+
+    Can be priced using Longstaff-Schwartz Monte Carlo or grid-based methods.
+
+    Args:
+        T: Final maturity (years)
+        K: Strike rate (fixed rate of underlying swap)
+        notional: Notional amount
+        exercise_dates: Array of exercise dates
+        option_type: 'payer' (right to pay fixed) or 'receiver'
+        tenor: Tenor of underlying swap (years)
+        payment_freq: Payment frequency per year
+    """
+
+    T: float
+    K: float
+    notional: float
+    exercise_dates: Array
+    option_type: Literal['payer', 'receiver'] = 'payer'
+    tenor: float = 10.0
+    payment_freq: int = 2
+
+    def intrinsic_value(self, swap_rate: float, time: float) -> float:
+        """Calculate intrinsic value of swaption at given time.
+
+        Args:
+            swap_rate: Current swap rate
+            time: Current time
+
+        Returns:
+            Intrinsic value
+        """
+        remaining_tenor = self.tenor - (self.T - time)
+        if remaining_tenor <= 0:
+            return 0.0
+
+        # Annuity calculation (simplified)
+        num_payments = int(remaining_tenor * self.payment_freq)
+        dt = 1.0 / self.payment_freq
+        annuity = num_payments * dt  # Simplified, should use discount factors
+
+        if self.option_type == 'payer':
+            intrinsic = jnp.maximum(swap_rate - self.K, 0.0) * annuity
+        else:
+            intrinsic = jnp.maximum(self.K - swap_rate, 0.0) * annuity
+
+        return self.notional * intrinsic
+
+    def payoff_path(self, path: Array) -> Array:
+        """Calculate payoff using Longstaff-Schwartz method.
+
+        Args:
+            path: Array of shape (num_steps,) containing swap rates at each time
+
+        Returns:
+            Optimal exercise value
+        """
+        # This is a simplified version - full LSM requires regression
+        # across multiple paths
+        if path.ndim != 1:
+            return 0.0
+
+        # Find exercise values at each exercise date
+        exercise_values = jnp.array([
+            self.intrinsic_value(path[int(t * len(path) / self.T)], t)
+            if t < self.T else 0.0
+            for t in self.exercise_dates
+        ])
+
+        # Simple strategy: exercise at first positive intrinsic value
+        # (Full LSM would use regression to estimate continuation value)
+        return jnp.max(exercise_values)
+
+    def price_lsm(self, paths: Array, discount_factors: Array,
+                  basis_functions: Optional[Callable] = None) -> float:
+        """Price using Longstaff-Schwartz Monte Carlo.
+
+        Args:
+            paths: Array of shape (num_paths, num_steps) with swap rate paths
+            discount_factors: Discount factors for each time step
+            basis_functions: Callable for regression basis (default: polynomials)
+
+        Returns:
+            Bermudan swaption price
+        """
+        num_paths, num_steps = paths.shape
+
+        # Default basis functions: 1, x, x^2, x^3
+        if basis_functions is None:
+            def basis_functions(x):
+                return jnp.array([jnp.ones_like(x), x, x**2, x**3]).T
+
+        # Initialize continuation values
+        num_exercises = len(self.exercise_dates)
+        exercise_indices = (self.exercise_dates / self.T * (num_steps - 1)).astype(int)
+
+        # Start from the last exercise date
+        cashflows = jnp.zeros(num_paths)
+
+        # Backward induction
+        for i in range(num_exercises - 1, -1, -1):
+            ex_idx = exercise_indices[i]
+            ex_time = self.exercise_dates[i]
+
+            # Current swap rates
+            current_rates = paths[:, ex_idx]
+
+            # Intrinsic values
+            intrinsic = jax.vmap(lambda r: self.intrinsic_value(r, ex_time))(current_rates)
+
+            if i == num_exercises - 1:
+                # At last exercise, just take intrinsic
+                cashflows = intrinsic
+            else:
+                # Regression to estimate continuation value
+                # Only regress on in-the-money paths
+                itm_mask = intrinsic > 0
+
+                if jnp.sum(itm_mask) > 0:
+                    # Basis functions of current rate
+                    X = basis_functions(current_rates[itm_mask])
+                    Y = cashflows[itm_mask] * discount_factors[ex_idx]
+
+                    # Least squares regression
+                    coeffs = jnp.linalg.lstsq(X, Y)[0]
+                    continuation_value = jnp.zeros_like(cashflows)
+                    continuation_value = continuation_value.at[itm_mask].set(
+                        basis_functions(current_rates[itm_mask]) @ coeffs
+                    )
+
+                    # Exercise if intrinsic > continuation
+                    exercise_now = intrinsic > continuation_value
+                    cashflows = jnp.where(exercise_now, intrinsic, cashflows)
+
+        # Discount and average
+        return jnp.mean(cashflows * discount_factors[0])
+
+
+@dataclass
+class CallablePutableBond(PathProduct):
+    """Callable or putable bond with embedded options.
+
+    Args:
+        T: Maturity (years)
+        face_value: Face value
+        coupon_rate: Annual coupon rate
+        call_dates: Dates at which issuer can call (if callable)
+        put_dates: Dates at which holder can put (if putable)
+        call_prices: Call prices at each call date
+        put_prices: Put prices at each put date
+        payment_freq: Coupon payment frequency per year
+    """
+
+    T: float
+    face_value: float
+    coupon_rate: float
+    call_dates: Optional[Array] = None
+    put_dates: Optional[Array] = None
+    call_prices: Optional[Array] = None
+    put_prices: Optional[Array] = None
+    payment_freq: int = 2
+
+    def payoff_path(self, path: Array) -> Array:
+        """Calculate bond value along interest rate path.
+
+        Args:
+            path: Array of short rates
+
+        Returns:
+            Bond value considering optimal call/put strategy
+        """
+        # Simplified backward induction
+        # In practice, would use full lattice or Monte Carlo with LSM
+
+        # Final payoff at maturity
+        value = self.face_value
+
+        # Work backwards, checking call/put options
+        if self.call_dates is not None and self.call_prices is not None:
+            # Issuer will call if bond value > call price
+            for i, (call_date, call_price) in enumerate(
+                zip(self.call_dates, self.call_prices)
+            ):
+                # Simple check: if we're past call date, bond worth call price
+                value = jnp.minimum(value, call_price)
+
+        if self.put_dates is not None and self.put_prices is not None:
+            # Holder will put if bond value < put price
+            for i, (put_date, put_price) in enumerate(
+                zip(self.put_dates, self.put_prices)
+            ):
+                value = jnp.maximum(value, put_price)
+
+        # Add coupon payments
+        coupon = self.coupon_rate * self.face_value / self.payment_freq
+        num_payments = int(self.T * self.payment_freq)
+        total_coupons = coupon * num_payments
+
+        return value + total_coupons
+
+
+@dataclass
+class CMSSpreadRangeAccrual(PathProduct):
+    """CMS spread range accrual note.
+
+    Accrues interest only when the spread between two CMS rates is within a range.
+
+    Args:
+        T: Maturity (years)
+        notional: Notional amount
+        base_rate: Base interest rate
+        spread_lower: Lower bound of accrual range
+        spread_upper: Upper bound of accrual range
+        cms_tenor_1: Tenor of first CMS rate (years)
+        cms_tenor_2: Tenor of second CMS rate (years)
+        observation_freq: Number of observations per year
+    """
+
+    T: float
+    notional: float
+    base_rate: float
+    spread_lower: float
+    spread_upper: float
+    cms_tenor_1: float = 10.0
+    cms_tenor_2: float = 2.0
+    observation_freq: int = 252
+
+    def payoff_path(self, path: Array) -> Array:
+        """Calculate payoff based on CMS spread path.
+
+        Args:
+            path: Array of shape (2, num_steps) with [CMS_10Y, CMS_2Y]
+
+        Returns:
+            Accrued interest
+        """
+        if path.ndim != 2:
+            return 0.0
+
+        cms_long = path[0, :]
+        cms_short = path[1, :]
+
+        # CMS spread
+        spread = cms_long - cms_short
+
+        # Check if spread is in range
+        in_range = (spread >= self.spread_lower) & (spread <= self.spread_upper)
+
+        # Accrual fraction
+        accrual_fraction = jnp.mean(in_range)
+
+        # Total interest
+        return self.notional * self.base_rate * self.T * accrual_fraction
+
+
+@dataclass
+class ConstantMaturitySwap(Product):
+    """Constant maturity swap (CMS).
+
+    Swap where one leg pays a constant maturity swap rate instead of LIBOR.
+
+    Args:
+        T: Swap maturity (years)
+        notional: Notional amount
+        cms_tenor: Tenor of CMS rate (e.g., 10Y)
+        fixed_rate: Fixed rate on other leg (if applicable)
+        payment_freq: Payment frequency per year
+        is_fixed_vs_cms: If True, fixed vs CMS; if False, CMS vs LIBOR
+    """
+
+    T: float
+    notional: float
+    cms_tenor: float = 10.0
+    fixed_rate: float = 0.03
+    payment_freq: int = 2
+    is_fixed_vs_cms: bool = True
+
+    def payoff_terminal(self, cms_rate: Array) -> Array:
+        """Calculate swap value given CMS rate.
+
+        Args:
+            cms_rate: Terminal CMS rate
+
+        Returns:
+            Swap value
+        """
+        # Simplified - should integrate over payment dates
+        dt = 1.0 / self.payment_freq
+        num_payments = int(self.T * self.payment_freq)
+
+        if self.is_fixed_vs_cms:
+            # Fixed vs CMS: pay fixed, receive CMS
+            value = (cms_rate - self.fixed_rate) * num_payments * dt
+        else:
+            # CMS vs LIBOR: would need LIBOR rate as well
+            value = cms_rate * num_payments * dt
+
+        return self.notional * value
+
+    def convexity_adjustment(self, forward_rate: float, volatility: float,
+                            time_to_expiry: float) -> float:
+        """Calculate CMS convexity adjustment.
+
+        Args:
+            forward_rate: Forward swap rate
+            volatility: Swap rate volatility
+            time_to_expiry: Time to payment
+
+        Returns:
+            Convexity adjustment
+        """
+        # Simplified convexity adjustment formula
+        # Full formula would depend on swap annuity duration
+
+        # Annuity duration approximation
+        duration = (1.0 - (1.0 + forward_rate)**(-self.cms_tenor)) / forward_rate
+
+        # Convexity adjustment
+        adjustment = 0.5 * volatility**2 * time_to_expiry * duration * forward_rate
+
+        return adjustment
+
+
+@dataclass
+class YieldCurveOption(Product):
+    """Option on yield curve shape.
+
+    Options on curve steepness, level, or curvature.
+
+    Args:
+        T: Option maturity (years)
+        notional: Notional amount
+        option_type: 'steepener', 'flattener', 'level', 'butterfly'
+        K: Strike level
+        tenors: Array of relevant tenors for the option
+    """
+
+    T: float
+    notional: float
+    option_type: Literal['steepener', 'flattener', 'level', 'butterfly'] = 'steepener'
+    K: float = 0.0
+    tenors: Array = None  # Will be set in __post_init__
+
+    def __post_init__(self):
+        if self.tenors is None:
+            object.__setattr__(self, 'tenors', jnp.array([2.0, 10.0]))  # Default: 2Y-10Y spread
+
+    def payoff_terminal(self, rates: Array) -> Array:
+        """Calculate payoff given terminal yield curve.
+
+        Args:
+            rates: Array of rates at specified tenors
+
+        Returns:
+            Payoff based on curve shape
+        """
+        if self.option_type == 'steepener':
+            # Pay if curve steepens (long - short > K)
+            spread = rates[-1] - rates[0]
+            payoff = jnp.maximum(spread - self.K, 0.0)
+
+        elif self.option_type == 'flattener':
+            # Pay if curve flattens (long - short < K)
+            spread = rates[-1] - rates[0]
+            payoff = jnp.maximum(self.K - spread, 0.0)
+
+        elif self.option_type == 'level':
+            # Pay based on average level
+            avg_level = jnp.mean(rates)
+            payoff = jnp.maximum(avg_level - self.K, 0.0)
+
+        elif self.option_type == 'butterfly':
+            # Pay based on curvature (belly - wings)
+            if len(rates) >= 3:
+                curvature = 2 * rates[1] - rates[0] - rates[2]
+                payoff = jnp.maximum(curvature - self.K, 0.0)
+            else:
+                payoff = 0.0
+
+        else:
+            payoff = 0.0
+
+        return self.notional * payoff
+
+
+@dataclass
+class RangeAccrualSwap(PathProduct):
+    """Range accrual swap.
+
+    Interest rate swap where floating leg accrues only when reference rate
+    is within specified range.
+
+    Args:
+        T: Maturity (years)
+        notional: Notional amount
+        fixed_rate: Fixed rate
+        range_lower: Lower bound of accrual range
+        range_upper: Upper bound of accrual range
+        payment_freq: Payment frequency per year
+    """
+
+    T: float
+    notional: float
+    fixed_rate: float
+    range_lower: float
+    range_upper: float
+    payment_freq: int = 4
+
+    def payoff_path(self, path: Array) -> Array:
+        """Calculate swap value based on rate path.
+
+        Args:
+            path: Array of reference rates over time
+
+        Returns:
+            Net swap value
+        """
+        # Check which observations are in range
+        in_range = (path >= self.range_lower) & (path <= self.range_upper)
+
+        # Accrual fraction
+        accrual_fraction = jnp.mean(in_range)
+
+        # Floating leg (accrued)
+        avg_rate = jnp.mean(path)
+        floating_leg = avg_rate * self.T * accrual_fraction
+
+        # Fixed leg
+        fixed_leg = self.fixed_rate * self.T
+
+        # Net value
+        return self.notional * (floating_leg - fixed_leg)
+
+
+@dataclass
+class TargetRedemptionNote(PathProduct):
+    """Target redemption note (TARN).
+
+    Note that automatically redeems when cumulative coupon reaches target.
+
+    Args:
+        T: Maximum maturity (years)
+        notional: Notional amount
+        target_coupon: Target cumulative coupon
+        coupon_rate: Base coupon rate
+        payment_freq: Payment frequency per year
+    """
+
+    T: float
+    notional: float
+    target_coupon: float
+    coupon_rate: float
+    payment_freq: int = 4
+
+    def payoff_path(self, path: Array) -> Array:
+        """Calculate payoff considering early redemption.
+
+        Args:
+            path: Array of reference rates for coupon calculation
+
+        Returns:
+            Total payout including coupons and principal
+        """
+        dt = 1.0 / self.payment_freq
+        num_periods = int(self.T * self.payment_freq)
+
+        cumulative_coupon = 0.0
+        total_payment = 0.0
+
+        # Simulate coupon payments
+        for i in range(min(num_periods, len(path))):
+            coupon = self.coupon_rate * self.notional * dt
+            cumulative_coupon += coupon
+            total_payment += coupon
+
+            # Check if target reached
+            if cumulative_coupon >= self.target_coupon:
+                # Early redemption
+                total_payment += self.notional
+                return total_payment
+
+        # If target not reached, pay at maturity
+        total_payment += self.notional
+        return total_payment

@@ -15,7 +15,7 @@ from neutryx.core.utils.math import compute_option_payoff, discount_payoff
 
 
 def simulate_kou(
-    key: jax.random.KeyArray,
+    key: Array,
     S0: float,
     mu: float,
     sigma: float,
@@ -38,7 +38,7 @@ def simulate_kou(
 
     Parameters
     ----------
-    key : jax.random.KeyArray
+    key : Array
         PRNG key
     S0 : float
         Initial asset price
@@ -123,7 +123,7 @@ def simulate_kou(
 
 
 def price_vanilla_kou_mc(
-    key: jax.random.KeyArray,
+    key: Array,
     S0: float,
     K: float,
     T: float,
@@ -141,7 +141,7 @@ def price_vanilla_kou_mc(
 
     Parameters
     ----------
-    key : jax.random.KeyArray
+    key : Array
         PRNG key
     S0 : float
         Initial asset price

@@ -27,12 +27,19 @@ from .vanilla import European
 from . import basket
 from . import bonds
 from . import commodity
+from . import commodity_exotics
 from . import convertible
 from . import digital
 from . import equity
+from . import fx_exotics
 from . import inflation
+from . import structured
 from . import swaptions
 from . import volatility
+from . import credit_derivatives
+from . import hybrid_products
+from . import advanced_rates
+from . import correlation_products
 
 PAYOFF_CATALOGUE = {
     "european": European,
@@ -71,10 +78,17 @@ __all__ = [
     "basket",
     "bonds",
     "commodity",
+    "commodity_exotics",
     "convertible",
     "digital",
     "equity",
+    "fx_exotics",
     "inflation",
+    "structured",
     "swaptions",
     "volatility",
+    "credit_derivatives",
+    "hybrid_products",
+    "advanced_rates",
+    "correlation_products",
 ]
