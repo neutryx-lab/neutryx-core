@@ -14,6 +14,8 @@ import jax.numpy as jnp
 from jax import Array
 from jax.scipy.stats import norm
 
+from ._utils import compute_d1_d2_fx
+
 
 @dataclass(frozen=True)
 class FXVanillaOption:
@@ -216,9 +218,7 @@ def garman_kohlhagen(
         return float(jnp.exp(-r_d * T) * intrinsic)
 
     # Standard case
-    sqrt_T = jnp.sqrt(T)
-    d1 = (jnp.log(S / K) + (r_d - r_f + 0.5 * sigma**2) * T) / (sigma * sqrt_T)
-    d2 = d1 - sigma * sqrt_T
+    d1, d2 = compute_d1_d2_fx(S, K, T, r_d, r_f, sigma)
 
     if is_call:
         price = S * jnp.exp(-r_f * T) * norm.cdf(d1) - K * jnp.exp(-r_d * T) * norm.cdf(d2)
@@ -256,8 +256,7 @@ def fx_delta(
         else:
             return -1.0 if S < K else 0.0
 
-    sqrt_T = jnp.sqrt(T)
-    d1 = (jnp.log(S / K) + (r_d - r_f + 0.5 * sigma**2) * T) / (sigma * sqrt_T)
+    d1, _ = compute_d1_d2_fx(S, K, T, r_d, r_f, sigma)
 
     if is_call:
         delta = jnp.exp(-r_f * T) * norm.cdf(d1)
@@ -289,9 +288,8 @@ def fx_gamma(
     if T <= 0 or sigma <= 0:
         return 0.0
 
+    d1, _ = compute_d1_d2_fx(S, K, T, r_d, r_f, sigma)
     sqrt_T = jnp.sqrt(T)
-    d1 = (jnp.log(S / K) + (r_d - r_f + 0.5 * sigma**2) * T) / (sigma * sqrt_T)
-
     gamma = jnp.exp(-r_f * T) * norm.pdf(d1) / (S * sigma * sqrt_T)
 
     return float(gamma)
@@ -319,9 +317,8 @@ def fx_vega(
     if T <= 0:
         return 0.0
 
+    d1, _ = compute_d1_d2_fx(S, K, T, r_d, r_f, sigma)
     sqrt_T = jnp.sqrt(T)
-    d1 = (jnp.log(S / K) + (r_d - r_f + 0.5 * sigma**2) * T) / (sigma * sqrt_T)
-
     vega = S * jnp.exp(-r_f * T) * norm.pdf(d1) * sqrt_T
 
     return float(vega)
@@ -351,10 +348,8 @@ def fx_theta(
     if T <= 0:
         return 0.0
 
+    d1, d2 = compute_d1_d2_fx(S, K, T, r_d, r_f, sigma)
     sqrt_T = jnp.sqrt(T)
-    d1 = (jnp.log(S / K) + (r_d - r_f + 0.5 * sigma**2) * T) / (sigma * sqrt_T)
-    d2 = d1 - sigma * sqrt_T
-
     term1 = -(S * jnp.exp(-r_f * T) * norm.pdf(d1) * sigma) / (2 * sqrt_T)
 
     if is_call:

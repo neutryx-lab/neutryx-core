@@ -13,6 +13,7 @@ import jax
 import jax.numpy as jnp
 
 from neutryx.core.engine import Array, MCConfig
+from neutryx.core.utils.math import compute_option_payoff, discount_payoff
 
 
 def simulate_variance_gamma(
@@ -151,15 +152,9 @@ def price_vanilla_vg_mc(
     paths = simulate_variance_gamma(key, S0, mu, theta, sigma, nu, T, cfg)
     ST = paths[:, -1]
 
-    if kind == "call":
-        payoffs = jnp.maximum(ST - K, 0.0)
-    elif kind == "put":
-        payoffs = jnp.maximum(K - ST, 0.0)
-    else:
-        raise ValueError(f"Unknown option kind: {kind}")
-
-    discount = jnp.exp(-r * T)
-    return float((discount * payoffs).mean())
+    payoffs = compute_option_payoff(ST, K, kind)
+    discounted = discount_payoff(payoffs, r, T)
+    return float(discounted.mean())
 
 
 def vg_characteristic_function(u, t, theta, sigma, nu):

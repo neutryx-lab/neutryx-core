@@ -196,27 +196,8 @@ def price_european_call_mc(
     cfg: MCConfig,
     params: RoughBergomiParams,
 ) -> Array:
-    """Monte Carlo price of a European call under Rough Bergomi dynamics."""
-
-    paths = simulate_rough_bergomi(key, S0, T, r, q, cfg, params)
-    ST = paths[:, -1]
-    payoff = jnp.maximum(ST - K, 0.0)
-    discount = jnp.exp(-r * T)
-    return discount * payoff.mean(axis=0)
-
-
-def price_european_call_mc(
-    key: jax.random.KeyArray,
-    S0: float,
-    K: float,
-    T: float,
-    r: float,
-    q: float,
-    cfg: MCConfig,
-    params: RoughBergomiParams,
-) -> Array:
     """Price European call under rough Bergomi via Monte Carlo.
-    
+
     Parameters
     ----------
     key : JAX PRNG key
@@ -224,16 +205,16 @@ def price_european_call_mc(
     K : Strike price
     T : Time to maturity
     r : Risk-free rate
-    q : Dividend yield  
+    q : Dividend yield
     cfg : Monte Carlo configuration
     params : Rough Bergomi parameters
-    
+
     Returns
     -------
     price : Call option price
     """
     from ..core.engine import present_value
-    
+
     paths = simulate_rough_bergomi(
         key, S0, T, r, q, cfg, params, return_full=False
     )

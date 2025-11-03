@@ -46,3 +46,57 @@ def logsumexp(
     if not keepdims:
         lse = jnp.squeeze(lse, axis=axis)
     return lse
+
+
+def compute_option_payoff(spot: Any, strike: float, kind: str = "call") -> jnp.ndarray:
+    """Compute vanilla option payoff.
+
+    Parameters
+    ----------
+    spot : array-like
+        Spot price(s)
+    strike : float
+        Strike price
+    kind : str, default="call"
+        Option type: "call" or "put"
+
+    Returns
+    -------
+    jnp.ndarray
+        Option payoff
+
+    Raises
+    ------
+    ValueError
+        If kind is not "call" or "put"
+    """
+    spot = jnp.asarray(spot, dtype=get_compute_dtype())
+    if kind == "call":
+        return jnp.maximum(spot - strike, 0.0)
+    elif kind == "put":
+        return jnp.maximum(strike - spot, 0.0)
+    else:
+        raise ValueError(f"Unknown option kind: {kind}. Expected 'call' or 'put'.")
+
+
+def discount_payoff(payoffs: Any, rate: float, maturity: float) -> jnp.ndarray:
+    """Apply discount factor to payoffs.
+
+    Parameters
+    ----------
+    payoffs : array-like
+        Payoff values
+    rate : float
+        Risk-free rate (continuously compounded)
+    maturity : float
+        Time to maturity
+
+    Returns
+    -------
+    jnp.ndarray
+        Discounted payoffs
+    """
+    dtype = get_compute_dtype()
+    payoffs = jnp.asarray(payoffs, dtype=dtype)
+    discount = jnp.exp(-rate * maturity)
+    return discount * payoffs

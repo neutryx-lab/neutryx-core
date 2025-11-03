@@ -14,6 +14,8 @@ from typing import Callable
 import jax.numpy as jnp
 from jax import jit
 
+from ._utils import compute_coupon_payment, compute_discount_factors
+
 
 class DayCountConvention(Enum):
     """Day count conventions for interest calculations."""
@@ -139,7 +141,7 @@ def coupon_bond_price(
     102.775...
     """
     # Calculate coupon payment per period
-    coupon_payment = (coupon_rate * face_value) / frequency
+    coupon_payment = compute_coupon_payment(coupon_rate, face_value, frequency)
 
     # Number of periods
     n_periods = maturity * frequency
@@ -272,13 +274,13 @@ def macaulay_duration(
     >>> macaulay_duration(100.0, 0.05, 0.05, 5.0, frequency=2)
     4.376...
     """
-    coupon_payment = (coupon_rate * face_value) / frequency
+    coupon_payment = compute_coupon_payment(coupon_rate, face_value, frequency)
     discount_rate = yield_rate / frequency
     n_periods = int(maturity * frequency)
 
     # Calculate present value of each cash flow weighted by time
     times = jnp.arange(1, n_periods + 1, dtype=jnp.float32)
-    discount_factors = jnp.power(1.0 + discount_rate, -times)
+    discount_factors = compute_discount_factors(n_periods, discount_rate, method="power")
 
     # Coupon payments at each period
     cash_flows = jnp.full(n_periods, coupon_payment, dtype=jnp.float32)
@@ -370,13 +372,13 @@ def convexity(
     >>> convexity(100.0, 0.05, 0.05, 5.0, frequency=2)
     22.96...
     """
-    coupon_payment = (coupon_rate * face_value) / frequency
+    coupon_payment = compute_coupon_payment(coupon_rate, face_value, frequency)
     discount_rate = yield_rate / frequency
     n_periods = int(maturity * frequency)
 
     # Calculate present value of each cash flow weighted by t(t+1)
     times = jnp.arange(1, n_periods + 1, dtype=jnp.float32)
-    discount_factors = jnp.power(1.0 + discount_rate, -times)
+    discount_factors = compute_discount_factors(n_periods, discount_rate, method="power")
 
     # Coupon payments
     cash_flows = jnp.full(n_periods, coupon_payment, dtype=jnp.float32)
@@ -437,14 +439,13 @@ def floating_rate_note_price(
     """
     # Coupon rate for next period
     coupon_rate = reference_rate + spread
-    coupon_payment = (coupon_rate * face_value) / frequency
+    coupon_payment = compute_coupon_payment(coupon_rate, face_value, frequency)
 
     n_periods = maturity * frequency
     discount_per_period = discount_rate / frequency
 
     # Generate discount factors
-    times = jnp.arange(1, n_periods + 1, dtype=jnp.float32)
-    discount_factors = jnp.power(1.0 + discount_per_period, -times)
+    discount_factors = compute_discount_factors(int(n_periods), discount_per_period, method="power")
 
     # Present value of coupons
     pv_coupons = coupon_payment * jnp.sum(discount_factors)
@@ -495,7 +496,7 @@ def bond_price_from_curve(
     >>> bond_price_from_curve(100.0, 0.06, 3.0, 2, flat_curve)
     102.78...
     """
-    coupon_payment = (coupon_rate * face_value) / frequency
+    coupon_payment = compute_coupon_payment(coupon_rate, face_value, frequency)
     n_periods = int(maturity * frequency)
 
     # Payment times

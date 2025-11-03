@@ -14,6 +14,13 @@ from dataclasses import dataclass
 import jax.numpy as jnp
 
 from .base import PathProduct
+from ._utils import (
+    ensure_array,
+    extract_terminal,
+    vanilla_payoff,
+    check_barrier_hit_up,
+    check_barrier_hit_down,
+)
 
 
 @dataclass
@@ -38,10 +45,10 @@ class UpAndOutCall(PathProduct):
     B: float
 
     def payoff_path(self, path: jnp.ndarray) -> jnp.ndarray:
-        path = jnp.asarray(path)
-        hit = path.max() >= self.B
-        ST = path[-1]
-        intrinsic = jnp.maximum(ST - self.K, 0.0)
+        path = ensure_array(path)
+        hit = check_barrier_hit_up(path, self.B)
+        ST = extract_terminal(path)
+        intrinsic = vanilla_payoff(ST, self.K, is_call=True)
         return jnp.where(hit, 0.0, intrinsic)
 
 
@@ -67,10 +74,10 @@ class UpAndOutPut(PathProduct):
     B: float
 
     def payoff_path(self, path: jnp.ndarray) -> jnp.ndarray:
-        path = jnp.asarray(path)
-        hit = path.max() >= self.B
-        ST = path[-1]
-        intrinsic = jnp.maximum(self.K - ST, 0.0)
+        path = ensure_array(path)
+        hit = check_barrier_hit_up(path, self.B)
+        ST = extract_terminal(path)
+        intrinsic = vanilla_payoff(ST, self.K, is_call=False)
         return jnp.where(hit, 0.0, intrinsic)
 
 
@@ -96,10 +103,10 @@ class DownAndOutCall(PathProduct):
     B: float
 
     def payoff_path(self, path: jnp.ndarray) -> jnp.ndarray:
-        path = jnp.asarray(path)
-        hit = path.min() <= self.B
-        ST = path[-1]
-        intrinsic = jnp.maximum(ST - self.K, 0.0)
+        path = ensure_array(path)
+        hit = check_barrier_hit_down(path, self.B)
+        ST = extract_terminal(path)
+        intrinsic = vanilla_payoff(ST, self.K, is_call=True)
         return jnp.where(hit, 0.0, intrinsic)
 
 
@@ -125,10 +132,10 @@ class DownAndOutPut(PathProduct):
     B: float
 
     def payoff_path(self, path: jnp.ndarray) -> jnp.ndarray:
-        path = jnp.asarray(path)
-        hit = path.min() <= self.B
-        ST = path[-1]
-        intrinsic = jnp.maximum(self.K - ST, 0.0)
+        path = ensure_array(path)
+        hit = check_barrier_hit_down(path, self.B)
+        ST = extract_terminal(path)
+        intrinsic = vanilla_payoff(ST, self.K, is_call=False)
         return jnp.where(hit, 0.0, intrinsic)
 
 
@@ -154,10 +161,10 @@ class UpAndInCall(PathProduct):
     B: float
 
     def payoff_path(self, path: jnp.ndarray) -> jnp.ndarray:
-        path = jnp.asarray(path)
-        hit = path.max() >= self.B
-        ST = path[-1]
-        intrinsic = jnp.maximum(ST - self.K, 0.0)
+        path = ensure_array(path)
+        hit = check_barrier_hit_up(path, self.B)
+        ST = extract_terminal(path)
+        intrinsic = vanilla_payoff(ST, self.K, is_call=True)
         return jnp.where(hit, intrinsic, 0.0)
 
 
@@ -183,10 +190,10 @@ class UpAndInPut(PathProduct):
     B: float
 
     def payoff_path(self, path: jnp.ndarray) -> jnp.ndarray:
-        path = jnp.asarray(path)
-        hit = path.max() >= self.B
-        ST = path[-1]
-        intrinsic = jnp.maximum(self.K - ST, 0.0)
+        path = ensure_array(path)
+        hit = check_barrier_hit_up(path, self.B)
+        ST = extract_terminal(path)
+        intrinsic = vanilla_payoff(ST, self.K, is_call=False)
         return jnp.where(hit, intrinsic, 0.0)
 
 
@@ -212,10 +219,10 @@ class DownAndInCall(PathProduct):
     B: float
 
     def payoff_path(self, path: jnp.ndarray) -> jnp.ndarray:
-        path = jnp.asarray(path)
-        hit = path.min() <= self.B
-        ST = path[-1]
-        intrinsic = jnp.maximum(ST - self.K, 0.0)
+        path = ensure_array(path)
+        hit = check_barrier_hit_down(path, self.B)
+        ST = extract_terminal(path)
+        intrinsic = vanilla_payoff(ST, self.K, is_call=True)
         return jnp.where(hit, intrinsic, 0.0)
 
 
@@ -241,10 +248,10 @@ class DownAndInPut(PathProduct):
     B: float
 
     def payoff_path(self, path: jnp.ndarray) -> jnp.ndarray:
-        path = jnp.asarray(path)
-        hit = path.min() <= self.B
-        ST = path[-1]
-        intrinsic = jnp.maximum(self.K - ST, 0.0)
+        path = ensure_array(path)
+        hit = check_barrier_hit_down(path, self.B)
+        ST = extract_terminal(path)
+        intrinsic = vanilla_payoff(ST, self.K, is_call=False)
         return jnp.where(hit, intrinsic, 0.0)
 
 
@@ -273,12 +280,12 @@ class DoubleBarrierCall(PathProduct):
     B_upper: float
 
     def payoff_path(self, path: jnp.ndarray) -> jnp.ndarray:
-        path = jnp.asarray(path)
-        hit_upper = path.max() >= self.B_upper
-        hit_lower = path.min() <= self.B_lower
+        path = ensure_array(path)
+        hit_upper = check_barrier_hit_up(path, self.B_upper)
+        hit_lower = check_barrier_hit_down(path, self.B_lower)
         hit_either = hit_upper | hit_lower
-        ST = path[-1]
-        intrinsic = jnp.maximum(ST - self.K, 0.0)
+        ST = extract_terminal(path)
+        intrinsic = vanilla_payoff(ST, self.K, is_call=True)
         return jnp.where(hit_either, 0.0, intrinsic)
 
 
@@ -307,12 +314,12 @@ class DoubleBarrierPut(PathProduct):
     B_upper: float
 
     def payoff_path(self, path: jnp.ndarray) -> jnp.ndarray:
-        path = jnp.asarray(path)
-        hit_upper = path.max() >= self.B_upper
-        hit_lower = path.min() <= self.B_lower
+        path = ensure_array(path)
+        hit_upper = check_barrier_hit_up(path, self.B_upper)
+        hit_lower = check_barrier_hit_down(path, self.B_lower)
         hit_either = hit_upper | hit_lower
-        ST = path[-1]
-        intrinsic = jnp.maximum(self.K - ST, 0.0)
+        ST = extract_terminal(path)
+        intrinsic = vanilla_payoff(ST, self.K, is_call=False)
         return jnp.where(hit_either, 0.0, intrinsic)
 
 

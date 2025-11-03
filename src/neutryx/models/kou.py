@@ -11,6 +11,7 @@ import jax
 import jax.numpy as jnp
 
 from neutryx.core.engine import Array, MCConfig
+from neutryx.core.utils.math import compute_option_payoff, discount_payoff
 
 
 def simulate_kou(
@@ -176,15 +177,9 @@ def price_vanilla_kou_mc(
     paths = simulate_kou(key, S0, mu, sigma, lam, p, eta1, eta2, T, cfg)
     ST = paths[:, -1]
 
-    if kind == "call":
-        payoffs = jnp.maximum(ST - K, 0.0)
-    elif kind == "put":
-        payoffs = jnp.maximum(K - ST, 0.0)
-    else:
-        raise ValueError(f"Unknown option kind: {kind}")
-
-    discount = jnp.exp(-r * T)
-    return float((discount * payoffs).mean())
+    payoffs = compute_option_payoff(ST, K, kind)
+    discounted = discount_payoff(payoffs, r, T)
+    return float(discounted.mean())
 
 
 __all__ = [
