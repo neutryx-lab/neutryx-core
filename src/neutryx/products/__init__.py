@@ -16,6 +16,7 @@ from .vanilla import European
 from . import basket
 from . import bonds
 from . import digital
+from . import swaptions
 
 PAYOFF_CATALOGUE = {
     "european": European,
@@ -44,4 +45,5 @@ __all__ = [
     "basket",
     "bonds",
     "digital",
+    "swaptions",
 ]
