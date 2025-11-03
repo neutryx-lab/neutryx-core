@@ -7,7 +7,7 @@ from dataclasses import dataclass
 import jax
 import jax.numpy as jnp
 
-from ..models import bs as bs_model
+from neutryx.models import bs as bs_model
 
 Array = jnp.ndarray
 

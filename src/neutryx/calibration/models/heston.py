@@ -6,14 +6,14 @@ import jax
 import jax.numpy as jnp
 import optax
 
-from ..core.infrastructure.tracking import (
+from neutryx.core.infrastructure.tracking import (
     BaseTracker,
     TrackingConfig,
     calibration_metric_template,
     calibration_param_template,
     resolve_tracker,
 )
-from ..models.heston_cf import characteristic_function
+from neutryx.models.heston_cf import characteristic_function
 
 
 @dataclass
