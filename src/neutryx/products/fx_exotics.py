@@ -372,6 +372,10 @@ class RangeAccrual(PathProduct):
     """Range accrual option (corridor note).
 
     Pays a fixed rate for each day the underlying stays within a range.
+    Enhanced version with multiple features:
+    - Knockout provision
+    - Leverage when in range
+    - Multiple observation windows
 
     Parameters
     ----------
@@ -385,6 +389,14 @@ class RangeAccrual(PathProduct):
         Rate per period when in range (e.g., 0.05 = 5% annually)
     principal : float
         Principal amount
+    knockout_barrier : float | None
+        Knockout barrier (terminates if hit)
+    knockout_type : str
+        'up' or 'down' knockout
+    leverage : float
+        Leverage multiplier when in range
+    return_principal : bool
+        Whether to return principal at maturity
     """
 
     T: float
@@ -392,20 +404,188 @@ class RangeAccrual(PathProduct):
     upper_bound: float
     accrual_rate: float
     principal: float = 1.0
+    knockout_barrier: float | None = None
+    knockout_type: Literal["up", "down", "both"] = "up"
+    leverage: float = 1.0
+    return_principal: bool = True
 
     def payoff_path(self, path: jnp.ndarray) -> jnp.ndarray:
-        """Compute range accrual payoff."""
+        """Compute range accrual payoff with enhanced features."""
         path = ensure_array(path)
+
+        # Check knockout
+        knocked_out = False
+        if self.knockout_barrier is not None:
+            if self.knockout_type == "up":
+                knocked_out = jnp.any(path >= self.knockout_barrier)
+            elif self.knockout_type == "down":
+                knocked_out = jnp.any(path <= self.knockout_barrier)
+            else:  # both
+                knocked_out = jnp.any(
+                    (path >= self.knockout_barrier) | (path <= self.knockout_barrier)
+                )
+
+        # If knocked out, no accrual
+        if knocked_out:
+            return self.principal if self.return_principal else 0.0
 
         # Calculate fraction of time in range
         in_range = (path >= self.lower_bound) & (path <= self.upper_bound)
         fraction_in_range = jnp.mean(in_range)
 
-        # Total accrual
-        total_accrual = self.principal * self.accrual_rate * self.T * fraction_in_range
+        # Total accrual with leverage
+        total_accrual = (
+            self.principal
+            * self.accrual_rate
+            * self.T
+            * fraction_in_range
+            * self.leverage
+        )
 
         # Return principal plus accrued interest
+        if self.return_principal:
+            return self.principal + total_accrual
+        else:
+            return total_accrual
+
+
+@dataclass
+class DualRangeAccrual(PathProduct):
+    """Dual range accrual - accrues based on two FX pairs staying in ranges.
+
+    Common structure: pays enhanced rate if both FX pairs stay in range.
+
+    Parameters
+    ----------
+    T : float
+        Maturity
+    lower_bounds : tuple[float, float]
+        Lower bounds for (FX1, FX2)
+    upper_bounds : tuple[float, float]
+        Upper bounds for (FX1, FX2)
+    base_accrual_rate : float
+        Base accrual rate
+    enhanced_accrual_rate : float
+        Enhanced rate when both in range
+    principal : float
+        Principal amount
+    require_both : bool
+        If True, requires both in range for accrual
+    """
+
+    T: float
+    lower_bounds: tuple[float, float]
+    upper_bounds: tuple[float, float]
+    base_accrual_rate: float
+    enhanced_accrual_rate: float
+    principal: float = 1.0
+    require_both: bool = True
+
+    def payoff_path(self, paths: jnp.ndarray) -> jnp.ndarray:
+        """Compute dual range accrual payoff.
+
+        Args:
+            paths: Array of shape (2, n_steps) with paths for both FX pairs
+        """
+        paths = ensure_array(paths)
+
+        if paths.ndim == 1:
+            # Single path provided, treat as first FX
+            in_range1 = (paths >= self.lower_bounds[0]) & (
+                paths <= self.upper_bounds[0]
+            )
+            fraction_in_range = jnp.mean(in_range1)
+            total_accrual = (
+                self.principal * self.base_accrual_rate * self.T * fraction_in_range
+            )
+        else:
+            # Two paths
+            path1, path2 = paths[0], paths[1]
+
+            in_range1 = (path1 >= self.lower_bounds[0]) & (
+                path1 <= self.upper_bounds[0]
+            )
+            in_range2 = (path2 >= self.lower_bounds[1]) & (
+                path2 <= self.upper_bounds[1]
+            )
+
+            if self.require_both:
+                # Both must be in range
+                both_in_range = in_range1 & in_range2
+                fraction_both = jnp.mean(both_in_range)
+                total_accrual = (
+                    self.principal
+                    * self.enhanced_accrual_rate
+                    * self.T
+                    * fraction_both
+                )
+            else:
+                # Either in range gets base rate, both gets enhanced
+                fraction_both = jnp.mean(in_range1 & in_range2)
+                fraction_either = jnp.mean(in_range1 | in_range2)
+
+                total_accrual = self.principal * self.T * (
+                    self.base_accrual_rate * fraction_either
+                    + (self.enhanced_accrual_rate - self.base_accrual_rate)
+                    * fraction_both
+                )
+
         return self.principal + total_accrual
+
+
+@dataclass
+class PivotRangeAccrual(PathProduct):
+    """Pivot range accrual - different accrual rates above/below pivot.
+
+    Commonly used in FX markets for asymmetric range bets.
+
+    Parameters
+    ----------
+    T : float
+        Maturity
+    pivot : float
+        Pivot level
+    lower_bound : float
+        Lower range bound
+    upper_bound : float
+        Upper range bound
+    accrual_rate_above : float
+        Accrual rate when above pivot
+    accrual_rate_below : float
+        Accrual rate when below pivot
+    principal : float
+        Principal amount
+    """
+
+    T: float
+    pivot: float
+    lower_bound: float
+    upper_bound: float
+    accrual_rate_above: float
+    accrual_rate_below: float
+    principal: float = 1.0
+
+    def payoff_path(self, path: jnp.ndarray) -> jnp.ndarray:
+        """Compute pivot range accrual payoff."""
+        path = ensure_array(path)
+
+        # In range and above pivot
+        in_range_above = (path >= self.pivot) & (path <= self.upper_bound)
+        fraction_above = jnp.mean(in_range_above)
+
+        # In range and below pivot
+        in_range_below = (path >= self.lower_bound) & (path < self.pivot)
+        fraction_below = jnp.mean(in_range_below)
+
+        # Total accrual
+        accrual_above = (
+            self.principal * self.accrual_rate_above * self.T * fraction_above
+        )
+        accrual_below = (
+            self.principal * self.accrual_rate_below * self.T * fraction_below
+        )
+
+        return self.principal + accrual_above + accrual_below
 
 
 __all__ = [
@@ -415,4 +595,6 @@ __all__ = [
     "FaderOption",
     "Napoleon",
     "RangeAccrual",
+    "DualRangeAccrual",
+    "PivotRangeAccrual",
 ]
