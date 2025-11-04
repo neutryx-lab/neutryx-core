@@ -47,6 +47,11 @@ nav:
           - Reference Overview: risk/reference/index.md
           - Enterprise Risk Reference Compendium: risk/reference/enterprise_risk_reference.md
           - Risk Grandmaster Governance Codex: risk/reference/risk_grandmaster_codex.md
+  - Valuations:
+      - Valuations Hub: valuations_index.md
+      - Quick Start Guide: valuations_quickstart.md
+      - Comprehensive Guide: valuations_comprehensive.md
+      - API Reference: valuations_api_summary.md
   - Engineering Operations:
       - Deployment Guide: deployment.md
       - Orchestration Patterns: orchestration.md

@@ -109,7 +109,7 @@ Where:
 - `EPE(t)`: Expected Positive Exposure at time t
 - `ΔPD(t)`: Incremental default probability
 
-**Key Functions**: [neutryx.valuations.xva.cva](../src/neutryx/valuations/xva/cva.py)
+**Key Functions**: [neutryx.valuations.xva.cva](https://github.com/neutryx-lab/neutryx-core/blob/main/src/neutryx/valuations/xva/cva.py)
 
 ```python
 from neutryx.valuations.xva.cva import cva, bilateral_cva, MultiCurrencyCVA
@@ -181,7 +181,7 @@ FVA quantifies funding costs for uncollateralized exposure:
 FVA = Σ DF(t) × EPE(t) × FundingSpread(t)
 ```
 
-**Key Functions**: [neutryx.valuations.xva.fva](../src/neutryx/valuations/xva/fva.py)
+**Key Functions**: [neutryx.valuations.xva.fva](https://github.com/neutryx-lab/neutryx-core/blob/main/src/neutryx/valuations/xva/fva.py)
 
 ```python
 from neutryx.valuations.xva.fva import fva
@@ -217,7 +217,7 @@ KVA = Σ DF(t) × Capital(t) × CostOfCapital(t)
 
 ### XVA Aggregation
 
-The [AggregationEngine](../src/neutryx/valuations/xva/aggregation.py) combines all XVA components:
+The [AggregationEngine](https://github.com/neutryx-lab/neutryx-core/blob/main/src/neutryx/valuations/xva/aggregation.py) combines all XVA components:
 
 ```python
 from neutryx.valuations.xva import AggregationEngine
@@ -248,7 +248,7 @@ EPE represents the average positive mark-to-market value of a position, weighted
 EPE(t) = E[max(V(t), 0)]
 ```
 
-**Implementation**: [neutryx.valuations.exposure](../src/neutryx/valuations/exposure.py)
+**Implementation**: [neutryx.valuations.exposure](https://github.com/neutryx-lab/neutryx-core/blob/main/src/neutryx/valuations/exposure.py)
 
 ```python
 from neutryx.valuations.exposure import epe
@@ -278,7 +278,7 @@ Typically calculated at 95% or 97.5% confidence.
 
 ### Exposure Simulation
 
-The [ExposureSimulator](../src/neutryx/valuations/xva/exposure.py) provides comprehensive exposure calculation:
+The [ExposureSimulator](https://github.com/neutryx-lab/neutryx-core/blob/main/src/neutryx/valuations/xva/exposure.py) provides comprehensive exposure calculation:
 
 ```python
 from neutryx.valuations.xva import ExposureSimulator, XVAScenario
@@ -401,7 +401,7 @@ Charm = ∂²V/∂S∂t
 
 ### Implementation
 
-**Key Module**: [neutryx.valuations.greeks](../src/neutryx/valuations/greeks/)
+**Key Module**: [neutryx.valuations.greeks](https://github.com/neutryx-lab/neutryx-core/blob/main/src/neutryx/valuations/greeks/)
 
 ```python
 from neutryx.valuations.greeks import calculate_greeks, GreeksCalculator
@@ -436,7 +436,7 @@ VaR is the maximum loss not exceeded with a given confidence level:
 VaR_α = -Quantile_{1-α}(Returns)
 ```
 
-**Key Module**: [neutryx.valuations.risk_metrics](../src/neutryx/valuations/risk_metrics.py)
+**Key Module**: [neutryx.valuations.risk_metrics](https://github.com/neutryx-lab/neutryx-core/blob/main/src/neutryx/valuations/risk_metrics.py)
 
 #### VaR Methodologies
 
@@ -640,7 +640,7 @@ print(risk_metrics)
 
 SIMM is the industry-standard methodology for calculating initial margin for uncleared OTC derivatives.
 
-**Key Module**: [neutryx.valuations.simm](../src/neutryx/valuations/simm/)
+**Key Module**: [neutryx.valuations.simm](https://github.com/neutryx-lab/neutryx-core/blob/main/src/neutryx/valuations/simm/)
 
 #### Architecture
 
@@ -769,7 +769,7 @@ vm_call = calculate_vm_call(
 
 Scenario analysis evaluates portfolio performance under specific market conditions.
 
-**Key Module**: [neutryx.valuations.scenarios](../src/neutryx/valuations/scenarios/)
+**Key Module**: [neutryx.valuations.scenarios](https://github.com/neutryx-lab/neutryx-core/blob/main/src/neutryx/valuations/scenarios/)
 
 ### Scenario Framework
 
@@ -859,7 +859,7 @@ result = custom.apply(portfolio, market_data)
 
 Stress testing evaluates extreme but plausible adverse scenarios.
 
-**Key Module**: [neutryx.valuations.stress_test](../src/neutryx/valuations/stress_test.py)
+**Key Module**: [neutryx.valuations.stress_test](https://github.com/neutryx-lab/neutryx-core/blob/main/src/neutryx/valuations/stress_test.py)
 
 ### Historical Stress Scenarios
 
@@ -976,7 +976,7 @@ result = run_stress_scenario(
 
 Wrong-way risk (WWR) occurs when exposure to a counterparty is adversely correlated with their credit quality.
 
-**Key Module**: [neutryx.valuations.wrong_way_risk](../src/neutryx/valuations/wrong_way_risk.py)
+**Key Module**: [neutryx.valuations.wrong_way_risk](https://github.com/neutryx-lab/neutryx-core/blob/main/src/neutryx/valuations/wrong_way_risk.py)
 
 ### WWR Types
 
@@ -1129,7 +1129,7 @@ print(f"Total WWR Charge: {result['wwr_charge']:,.2f}")
 
 P&L attribution decomposes portfolio P&L into risk factor contributions.
 
-**Key Module**: [neutryx.valuations.pnl_attribution](../src/neutryx/valuations/pnl_attribution.py)
+**Key Module**: [neutryx.valuations.pnl_attribution](https://github.com/neutryx-lab/neutryx-core/blob/main/src/neutryx/valuations/pnl_attribution.py)
 
 ### Attribution Methods
 

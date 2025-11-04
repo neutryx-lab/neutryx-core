@@ -218,9 +218,9 @@ neutryx.valuations/
 ## Additional Resources
 
 ### Code Examples
-- [GitHub Repository](https://github.com/neutryx/neutryx-core)
-- [Examples Directory](../examples/)
-- [Jupyter Notebooks](../examples/notebooks/)
+- [GitHub Repository](https://github.com/neutryx-lab/neutryx-core)
+- [Examples Directory](https://github.com/neutryx-lab/neutryx-core/tree/main/examples)
+- [Jupyter Notebooks](https://github.com/neutryx-lab/neutryx-core/tree/main/examples/notebooks)
 
 ### Theory and Background
 - Basel III Framework
@@ -234,10 +234,10 @@ neutryx.valuations/
 - Discord Community
 
 ### Related Documentation
-- [Core Models](models/)
+- [Core Models](models/index.md)
 - [Products](products.md)
-- [Market Data](../src/neutryx/market/)
-- [Calibration](calibration/)
+- [Market Data](https://github.com/neutryx-lab/neutryx-core/tree/main/src/neutryx/market)
+- [Calibration](calibration/index.md)
 
 ## Quick Reference Cards
 
@@ -305,9 +305,9 @@ results = run_historical_stress_tests(base_params, valuation_fn)
 ## Contributing
 
 We welcome contributions! Please see:
-- [Contributing Guidelines](../CONTRIBUTING.md)
-- [Code of Conduct](../CODE_OF_CONDUCT.md)
-- [Development Setup](../README.md#development)
+- [Contributing Guidelines](https://github.com/neutryx-lab/neutryx-core/blob/main/CONTRIBUTING.md)
+- [Code of Conduct](https://github.com/neutryx-lab/neutryx-core/blob/main/CODE_OF_CONDUCT.md)
+- [Development Setup](https://github.com/neutryx-lab/neutryx-core#development)
 
 ## Support
 

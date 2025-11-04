@@ -275,8 +275,8 @@ We welcome contributions! See [CONTRIBUTING.md](../../../CONTRIBUTING.md) for gu
 ## Support
 
 - **Documentation**: [Full Docs](../../../docs/valuations_index.md)
-- **Issues**: [GitHub Issues](https://github.com/neutryx/neutryx-core/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/neutryx/neutryx-core/discussions)
+- **Issues**: [GitHub Issues](https://github.com/neutryx-lab/neutryx-core/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/neutryx-lab/neutryx-core/discussions)
 
 ## License
 

@@ -183,7 +183,7 @@ print(f"WWR Charge: ${wwr_charge:.2f} ({wwr_charge/cva_base*100:.1f}%)")
 ## Next Steps
 
 - Read the [Comprehensive Documentation](valuations_comprehensive.md)
-- Check out [Examples Notebook](../examples/valuations_examples.ipynb)
+- Check out [Examples Notebook](https://github.com/neutryx-lab/neutryx-core/blob/main/examples/valuations_examples.ipynb)
 - Explore the [API Reference](api_reference.md)
 
 ## Common Patterns
@@ -360,7 +360,7 @@ custom = StressScenario(
 
 - [Full Documentation](valuations_comprehensive.md)
 - [API Reference](api_reference.md)
-- [GitHub Repository](https://github.com/neutryx/neutryx-core)
+- [GitHub Repository](https://github.com/neutryx-lab/neutryx-core)
 - [Examples](../examples/)
 
 ---
