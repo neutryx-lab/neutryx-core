@@ -1100,22 +1100,32 @@ class FXBasketOption:
 
             key = jrand.PRNGKey(42)
 
-        from neutryx.products.basket import simulate_correlated_gbm
+        import jax.random as jrand
 
-        # Drift rates for risk-neutral measure
+        n_assets = len(self.spot_rates)
+        dt = self.expiry / n_steps
+
+        # Cholesky decomposition for correlation
+        L = jnp.linalg.cholesky(self.correlation_matrix)
+
+        # Generate independent normals
+        normals = jrand.normal(key, (n_paths, n_steps, n_assets))
+
+        # Apply correlation
+        correlated_normals = jnp.einsum('ptn,nm->ptm', normals, L)
+
+        # Risk-neutral drift
         mu_basket = self.domestic_rate - self.foreign_rates
+        drift = (mu_basket - 0.5 * self.volatilities ** 2) * dt
+        diffusion_scale = self.volatilities * jnp.sqrt(dt)
 
-        # Simulate correlated GBM for all FX pairs
-        paths = simulate_correlated_gbm(
-            key=key,
-            S0_basket=self.spot_rates,
-            mu_basket=mu_basket,
-            sigma_basket=self.volatilities,
-            correlation_matrix=self.correlation_matrix,
-            T=self.expiry,
-            steps=n_steps,
-            paths=n_paths,
-        )
+        # Initial log prices
+        log_S0 = jnp.log(self.spot_rates)
+
+        # Simulate paths
+        log_returns = drift[jnp.newaxis, jnp.newaxis, :] + diffusion_scale[jnp.newaxis, jnp.newaxis, :] * correlated_normals
+        log_paths = jnp.cumsum(log_returns, axis=1)
+        paths = self.spot_rates[jnp.newaxis, jnp.newaxis, :] * jnp.exp(log_paths)
 
         # Terminal basket values
         terminal_rates = paths[:, -1, :]  # Shape: [n_paths, n_currencies]
@@ -1191,22 +1201,29 @@ class FXBestOfWorstOfOption:
 
             key = jrand.PRNGKey(42)
 
-        from neutryx.products.basket import simulate_correlated_gbm
+        import jax.random as jrand
 
-        # Risk-neutral drifts
+        n_assets = len(self.spot_rates)
+        dt = self.expiry / n_steps
+
+        # Cholesky decomposition for correlation
+        L = jnp.linalg.cholesky(self.correlation_matrix)
+
+        # Generate independent normals
+        normals = jrand.normal(key, (n_paths, n_steps, n_assets))
+
+        # Apply correlation
+        correlated_normals = jnp.einsum('ptn,nm->ptm', normals, L)
+
+        # Risk-neutral drift
         mu_basket = self.domestic_rate - self.foreign_rates
+        drift = (mu_basket - 0.5 * self.volatilities ** 2) * dt
+        diffusion_scale = self.volatilities * jnp.sqrt(dt)
 
         # Simulate paths
-        paths = simulate_correlated_gbm(
-            key=key,
-            S0_basket=self.spot_rates,
-            mu_basket=mu_basket,
-            sigma_basket=self.volatilities,
-            correlation_matrix=self.correlation_matrix,
-            T=self.expiry,
-            steps=n_steps,
-            paths=n_paths,
-        )
+        log_returns = drift[jnp.newaxis, jnp.newaxis, :] + diffusion_scale[jnp.newaxis, jnp.newaxis, :] * correlated_normals
+        log_paths = jnp.cumsum(log_returns, axis=1)
+        paths = self.spot_rates[jnp.newaxis, jnp.newaxis, :] * jnp.exp(log_paths)
 
         # Terminal values
         terminal_rates = paths[:, -1, :]

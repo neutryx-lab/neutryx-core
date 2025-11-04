@@ -4,11 +4,14 @@ import pytest
 
 from neutryx.products.credit_derivatives import (
     CDSIndex,
+    CollateralizedLoanObligation,
     ContingentCDS,
+    CreditDefaultSwap,
     CreditLinkedNote,
     LoanCDS,
     NthToDefaultBasket,
     SyntheticCDO,
+    TotalReturnSwap,
 )
 
 
@@ -262,3 +265,367 @@ class TestContingentCDS:
         payoff = ccds.payoff_path(path)
         # Should have non-zero payoff
         assert payoff != 0.0
+
+
+class TestCreditDefaultSwap:
+    """Test single-name Credit Default Swap."""
+
+    def test_cds_creation(self):
+        """Test CDS instantiation."""
+        cds = CreditDefaultSwap(
+            T=5.0,
+            notional=10_000_000,
+            spread=100.0,  # 100 bps
+            recovery_rate=0.4,
+            coupon_freq=4,
+        )
+        assert cds.T == 5.0
+        assert cds.notional == 10_000_000
+        assert cds.spread == 100.0
+        assert cds.recovery_rate == 0.4
+        assert cds.coupon_freq == 4
+
+    def test_survival_probability(self):
+        """Test survival probability calculation."""
+        cds = CreditDefaultSwap(T=5.0, notional=10_000_000, spread=100.0)
+        hazard_rate = 0.02
+
+        # Survival probability at T=0 should be 1.0
+        surv_0 = cds.survival_probability(hazard_rate, 0.0)
+        assert jnp.allclose(surv_0, 1.0)
+
+        # Survival probability decreases with time
+        surv_5 = cds.survival_probability(hazard_rate, 5.0)
+        assert 0.0 < surv_5 < 1.0
+        assert surv_5 < surv_0
+
+    def test_default_probability(self):
+        """Test default probability calculation."""
+        cds = CreditDefaultSwap(T=5.0, notional=10_000_000, spread=100.0)
+        hazard_rate = 0.02
+
+        # Default probability at T=0 should be 0
+        def_0 = cds.default_probability(hazard_rate, 0.0)
+        assert jnp.allclose(def_0, 0.0)
+
+        # Default probability increases with time
+        def_5 = cds.default_probability(hazard_rate, 5.0)
+        assert 0.0 < def_5 < 1.0
+
+        # Default prob + survival prob = 1
+        surv_5 = cds.survival_probability(hazard_rate, 5.0)
+        assert jnp.allclose(def_5 + surv_5, 1.0)
+
+    def test_premium_leg_pv(self):
+        """Test premium leg present value calculation."""
+        cds = CreditDefaultSwap(T=5.0, notional=10_000_000, spread=100.0)
+        hazard_rate = 0.02
+        discount_rate = 0.03
+
+        premium_pv = cds.premium_leg_pv(hazard_rate, discount_rate)
+
+        # Premium leg should be positive
+        assert premium_pv > 0
+        # Should be less than notional
+        assert premium_pv < cds.notional
+
+    def test_protection_leg_pv(self):
+        """Test protection leg present value calculation."""
+        cds = CreditDefaultSwap(T=5.0, notional=10_000_000, spread=100.0)
+        hazard_rate = 0.02
+        discount_rate = 0.03
+
+        protection_pv = cds.protection_leg_pv(hazard_rate, discount_rate)
+
+        # Protection leg should be positive
+        assert protection_pv > 0
+        # Should be related to LGD
+        max_pv = cds.notional * (1.0 - cds.recovery_rate)
+        assert protection_pv <= max_pv
+
+    def test_cds_payoff(self):
+        """Test CDS payoff calculation."""
+        cds = CreditDefaultSwap(T=5.0, notional=10_000_000, spread=100.0)
+        hazard_rate = jnp.array(0.02)
+
+        payoff = cds.payoff_terminal(hazard_rate)
+
+        # Payoff should be a number
+        assert isinstance(payoff, jnp.ndarray) or isinstance(payoff, float)
+
+    def test_fair_spread(self):
+        """Test fair spread calculation."""
+        cds = CreditDefaultSwap(T=5.0, notional=10_000_000, spread=100.0)
+        hazard_rate = 0.02
+        discount_rate = 0.03
+
+        fair_spread = cds.fair_spread(hazard_rate, discount_rate)
+
+        # Fair spread should be positive
+        assert fair_spread > 0
+        # Should be reasonable (between 0 and 1000 bps)
+        assert 0 < fair_spread < 1000
+
+    def test_credit_dv01(self):
+        """Test credit DV01 calculation."""
+        cds = CreditDefaultSwap(T=5.0, notional=10_000_000, spread=100.0)
+        hazard_rate = 0.02
+        discount_rate = 0.03
+
+        dv01 = cds.credit_dv01(hazard_rate, discount_rate)
+
+        # DV01 should be positive
+        assert dv01 > 0
+        # Should be less than notional * T
+        assert dv01 < cds.notional * cds.T
+
+
+class TestTotalReturnSwap:
+    """Test Total Return Swap."""
+
+    def test_trs_creation(self):
+        """Test TRS instantiation."""
+        trs = TotalReturnSwap(
+            T=1.0,
+            notional=10_000_000,
+            asset_coupon=0.05,
+            funding_spread=150.0,  # 150 bps
+            initial_asset_price=100.0,
+        )
+        assert trs.T == 1.0
+        assert trs.notional == 10_000_000
+        assert trs.asset_coupon == 0.05
+        assert trs.funding_spread == 150.0
+        assert trs.initial_asset_price == 100.0
+
+    def test_total_return_leg(self):
+        """Test total return leg calculation."""
+        trs = TotalReturnSwap(
+            T=1.0,
+            notional=10_000_000,
+            asset_coupon=0.05,
+            funding_spread=150.0,
+            initial_asset_price=100.0,
+        )
+
+        final_price = 105.0
+        hazard_rate = 0.02
+        libor_rate = 0.03
+
+        total_return = trs.total_return_leg(final_price, hazard_rate, libor_rate)
+
+        # Should be positive (coupons + price appreciation)
+        assert total_return > 0
+
+    def test_funding_leg(self):
+        """Test funding leg calculation."""
+        trs = TotalReturnSwap(
+            T=1.0,
+            notional=10_000_000,
+            asset_coupon=0.05,
+            funding_spread=150.0,
+        )
+
+        libor_rate = 0.03
+        funding = trs.funding_leg(libor_rate)
+
+        # Funding should be positive
+        assert funding > 0
+
+    def test_trs_payoff(self):
+        """Test TRS payoff calculation."""
+        trs = TotalReturnSwap(
+            T=1.0,
+            notional=10_000_000,
+            asset_coupon=0.05,
+            funding_spread=150.0,
+            initial_asset_price=100.0,
+        )
+
+        state = jnp.array([105.0, 0.02, 0.03])  # final_price, hazard_rate, libor_rate
+        payoff = trs.payoff_terminal(state)
+
+        # Payoff should be a number
+        assert isinstance(payoff, jnp.ndarray) or isinstance(payoff, float)
+
+    def test_trs_price_appreciation(self):
+        """Test TRS with price appreciation."""
+        trs = TotalReturnSwap(
+            T=1.0,
+            notional=10_000_000,
+            asset_coupon=0.05,
+            funding_spread=150.0,
+            initial_asset_price=100.0,
+        )
+
+        # Asset appreciates
+        state_up = jnp.array([110.0, 0.01, 0.03])
+        payoff_up = trs.payoff_terminal(state_up)
+
+        # Asset depreciates
+        state_down = jnp.array([95.0, 0.01, 0.03])
+        payoff_down = trs.payoff_terminal(state_down)
+
+        # Higher asset price should give higher payoff
+        assert payoff_up > payoff_down
+
+    def test_breakeven_spread(self):
+        """Test breakeven spread calculation."""
+        trs = TotalReturnSwap(
+            T=1.0,
+            notional=10_000_000,
+            asset_coupon=0.05,
+            funding_spread=150.0,
+        )
+
+        breakeven = trs.breakeven_spread(105.0, 0.02, 0.03)
+
+        # Breakeven spread should be positive
+        assert breakeven > 0
+
+
+class TestCollateralizedLoanObligation:
+    """Test Collateralized Loan Obligation."""
+
+    def test_clo_creation(self):
+        """Test CLO instantiation."""
+        clo = CollateralizedLoanObligation(
+            T=7.0,
+            notional=50_000_000,
+            attachment=0.10,
+            detachment=0.20,
+            spread=250.0,  # 250 bps
+            recovery_rate=0.65,
+            correlation=0.25,
+        )
+        assert clo.T == 7.0
+        assert clo.notional == 50_000_000
+        assert clo.attachment == 0.10
+        assert clo.detachment == 0.20
+        assert clo.recovery_rate == 0.65  # Higher recovery for loans
+
+    def test_tranche_loss(self):
+        """Test tranche loss calculation."""
+        clo = CollateralizedLoanObligation(
+            T=7.0,
+            notional=50_000_000,
+            attachment=0.10,
+            detachment=0.20,
+            spread=250.0,
+        )
+
+        # No portfolio loss
+        loss_0 = clo.tranche_loss(0.0)
+        assert jnp.allclose(loss_0, 0.0)
+
+        # Portfolio loss below attachment
+        loss_low = clo.tranche_loss(0.05)
+        assert jnp.allclose(loss_low, 0.0)
+
+        # Portfolio loss within tranche
+        loss_mid = clo.tranche_loss(0.15)
+        assert 0.0 < loss_mid < 1.0
+
+        # Portfolio loss above detachment
+        loss_high = clo.tranche_loss(0.30)
+        assert jnp.allclose(loss_high, 1.0)
+
+    def test_expected_tranche_loss_lhp(self):
+        """Test expected tranche loss using LHP."""
+        clo = CollateralizedLoanObligation(
+            T=7.0,
+            notional=50_000_000,
+            attachment=0.10,
+            detachment=0.20,
+            spread=250.0,
+            correlation=0.25,
+        )
+
+        default_prob = 0.05
+        expected_loss = clo.expected_tranche_loss_lhp(default_prob)
+
+        # Expected loss should be between 0 and 1
+        assert 0.0 <= expected_loss <= 1.0
+
+    def test_interest_waterfall(self):
+        """Test interest waterfall calculation."""
+        clo = CollateralizedLoanObligation(
+            T=7.0,
+            notional=50_000_000,
+            attachment=0.10,
+            detachment=0.20,
+            spread=250.0,
+            loan_coupon=400.0,
+        )
+
+        libor_rate = 0.03
+        default_prob = 0.05
+
+        interest = clo.interest_waterfall(libor_rate, default_prob)
+
+        # Interest should be positive
+        assert interest > 0
+
+    def test_clo_payoff(self):
+        """Test CLO tranche payoff calculation."""
+        clo = CollateralizedLoanObligation(
+            T=7.0,
+            notional=50_000_000,
+            attachment=0.10,
+            detachment=0.20,
+            spread=250.0,
+        )
+
+        params = jnp.array([0.05, 0.03])  # default_prob, libor_rate
+        payoff = clo.payoff_terminal(params)
+
+        # Payoff should be positive (includes interest + principal)
+        assert payoff > 0
+        # Total value can exceed notional due to interest payments
+        # but should be reasonable (< notional * 2 for 7 year maturity)
+        assert payoff < clo.notional * 2.0
+
+    def test_senior_vs_equity_tranche(self):
+        """Test that senior tranches have lower spreads and losses."""
+        # Senior tranche
+        senior = CollateralizedLoanObligation(
+            T=7.0,
+            notional=50_000_000,
+            attachment=0.20,
+            detachment=1.00,
+            spread=100.0,  # Lower spread for senior
+            correlation=0.25,
+        )
+
+        # Equity tranche
+        equity = CollateralizedLoanObligation(
+            T=7.0,
+            notional=50_000_000,
+            attachment=0.00,
+            detachment=0.10,
+            spread=800.0,  # Higher spread for equity
+            correlation=0.25,
+        )
+
+        default_prob = 0.05
+
+        # Equity tranche should have higher expected loss
+        senior_loss = senior.expected_tranche_loss_lhp(default_prob)
+        equity_loss = equity.expected_tranche_loss_lhp(default_prob)
+
+        assert equity_loss >= senior_loss
+
+    def test_expected_return(self):
+        """Test expected return calculation."""
+        clo = CollateralizedLoanObligation(
+            T=7.0,
+            notional=50_000_000,
+            attachment=0.00,
+            detachment=0.10,
+            spread=800.0,
+        )
+
+        expected_return = clo.expected_return(0.05, 0.03)
+
+        # Return should be reasonable
+        assert isinstance(expected_return, jnp.ndarray) or isinstance(expected_return, float)

@@ -1,12 +1,21 @@
 """Credit derivatives products.
 
 This module implements credit derivatives including:
+- Single-name CDS
 - CDX/iTraxx indices
-- Synthetic CDO tranche pricing
+- Synthetic CDO/CLO tranche pricing
+- Total Return Swaps
 - n-th to default baskets
 - Credit-linked notes
 - Loan CDS
 - Contingent CDS
+
+Theoretical foundations:
+- Hazard rate models for default probability
+- Reduced-form credit models (Jarrow-Turnbull, Duffie-Singleton)
+- Gaussian copula models for portfolio credit risk
+- Large homogeneous pool (LHP) approximation for CDO pricing
+- Credit triangle: PD = 1 - exp(-hazard_rate * T)
 """
 from __future__ import annotations
 
@@ -21,6 +30,202 @@ from jax.scipy.stats import norm
 from neutryx.products.base import Product, PathProduct
 
 Array = jnp.ndarray
+
+
+@dataclass
+class CreditDefaultSwap(Product):
+    """Single-name Credit Default Swap (CDS).
+
+    A CDS is a credit derivative contract that provides protection against default
+    of a reference entity. The protection buyer pays periodic premiums (spread)
+    to the protection seller. If a credit event occurs, the seller pays the buyer
+    the loss given default (1 - recovery_rate) times the notional.
+
+    The CDS value is the difference between the protection leg (expected loss) and
+    the premium leg (present value of spread payments).
+
+    Args:
+        T: Time to maturity (years)
+        notional: Notional amount
+        spread: CDS spread in basis points (e.g., 100 = 1%)
+        recovery_rate: Expected recovery rate on default (typically 0.4 for senior unsecured)
+        coupon_freq: Number of premium payments per year (typically 4 for quarterly)
+        upfront_payment: Upfront payment (positive = paid by protection buyer)
+
+    References:
+        - O'Kane, D. (2008). Modelling Single-name and Multi-name Credit Derivatives.
+        - Hull, J., & White, A. (2000). Valuing credit default swaps I & II.
+    """
+
+    T: float
+    notional: float
+    spread: float  # in basis points
+    recovery_rate: float = 0.4
+    coupon_freq: int = 4
+    upfront_payment: float = 0.0
+
+    def survival_probability(self, hazard_rate: float, t: float) -> float:
+        """Calculate survival probability to time t.
+
+        Args:
+            hazard_rate: Constant hazard rate (intensity of default)
+            t: Time horizon
+
+        Returns:
+            Probability of no default by time t
+        """
+        return jnp.exp(-hazard_rate * t)
+
+    def default_probability(self, hazard_rate: float, t: float) -> float:
+        """Calculate cumulative default probability by time t.
+
+        Args:
+            hazard_rate: Constant hazard rate
+            t: Time horizon
+
+        Returns:
+            Probability of default by time t
+        """
+        return 1.0 - self.survival_probability(hazard_rate, t)
+
+    def premium_leg_pv(self, hazard_rate: float, discount_rate: float) -> float:
+        """Calculate present value of premium leg.
+
+        The premium leg consists of:
+        1. Regular premium payments (spread * notional * dt) at each coupon date
+        2. Accrued premium in case of default between payment dates
+
+        Args:
+            hazard_rate: Constant hazard rate
+            discount_rate: Risk-free discount rate
+
+        Returns:
+            Present value of all premium payments
+        """
+        dt = 1.0 / self.coupon_freq
+        times = jnp.arange(dt, self.T + dt, dt)
+
+        # Regular premium payments (paid if no default)
+        def pv_payment(t: float) -> float:
+            survival = self.survival_probability(hazard_rate, t)
+            discount = jnp.exp(-discount_rate * t)
+            return self.spread * 1e-4 * dt * survival * discount
+
+        regular_pv = jnp.sum(jax.vmap(pv_payment)(times))
+
+        # Accrued premium (approximation: assume default occurs mid-period)
+        def pv_accrued(t: float) -> float:
+            # Default probability in period [t-dt, t]
+            surv_start = self.survival_probability(hazard_rate, jnp.maximum(0, t - dt))
+            surv_end = self.survival_probability(hazard_rate, t)
+            default_in_period = surv_start - surv_end
+
+            # Discount to middle of period
+            discount = jnp.exp(-discount_rate * (t - dt/2))
+
+            return self.spread * 1e-4 * (dt/2) * default_in_period * discount
+
+        accrued_pv = jnp.sum(jax.vmap(pv_accrued)(times))
+
+        return self.notional * (regular_pv + accrued_pv)
+
+    def protection_leg_pv(self, hazard_rate: float, discount_rate: float) -> float:
+        """Calculate present value of protection leg.
+
+        The protection leg pays (1 - recovery_rate) * notional if default occurs.
+        We integrate over all possible default times.
+
+        Args:
+            hazard_rate: Constant hazard rate
+            discount_rate: Risk-free discount rate
+
+        Returns:
+            Present value of protection payment
+        """
+        # Loss given default
+        lgd = 1.0 - self.recovery_rate
+
+        # Approximate integral using discrete time steps
+        dt = 1.0 / self.coupon_freq
+        times = jnp.arange(dt/2, self.T + dt/2, dt)
+
+        def pv_protection(t: float) -> float:
+            # Probability density of default at time t
+            # f(t) = hazard_rate * exp(-hazard_rate * t)
+            default_density = hazard_rate * jnp.exp(-hazard_rate * t)
+
+            # Discount factor
+            discount = jnp.exp(-discount_rate * t)
+
+            return lgd * default_density * discount * dt
+
+        return self.notional * jnp.sum(jax.vmap(pv_protection)(times))
+
+    def payoff_terminal(self, hazard_rate: Array) -> Array:
+        """Calculate CDS value given hazard rate.
+
+        CDS value = Protection Leg PV - Premium Leg PV - Upfront Payment
+
+        Args:
+            hazard_rate: Hazard rate of reference entity
+
+        Returns:
+            Present value of CDS from protection buyer's perspective
+        """
+        # Assume risk-neutral measure: discount rate = hazard rate (simplification)
+        # In practice, use risk-free rate
+        discount_rate = 0.0  # Can be parameterized
+
+        protection = self.protection_leg_pv(hazard_rate, discount_rate)
+        premium = self.premium_leg_pv(hazard_rate, discount_rate)
+
+        return protection - premium - self.upfront_payment
+
+    def fair_spread(self, hazard_rate: float, discount_rate: float = 0.0) -> float:
+        """Calculate fair spread that makes CDS value zero at inception.
+
+        Fair spread = Protection Leg PV / Premium Leg PV (with spread = 1bp)
+
+        Args:
+            hazard_rate: Constant hazard rate
+            discount_rate: Risk-free discount rate
+
+        Returns:
+            Fair spread in basis points
+        """
+        # Calculate protection leg
+        protection = self.protection_leg_pv(hazard_rate, discount_rate)
+
+        # Calculate premium leg sensitivity (risky PV01)
+        dt = 1.0 / self.coupon_freq
+        times = jnp.arange(dt, self.T + dt, dt)
+
+        risky_pv01 = jnp.sum(
+            jax.vmap(lambda t: self.survival_probability(hazard_rate, t) *
+                     jnp.exp(-discount_rate * t) * dt)(times)
+        )
+
+        return (protection / (self.notional * risky_pv01 * 1e-4)) if risky_pv01 > 0 else 0.0
+
+    def credit_dv01(self, hazard_rate: float, discount_rate: float = 0.0) -> float:
+        """Calculate credit DV01 (dollar value of 1 basis point spread change).
+
+        Args:
+            hazard_rate: Constant hazard rate
+            discount_rate: Risk-free discount rate
+
+        Returns:
+            Change in CDS value for 1bp increase in spread
+        """
+        dt = 1.0 / self.coupon_freq
+        times = jnp.arange(dt, self.T + dt, dt)
+
+        risky_pv01 = jnp.sum(
+            jax.vmap(lambda t: self.survival_probability(hazard_rate, t) *
+                     jnp.exp(-discount_rate * t) * dt)(times)
+        )
+
+        return self.notional * risky_pv01 * 1e-4
 
 
 @dataclass
@@ -82,6 +287,374 @@ class CDSIndex(Product):
 
         # Index value = protection leg - premium leg
         return self.notional * (protection_leg - premium_leg)
+
+
+@dataclass
+class TotalReturnSwap(Product):
+    """Total Return Swap (TRS) on a credit asset.
+
+    A TRS allows one party (total return receiver) to receive the total economic
+    return (coupons + price appreciation/depreciation) of a reference asset without
+    owning it, while paying a floating rate (typically LIBOR + spread) to the payer.
+
+    The TRS is commonly used for:
+    - Gaining exposure to credit assets without balance sheet impact
+    - Financing positions
+    - Regulatory capital arbitrage
+    - Hedging credit risk
+
+    Args:
+        T: Time to maturity (years)
+        notional: Notional amount
+        asset_coupon: Coupon rate of reference asset (annual)
+        funding_spread: Spread over LIBOR paid by total return receiver (bps)
+        initial_asset_price: Initial price of reference asset (as % of par)
+        recovery_rate: Recovery rate if asset defaults
+        payment_freq: Payment frequency per year
+
+    References:
+        - British Bankers' Association (1999). Credit Derivatives Report.
+        - Das, S. (2000). Credit Derivatives: Trading & Management of Credit.
+    """
+
+    T: float
+    notional: float
+    asset_coupon: float  # Annual coupon rate (e.g., 0.05 for 5%)
+    funding_spread: float  # Spread in basis points
+    initial_asset_price: float = 100.0  # Price as % of par
+    recovery_rate: float = 0.4
+    payment_freq: int = 4
+
+    def total_return_leg(
+        self,
+        final_asset_price: float,
+        hazard_rate: float,
+        libor_rate: float
+    ) -> float:
+        """Calculate total return leg (paid to receiver).
+
+        Total return = Coupons + (Final Price - Initial Price)
+
+        Args:
+            final_asset_price: Terminal price of reference asset
+            hazard_rate: Hazard rate of reference asset
+            libor_rate: LIBOR rate for discounting
+
+        Returns:
+            Present value of total return payments
+        """
+        dt = 1.0 / self.payment_freq
+        times = jnp.arange(dt, self.T + dt, dt)
+
+        # Coupon payments (if no default)
+        coupon_payment = self.asset_coupon / self.payment_freq
+
+        def pv_coupon(t: float) -> float:
+            survival = jnp.exp(-hazard_rate * t)
+            discount = jnp.exp(-libor_rate * t)
+            return coupon_payment * survival * discount
+
+        total_coupons = jnp.sum(jax.vmap(pv_coupon)(times))
+
+        # Price appreciation/depreciation
+        survival = jnp.exp(-hazard_rate * self.T)
+        default_prob = 1.0 - survival
+
+        # If no default: return final price
+        # If default: return recovery value
+        expected_final = (
+            survival * final_asset_price +
+            default_prob * self.recovery_rate * 100.0
+        )
+
+        price_return = (expected_final - self.initial_asset_price) / 100.0
+        discount = jnp.exp(-libor_rate * self.T)
+
+        return self.notional * (total_coupons + price_return * discount)
+
+    def funding_leg(self, libor_rate: float, hazard_rate: float = 0.0) -> float:
+        """Calculate funding leg (paid by receiver).
+
+        Funding = (LIBOR + spread) paid periodically
+
+        Args:
+            libor_rate: LIBOR rate
+            hazard_rate: Hazard rate (affects payment if counterparty defaults)
+
+        Returns:
+            Present value of funding payments
+        """
+        dt = 1.0 / self.payment_freq
+        times = jnp.arange(dt, self.T + dt, dt)
+
+        funding_rate = libor_rate + self.funding_spread * 1e-4
+
+        def pv_funding(t: float) -> float:
+            survival = jnp.exp(-hazard_rate * t)
+            discount = jnp.exp(-libor_rate * t)
+            return funding_rate * dt * survival * discount
+
+        return self.notional * jnp.sum(jax.vmap(pv_funding)(times))
+
+    def payoff_terminal(self, state: Array) -> Array:
+        """Calculate TRS value.
+
+        TRS value = Total Return Leg - Funding Leg
+
+        Args:
+            state: Array containing [final_asset_price, hazard_rate, libor_rate]
+
+        Returns:
+            Present value of TRS from receiver's perspective
+        """
+        # Unpack state
+        if state.size >= 3:
+            final_price = state[0]
+            hazard_rate = state[1]
+            libor_rate = state[2]
+        else:
+            # Default values if not enough inputs
+            final_price = 100.0
+            hazard_rate = state[0] if state.size >= 1 else 0.01
+            libor_rate = 0.03
+
+        total_return = self.total_return_leg(final_price, hazard_rate, libor_rate)
+        funding = self.funding_leg(libor_rate, hazard_rate)
+
+        return total_return - funding
+
+    def breakeven_spread(
+        self,
+        final_asset_price: float,
+        hazard_rate: float,
+        libor_rate: float
+    ) -> float:
+        """Calculate breakeven funding spread.
+
+        The spread that makes TRS value zero at inception.
+
+        Args:
+            final_asset_price: Expected final price of reference asset
+            hazard_rate: Hazard rate
+            libor_rate: LIBOR rate
+
+        Returns:
+            Breakeven spread in basis points
+        """
+        total_return = self.total_return_leg(final_asset_price, hazard_rate, libor_rate)
+
+        # Calculate funding leg with 1bp spread
+        dt = 1.0 / self.payment_freq
+        times = jnp.arange(dt, self.T + dt, dt)
+
+        pv01 = jnp.sum(
+            jax.vmap(lambda t: jnp.exp(-hazard_rate * t) *
+                     jnp.exp(-libor_rate * t) * dt)(times)
+        )
+
+        # Breakeven: total_return = (libor + spread) * pv01
+        libor_pv = libor_rate * self.notional * pv01
+        spread_in_decimal = (total_return - libor_pv) / (self.notional * pv01)
+
+        return spread_in_decimal * 1e4  # Convert to basis points
+
+
+@dataclass
+class CollateralizedLoanObligation(Product):
+    """Collateralized Loan Obligation (CLO) tranche.
+
+    CLOs are structured finance securities backed by a pool of loans, typically
+    leveraged loans. The cash flows from the loan pool are divided into tranches
+    with different seniority levels.
+
+    Key differences from CDOs:
+    - Backed by actual loans (not synthetic)
+    - Higher recovery rates (60-70% vs 40% for bonds)
+    - Floating rate assets (loans tied to LIBOR/SOFR)
+    - Active management of loan portfolio
+
+    Args:
+        T: Time to maturity (years)
+        notional: Tranche notional
+        attachment: Lower bound of tranche (as fraction of portfolio)
+        detachment: Upper bound of tranche (as fraction of portfolio)
+        spread: Tranche spread over LIBOR (bps)
+        recovery_rate: Expected recovery rate for loans (typically 0.6-0.7)
+        correlation: Default correlation between loans
+        num_loans: Number of loans in portfolio
+        payment_freq: Payment frequency per year
+        loan_coupon: Average coupon rate of underlying loans (spread over LIBOR)
+
+    References:
+        - Tavakoli, J. (2003). Collateralized Debt Obligations and Structured Finance.
+        - Goodman, L. & Fabozzi, F. (2002). Collateralized Debt Obligations.
+    """
+
+    T: float
+    notional: float
+    attachment: float
+    detachment: float
+    spread: float  # Tranche spread in bps
+    recovery_rate: float = 0.65  # Higher for senior secured loans
+    correlation: float = 0.25
+    num_loans: int = 100
+    payment_freq: int = 4
+    loan_coupon: float = 400.0  # Average loan spread in bps (e.g., L+400)
+
+    def tranche_loss(self, portfolio_loss: float) -> float:
+        """Calculate tranche loss given portfolio loss.
+
+        Args:
+            portfolio_loss: Total portfolio loss as fraction of notional
+
+        Returns:
+            Tranche loss as fraction of tranche size
+        """
+        # Loss allocated to tranche
+        loss_to_tranche = jnp.maximum(
+            0.0,
+            jnp.minimum(
+                portfolio_loss - self.attachment,
+                self.detachment - self.attachment
+            )
+        )
+
+        # Normalize by tranche size
+        tranche_size = self.detachment - self.attachment
+        return loss_to_tranche / tranche_size if tranche_size > 0 else 0.0
+
+    def expected_tranche_loss_lhp(self, default_prob: float) -> float:
+        """Calculate expected tranche loss using Large Homogeneous Pool (LHP).
+
+        Uses Gaussian copula model with numerical integration.
+
+        Args:
+            default_prob: Unconditional default probability
+
+        Returns:
+            Expected loss for the tranche
+        """
+        # Convert default probability to threshold
+        K = norm.ppf(default_prob)
+
+        # Conditional loss function
+        def conditional_loss(market_factor: float) -> float:
+            # Conditional default probability given market factor
+            rho = self.correlation
+            threshold = (K - jnp.sqrt(rho) * market_factor) / jnp.sqrt(1 - rho)
+            cond_default_prob = norm.cdf(threshold)
+
+            # Portfolio loss (in LHP: E[loss] = default_prob * LGD)
+            lgd = 1.0 - self.recovery_rate
+            portfolio_loss = cond_default_prob * lgd
+
+            # Tranche loss
+            return self.tranche_loss(portfolio_loss)
+
+        # Numerical integration using Gauss-Hermite quadrature
+        n_points = 50
+        x, w = np.polynomial.hermite.hermgauss(n_points)
+        x = jnp.array(x) * jnp.sqrt(2.0)  # Scale for N(0,1)
+        w = jnp.array(w) / jnp.sqrt(jnp.pi)
+
+        expected_loss = jnp.sum(
+            jax.vmap(conditional_loss)(x) * w
+        )
+
+        return expected_loss
+
+    def interest_waterfall(
+        self,
+        libor_rate: float,
+        default_prob: float,
+        tranche_outstanding: float = 1.0
+    ) -> float:
+        """Calculate interest payments considering waterfall structure.
+
+        In a CLO, interest is paid in order of seniority (waterfall).
+
+        Args:
+            libor_rate: LIBOR rate
+            default_prob: Portfolio default probability
+            tranche_outstanding: Fraction of tranche still outstanding
+
+        Returns:
+            Expected interest payment to tranche
+        """
+        # Interest rate for this tranche
+        tranche_rate = libor_rate + self.spread * 1e-4
+
+        # Available interest from loan pool
+        pool_rate = libor_rate + self.loan_coupon * 1e-4
+
+        # Survival probability
+        survival = 1.0 - default_prob
+
+        # Interest payment (simplified: assumes senior tranches get full payment)
+        # More sophisticated model would consider full waterfall
+        interest = tranche_rate * tranche_outstanding * survival
+
+        return interest
+
+    def payoff_terminal(self, params: Array) -> Array:
+        """Calculate CLO tranche value.
+
+        Args:
+            params: Array containing [default_prob, libor_rate]
+
+        Returns:
+            Present value of CLO tranche
+        """
+        # Unpack parameters
+        if params.size >= 2:
+            default_prob = params[0]
+            libor_rate = params[1]
+        else:
+            default_prob = params[0] if params.size >= 1 else 0.03
+            libor_rate = 0.03
+
+        # Expected tranche loss
+        expected_loss = self.expected_tranche_loss_lhp(default_prob)
+
+        # Interest payments
+        dt = 1.0 / self.payment_freq
+        times = jnp.arange(dt, self.T + dt, dt)
+
+        def pv_interest(t: float) -> float:
+            # Outstanding tranche notional
+            outstanding = 1.0 - expected_loss  # Simplified
+
+            # Interest payment
+            interest = self.interest_waterfall(libor_rate, default_prob, outstanding)
+
+            # Discount factor
+            discount = jnp.exp(-libor_rate * t)
+
+            return interest * dt * discount
+
+        total_interest = jnp.sum(jax.vmap(pv_interest)(times))
+
+        # Principal repayment
+        remaining_principal = 1.0 - expected_loss
+        discount = jnp.exp(-libor_rate * self.T)
+        principal_pv = remaining_principal * discount
+
+        # Total value
+        return self.notional * (total_interest + principal_pv)
+
+    def expected_return(self, default_prob: float, libor_rate: float) -> float:
+        """Calculate expected return for equity tranche investors.
+
+        Args:
+            default_prob: Portfolio default probability
+            libor_rate: LIBOR rate
+
+        Returns:
+            Expected annualized return
+        """
+        pv = self.payoff_terminal(jnp.array([default_prob, libor_rate]))
+        implied_rate = (pv / self.notional) ** (1.0 / self.T) - 1.0
+        return implied_rate
 
 
 @dataclass
@@ -184,6 +757,374 @@ class SyntheticCDO(Product):
         protection_leg = expected_tranche_loss
 
         return self.notional * (protection_leg - premium_leg)
+
+
+@dataclass
+class TotalReturnSwap(Product):
+    """Total Return Swap (TRS) on a credit asset.
+
+    A TRS allows one party (total return receiver) to receive the total economic
+    return (coupons + price appreciation/depreciation) of a reference asset without
+    owning it, while paying a floating rate (typically LIBOR + spread) to the payer.
+
+    The TRS is commonly used for:
+    - Gaining exposure to credit assets without balance sheet impact
+    - Financing positions
+    - Regulatory capital arbitrage
+    - Hedging credit risk
+
+    Args:
+        T: Time to maturity (years)
+        notional: Notional amount
+        asset_coupon: Coupon rate of reference asset (annual)
+        funding_spread: Spread over LIBOR paid by total return receiver (bps)
+        initial_asset_price: Initial price of reference asset (as % of par)
+        recovery_rate: Recovery rate if asset defaults
+        payment_freq: Payment frequency per year
+
+    References:
+        - British Bankers' Association (1999). Credit Derivatives Report.
+        - Das, S. (2000). Credit Derivatives: Trading & Management of Credit.
+    """
+
+    T: float
+    notional: float
+    asset_coupon: float  # Annual coupon rate (e.g., 0.05 for 5%)
+    funding_spread: float  # Spread in basis points
+    initial_asset_price: float = 100.0  # Price as % of par
+    recovery_rate: float = 0.4
+    payment_freq: int = 4
+
+    def total_return_leg(
+        self,
+        final_asset_price: float,
+        hazard_rate: float,
+        libor_rate: float
+    ) -> float:
+        """Calculate total return leg (paid to receiver).
+
+        Total return = Coupons + (Final Price - Initial Price)
+
+        Args:
+            final_asset_price: Terminal price of reference asset
+            hazard_rate: Hazard rate of reference asset
+            libor_rate: LIBOR rate for discounting
+
+        Returns:
+            Present value of total return payments
+        """
+        dt = 1.0 / self.payment_freq
+        times = jnp.arange(dt, self.T + dt, dt)
+
+        # Coupon payments (if no default)
+        coupon_payment = self.asset_coupon / self.payment_freq
+
+        def pv_coupon(t: float) -> float:
+            survival = jnp.exp(-hazard_rate * t)
+            discount = jnp.exp(-libor_rate * t)
+            return coupon_payment * survival * discount
+
+        total_coupons = jnp.sum(jax.vmap(pv_coupon)(times))
+
+        # Price appreciation/depreciation
+        survival = jnp.exp(-hazard_rate * self.T)
+        default_prob = 1.0 - survival
+
+        # If no default: return final price
+        # If default: return recovery value
+        expected_final = (
+            survival * final_asset_price +
+            default_prob * self.recovery_rate * 100.0
+        )
+
+        price_return = (expected_final - self.initial_asset_price) / 100.0
+        discount = jnp.exp(-libor_rate * self.T)
+
+        return self.notional * (total_coupons + price_return * discount)
+
+    def funding_leg(self, libor_rate: float, hazard_rate: float = 0.0) -> float:
+        """Calculate funding leg (paid by receiver).
+
+        Funding = (LIBOR + spread) paid periodically
+
+        Args:
+            libor_rate: LIBOR rate
+            hazard_rate: Hazard rate (affects payment if counterparty defaults)
+
+        Returns:
+            Present value of funding payments
+        """
+        dt = 1.0 / self.payment_freq
+        times = jnp.arange(dt, self.T + dt, dt)
+
+        funding_rate = libor_rate + self.funding_spread * 1e-4
+
+        def pv_funding(t: float) -> float:
+            survival = jnp.exp(-hazard_rate * t)
+            discount = jnp.exp(-libor_rate * t)
+            return funding_rate * dt * survival * discount
+
+        return self.notional * jnp.sum(jax.vmap(pv_funding)(times))
+
+    def payoff_terminal(self, state: Array) -> Array:
+        """Calculate TRS value.
+
+        TRS value = Total Return Leg - Funding Leg
+
+        Args:
+            state: Array containing [final_asset_price, hazard_rate, libor_rate]
+
+        Returns:
+            Present value of TRS from receiver's perspective
+        """
+        # Unpack state
+        if state.size >= 3:
+            final_price = state[0]
+            hazard_rate = state[1]
+            libor_rate = state[2]
+        else:
+            # Default values if not enough inputs
+            final_price = 100.0
+            hazard_rate = state[0] if state.size >= 1 else 0.01
+            libor_rate = 0.03
+
+        total_return = self.total_return_leg(final_price, hazard_rate, libor_rate)
+        funding = self.funding_leg(libor_rate, hazard_rate)
+
+        return total_return - funding
+
+    def breakeven_spread(
+        self,
+        final_asset_price: float,
+        hazard_rate: float,
+        libor_rate: float
+    ) -> float:
+        """Calculate breakeven funding spread.
+
+        The spread that makes TRS value zero at inception.
+
+        Args:
+            final_asset_price: Expected final price of reference asset
+            hazard_rate: Hazard rate
+            libor_rate: LIBOR rate
+
+        Returns:
+            Breakeven spread in basis points
+        """
+        total_return = self.total_return_leg(final_asset_price, hazard_rate, libor_rate)
+
+        # Calculate funding leg with 1bp spread
+        dt = 1.0 / self.payment_freq
+        times = jnp.arange(dt, self.T + dt, dt)
+
+        pv01 = jnp.sum(
+            jax.vmap(lambda t: jnp.exp(-hazard_rate * t) *
+                     jnp.exp(-libor_rate * t) * dt)(times)
+        )
+
+        # Breakeven: total_return = (libor + spread) * pv01
+        libor_pv = libor_rate * self.notional * pv01
+        spread_in_decimal = (total_return - libor_pv) / (self.notional * pv01)
+
+        return spread_in_decimal * 1e4  # Convert to basis points
+
+
+@dataclass
+class CollateralizedLoanObligation(Product):
+    """Collateralized Loan Obligation (CLO) tranche.
+
+    CLOs are structured finance securities backed by a pool of loans, typically
+    leveraged loans. The cash flows from the loan pool are divided into tranches
+    with different seniority levels.
+
+    Key differences from CDOs:
+    - Backed by actual loans (not synthetic)
+    - Higher recovery rates (60-70% vs 40% for bonds)
+    - Floating rate assets (loans tied to LIBOR/SOFR)
+    - Active management of loan portfolio
+
+    Args:
+        T: Time to maturity (years)
+        notional: Tranche notional
+        attachment: Lower bound of tranche (as fraction of portfolio)
+        detachment: Upper bound of tranche (as fraction of portfolio)
+        spread: Tranche spread over LIBOR (bps)
+        recovery_rate: Expected recovery rate for loans (typically 0.6-0.7)
+        correlation: Default correlation between loans
+        num_loans: Number of loans in portfolio
+        payment_freq: Payment frequency per year
+        loan_coupon: Average coupon rate of underlying loans (spread over LIBOR)
+
+    References:
+        - Tavakoli, J. (2003). Collateralized Debt Obligations and Structured Finance.
+        - Goodman, L. & Fabozzi, F. (2002). Collateralized Debt Obligations.
+    """
+
+    T: float
+    notional: float
+    attachment: float
+    detachment: float
+    spread: float  # Tranche spread in bps
+    recovery_rate: float = 0.65  # Higher for senior secured loans
+    correlation: float = 0.25
+    num_loans: int = 100
+    payment_freq: int = 4
+    loan_coupon: float = 400.0  # Average loan spread in bps (e.g., L+400)
+
+    def tranche_loss(self, portfolio_loss: float) -> float:
+        """Calculate tranche loss given portfolio loss.
+
+        Args:
+            portfolio_loss: Total portfolio loss as fraction of notional
+
+        Returns:
+            Tranche loss as fraction of tranche size
+        """
+        # Loss allocated to tranche
+        loss_to_tranche = jnp.maximum(
+            0.0,
+            jnp.minimum(
+                portfolio_loss - self.attachment,
+                self.detachment - self.attachment
+            )
+        )
+
+        # Normalize by tranche size
+        tranche_size = self.detachment - self.attachment
+        return loss_to_tranche / tranche_size if tranche_size > 0 else 0.0
+
+    def expected_tranche_loss_lhp(self, default_prob: float) -> float:
+        """Calculate expected tranche loss using Large Homogeneous Pool (LHP).
+
+        Uses Gaussian copula model with numerical integration.
+
+        Args:
+            default_prob: Unconditional default probability
+
+        Returns:
+            Expected loss for the tranche
+        """
+        # Convert default probability to threshold
+        K = norm.ppf(default_prob)
+
+        # Conditional loss function
+        def conditional_loss(market_factor: float) -> float:
+            # Conditional default probability given market factor
+            rho = self.correlation
+            threshold = (K - jnp.sqrt(rho) * market_factor) / jnp.sqrt(1 - rho)
+            cond_default_prob = norm.cdf(threshold)
+
+            # Portfolio loss (in LHP: E[loss] = default_prob * LGD)
+            lgd = 1.0 - self.recovery_rate
+            portfolio_loss = cond_default_prob * lgd
+
+            # Tranche loss
+            return self.tranche_loss(portfolio_loss)
+
+        # Numerical integration using Gauss-Hermite quadrature
+        n_points = 50
+        x, w = np.polynomial.hermite.hermgauss(n_points)
+        x = jnp.array(x) * jnp.sqrt(2.0)  # Scale for N(0,1)
+        w = jnp.array(w) / jnp.sqrt(jnp.pi)
+
+        expected_loss = jnp.sum(
+            jax.vmap(conditional_loss)(x) * w
+        )
+
+        return expected_loss
+
+    def interest_waterfall(
+        self,
+        libor_rate: float,
+        default_prob: float,
+        tranche_outstanding: float = 1.0
+    ) -> float:
+        """Calculate interest payments considering waterfall structure.
+
+        In a CLO, interest is paid in order of seniority (waterfall).
+
+        Args:
+            libor_rate: LIBOR rate
+            default_prob: Portfolio default probability
+            tranche_outstanding: Fraction of tranche still outstanding
+
+        Returns:
+            Expected interest payment to tranche
+        """
+        # Interest rate for this tranche
+        tranche_rate = libor_rate + self.spread * 1e-4
+
+        # Available interest from loan pool
+        pool_rate = libor_rate + self.loan_coupon * 1e-4
+
+        # Survival probability
+        survival = 1.0 - default_prob
+
+        # Interest payment (simplified: assumes senior tranches get full payment)
+        # More sophisticated model would consider full waterfall
+        interest = tranche_rate * tranche_outstanding * survival
+
+        return interest
+
+    def payoff_terminal(self, params: Array) -> Array:
+        """Calculate CLO tranche value.
+
+        Args:
+            params: Array containing [default_prob, libor_rate]
+
+        Returns:
+            Present value of CLO tranche
+        """
+        # Unpack parameters
+        if params.size >= 2:
+            default_prob = params[0]
+            libor_rate = params[1]
+        else:
+            default_prob = params[0] if params.size >= 1 else 0.03
+            libor_rate = 0.03
+
+        # Expected tranche loss
+        expected_loss = self.expected_tranche_loss_lhp(default_prob)
+
+        # Interest payments
+        dt = 1.0 / self.payment_freq
+        times = jnp.arange(dt, self.T + dt, dt)
+
+        def pv_interest(t: float) -> float:
+            # Outstanding tranche notional
+            outstanding = 1.0 - expected_loss  # Simplified
+
+            # Interest payment
+            interest = self.interest_waterfall(libor_rate, default_prob, outstanding)
+
+            # Discount factor
+            discount = jnp.exp(-libor_rate * t)
+
+            return interest * dt * discount
+
+        total_interest = jnp.sum(jax.vmap(pv_interest)(times))
+
+        # Principal repayment
+        remaining_principal = 1.0 - expected_loss
+        discount = jnp.exp(-libor_rate * self.T)
+        principal_pv = remaining_principal * discount
+
+        # Total value
+        return self.notional * (total_interest + principal_pv)
+
+    def expected_return(self, default_prob: float, libor_rate: float) -> float:
+        """Calculate expected return for equity tranche investors.
+
+        Args:
+            default_prob: Portfolio default probability
+            libor_rate: LIBOR rate
+
+        Returns:
+            Expected annualized return
+        """
+        pv = self.payoff_terminal(jnp.array([default_prob, libor_rate]))
+        implied_rate = (pv / self.notional) ** (1.0 / self.T) - 1.0
+        return implied_rate
 
 
 @dataclass
@@ -403,6 +1344,374 @@ class LoanCDS(Product):
 
 
 @dataclass
+class TotalReturnSwap(Product):
+    """Total Return Swap (TRS) on a credit asset.
+
+    A TRS allows one party (total return receiver) to receive the total economic
+    return (coupons + price appreciation/depreciation) of a reference asset without
+    owning it, while paying a floating rate (typically LIBOR + spread) to the payer.
+
+    The TRS is commonly used for:
+    - Gaining exposure to credit assets without balance sheet impact
+    - Financing positions
+    - Regulatory capital arbitrage
+    - Hedging credit risk
+
+    Args:
+        T: Time to maturity (years)
+        notional: Notional amount
+        asset_coupon: Coupon rate of reference asset (annual)
+        funding_spread: Spread over LIBOR paid by total return receiver (bps)
+        initial_asset_price: Initial price of reference asset (as % of par)
+        recovery_rate: Recovery rate if asset defaults
+        payment_freq: Payment frequency per year
+
+    References:
+        - British Bankers' Association (1999). Credit Derivatives Report.
+        - Das, S. (2000). Credit Derivatives: Trading & Management of Credit.
+    """
+
+    T: float
+    notional: float
+    asset_coupon: float  # Annual coupon rate (e.g., 0.05 for 5%)
+    funding_spread: float  # Spread in basis points
+    initial_asset_price: float = 100.0  # Price as % of par
+    recovery_rate: float = 0.4
+    payment_freq: int = 4
+
+    def total_return_leg(
+        self,
+        final_asset_price: float,
+        hazard_rate: float,
+        libor_rate: float
+    ) -> float:
+        """Calculate total return leg (paid to receiver).
+
+        Total return = Coupons + (Final Price - Initial Price)
+
+        Args:
+            final_asset_price: Terminal price of reference asset
+            hazard_rate: Hazard rate of reference asset
+            libor_rate: LIBOR rate for discounting
+
+        Returns:
+            Present value of total return payments
+        """
+        dt = 1.0 / self.payment_freq
+        times = jnp.arange(dt, self.T + dt, dt)
+
+        # Coupon payments (if no default)
+        coupon_payment = self.asset_coupon / self.payment_freq
+
+        def pv_coupon(t: float) -> float:
+            survival = jnp.exp(-hazard_rate * t)
+            discount = jnp.exp(-libor_rate * t)
+            return coupon_payment * survival * discount
+
+        total_coupons = jnp.sum(jax.vmap(pv_coupon)(times))
+
+        # Price appreciation/depreciation
+        survival = jnp.exp(-hazard_rate * self.T)
+        default_prob = 1.0 - survival
+
+        # If no default: return final price
+        # If default: return recovery value
+        expected_final = (
+            survival * final_asset_price +
+            default_prob * self.recovery_rate * 100.0
+        )
+
+        price_return = (expected_final - self.initial_asset_price) / 100.0
+        discount = jnp.exp(-libor_rate * self.T)
+
+        return self.notional * (total_coupons + price_return * discount)
+
+    def funding_leg(self, libor_rate: float, hazard_rate: float = 0.0) -> float:
+        """Calculate funding leg (paid by receiver).
+
+        Funding = (LIBOR + spread) paid periodically
+
+        Args:
+            libor_rate: LIBOR rate
+            hazard_rate: Hazard rate (affects payment if counterparty defaults)
+
+        Returns:
+            Present value of funding payments
+        """
+        dt = 1.0 / self.payment_freq
+        times = jnp.arange(dt, self.T + dt, dt)
+
+        funding_rate = libor_rate + self.funding_spread * 1e-4
+
+        def pv_funding(t: float) -> float:
+            survival = jnp.exp(-hazard_rate * t)
+            discount = jnp.exp(-libor_rate * t)
+            return funding_rate * dt * survival * discount
+
+        return self.notional * jnp.sum(jax.vmap(pv_funding)(times))
+
+    def payoff_terminal(self, state: Array) -> Array:
+        """Calculate TRS value.
+
+        TRS value = Total Return Leg - Funding Leg
+
+        Args:
+            state: Array containing [final_asset_price, hazard_rate, libor_rate]
+
+        Returns:
+            Present value of TRS from receiver's perspective
+        """
+        # Unpack state
+        if state.size >= 3:
+            final_price = state[0]
+            hazard_rate = state[1]
+            libor_rate = state[2]
+        else:
+            # Default values if not enough inputs
+            final_price = 100.0
+            hazard_rate = state[0] if state.size >= 1 else 0.01
+            libor_rate = 0.03
+
+        total_return = self.total_return_leg(final_price, hazard_rate, libor_rate)
+        funding = self.funding_leg(libor_rate, hazard_rate)
+
+        return total_return - funding
+
+    def breakeven_spread(
+        self,
+        final_asset_price: float,
+        hazard_rate: float,
+        libor_rate: float
+    ) -> float:
+        """Calculate breakeven funding spread.
+
+        The spread that makes TRS value zero at inception.
+
+        Args:
+            final_asset_price: Expected final price of reference asset
+            hazard_rate: Hazard rate
+            libor_rate: LIBOR rate
+
+        Returns:
+            Breakeven spread in basis points
+        """
+        total_return = self.total_return_leg(final_asset_price, hazard_rate, libor_rate)
+
+        # Calculate funding leg with 1bp spread
+        dt = 1.0 / self.payment_freq
+        times = jnp.arange(dt, self.T + dt, dt)
+
+        pv01 = jnp.sum(
+            jax.vmap(lambda t: jnp.exp(-hazard_rate * t) *
+                     jnp.exp(-libor_rate * t) * dt)(times)
+        )
+
+        # Breakeven: total_return = (libor + spread) * pv01
+        libor_pv = libor_rate * self.notional * pv01
+        spread_in_decimal = (total_return - libor_pv) / (self.notional * pv01)
+
+        return spread_in_decimal * 1e4  # Convert to basis points
+
+
+@dataclass
+class CollateralizedLoanObligation(Product):
+    """Collateralized Loan Obligation (CLO) tranche.
+
+    CLOs are structured finance securities backed by a pool of loans, typically
+    leveraged loans. The cash flows from the loan pool are divided into tranches
+    with different seniority levels.
+
+    Key differences from CDOs:
+    - Backed by actual loans (not synthetic)
+    - Higher recovery rates (60-70% vs 40% for bonds)
+    - Floating rate assets (loans tied to LIBOR/SOFR)
+    - Active management of loan portfolio
+
+    Args:
+        T: Time to maturity (years)
+        notional: Tranche notional
+        attachment: Lower bound of tranche (as fraction of portfolio)
+        detachment: Upper bound of tranche (as fraction of portfolio)
+        spread: Tranche spread over LIBOR (bps)
+        recovery_rate: Expected recovery rate for loans (typically 0.6-0.7)
+        correlation: Default correlation between loans
+        num_loans: Number of loans in portfolio
+        payment_freq: Payment frequency per year
+        loan_coupon: Average coupon rate of underlying loans (spread over LIBOR)
+
+    References:
+        - Tavakoli, J. (2003). Collateralized Debt Obligations and Structured Finance.
+        - Goodman, L. & Fabozzi, F. (2002). Collateralized Debt Obligations.
+    """
+
+    T: float
+    notional: float
+    attachment: float
+    detachment: float
+    spread: float  # Tranche spread in bps
+    recovery_rate: float = 0.65  # Higher for senior secured loans
+    correlation: float = 0.25
+    num_loans: int = 100
+    payment_freq: int = 4
+    loan_coupon: float = 400.0  # Average loan spread in bps (e.g., L+400)
+
+    def tranche_loss(self, portfolio_loss: float) -> float:
+        """Calculate tranche loss given portfolio loss.
+
+        Args:
+            portfolio_loss: Total portfolio loss as fraction of notional
+
+        Returns:
+            Tranche loss as fraction of tranche size
+        """
+        # Loss allocated to tranche
+        loss_to_tranche = jnp.maximum(
+            0.0,
+            jnp.minimum(
+                portfolio_loss - self.attachment,
+                self.detachment - self.attachment
+            )
+        )
+
+        # Normalize by tranche size
+        tranche_size = self.detachment - self.attachment
+        return loss_to_tranche / tranche_size if tranche_size > 0 else 0.0
+
+    def expected_tranche_loss_lhp(self, default_prob: float) -> float:
+        """Calculate expected tranche loss using Large Homogeneous Pool (LHP).
+
+        Uses Gaussian copula model with numerical integration.
+
+        Args:
+            default_prob: Unconditional default probability
+
+        Returns:
+            Expected loss for the tranche
+        """
+        # Convert default probability to threshold
+        K = norm.ppf(default_prob)
+
+        # Conditional loss function
+        def conditional_loss(market_factor: float) -> float:
+            # Conditional default probability given market factor
+            rho = self.correlation
+            threshold = (K - jnp.sqrt(rho) * market_factor) / jnp.sqrt(1 - rho)
+            cond_default_prob = norm.cdf(threshold)
+
+            # Portfolio loss (in LHP: E[loss] = default_prob * LGD)
+            lgd = 1.0 - self.recovery_rate
+            portfolio_loss = cond_default_prob * lgd
+
+            # Tranche loss
+            return self.tranche_loss(portfolio_loss)
+
+        # Numerical integration using Gauss-Hermite quadrature
+        n_points = 50
+        x, w = np.polynomial.hermite.hermgauss(n_points)
+        x = jnp.array(x) * jnp.sqrt(2.0)  # Scale for N(0,1)
+        w = jnp.array(w) / jnp.sqrt(jnp.pi)
+
+        expected_loss = jnp.sum(
+            jax.vmap(conditional_loss)(x) * w
+        )
+
+        return expected_loss
+
+    def interest_waterfall(
+        self,
+        libor_rate: float,
+        default_prob: float,
+        tranche_outstanding: float = 1.0
+    ) -> float:
+        """Calculate interest payments considering waterfall structure.
+
+        In a CLO, interest is paid in order of seniority (waterfall).
+
+        Args:
+            libor_rate: LIBOR rate
+            default_prob: Portfolio default probability
+            tranche_outstanding: Fraction of tranche still outstanding
+
+        Returns:
+            Expected interest payment to tranche
+        """
+        # Interest rate for this tranche
+        tranche_rate = libor_rate + self.spread * 1e-4
+
+        # Available interest from loan pool
+        pool_rate = libor_rate + self.loan_coupon * 1e-4
+
+        # Survival probability
+        survival = 1.0 - default_prob
+
+        # Interest payment (simplified: assumes senior tranches get full payment)
+        # More sophisticated model would consider full waterfall
+        interest = tranche_rate * tranche_outstanding * survival
+
+        return interest
+
+    def payoff_terminal(self, params: Array) -> Array:
+        """Calculate CLO tranche value.
+
+        Args:
+            params: Array containing [default_prob, libor_rate]
+
+        Returns:
+            Present value of CLO tranche
+        """
+        # Unpack parameters
+        if params.size >= 2:
+            default_prob = params[0]
+            libor_rate = params[1]
+        else:
+            default_prob = params[0] if params.size >= 1 else 0.03
+            libor_rate = 0.03
+
+        # Expected tranche loss
+        expected_loss = self.expected_tranche_loss_lhp(default_prob)
+
+        # Interest payments
+        dt = 1.0 / self.payment_freq
+        times = jnp.arange(dt, self.T + dt, dt)
+
+        def pv_interest(t: float) -> float:
+            # Outstanding tranche notional
+            outstanding = 1.0 - expected_loss  # Simplified
+
+            # Interest payment
+            interest = self.interest_waterfall(libor_rate, default_prob, outstanding)
+
+            # Discount factor
+            discount = jnp.exp(-libor_rate * t)
+
+            return interest * dt * discount
+
+        total_interest = jnp.sum(jax.vmap(pv_interest)(times))
+
+        # Principal repayment
+        remaining_principal = 1.0 - expected_loss
+        discount = jnp.exp(-libor_rate * self.T)
+        principal_pv = remaining_principal * discount
+
+        # Total value
+        return self.notional * (total_interest + principal_pv)
+
+    def expected_return(self, default_prob: float, libor_rate: float) -> float:
+        """Calculate expected return for equity tranche investors.
+
+        Args:
+            default_prob: Portfolio default probability
+            libor_rate: LIBOR rate
+
+        Returns:
+            Expected annualized return
+        """
+        pv = self.payoff_terminal(jnp.array([default_prob, libor_rate]))
+        implied_rate = (pv / self.notional) ** (1.0 / self.T) - 1.0
+        return implied_rate
+
+
+@dataclass
 class ContingentCDS(Product):
     """Contingent credit default swap.
 
@@ -473,3 +1782,371 @@ class ContingentCDS(Product):
         )
 
         return self.notional * (protection_leg - premium_leg)
+
+
+@dataclass
+class TotalReturnSwap(Product):
+    """Total Return Swap (TRS) on a credit asset.
+
+    A TRS allows one party (total return receiver) to receive the total economic
+    return (coupons + price appreciation/depreciation) of a reference asset without
+    owning it, while paying a floating rate (typically LIBOR + spread) to the payer.
+
+    The TRS is commonly used for:
+    - Gaining exposure to credit assets without balance sheet impact
+    - Financing positions
+    - Regulatory capital arbitrage
+    - Hedging credit risk
+
+    Args:
+        T: Time to maturity (years)
+        notional: Notional amount
+        asset_coupon: Coupon rate of reference asset (annual)
+        funding_spread: Spread over LIBOR paid by total return receiver (bps)
+        initial_asset_price: Initial price of reference asset (as % of par)
+        recovery_rate: Recovery rate if asset defaults
+        payment_freq: Payment frequency per year
+
+    References:
+        - British Bankers' Association (1999). Credit Derivatives Report.
+        - Das, S. (2000). Credit Derivatives: Trading & Management of Credit.
+    """
+
+    T: float
+    notional: float
+    asset_coupon: float  # Annual coupon rate (e.g., 0.05 for 5%)
+    funding_spread: float  # Spread in basis points
+    initial_asset_price: float = 100.0  # Price as % of par
+    recovery_rate: float = 0.4
+    payment_freq: int = 4
+
+    def total_return_leg(
+        self,
+        final_asset_price: float,
+        hazard_rate: float,
+        libor_rate: float
+    ) -> float:
+        """Calculate total return leg (paid to receiver).
+
+        Total return = Coupons + (Final Price - Initial Price)
+
+        Args:
+            final_asset_price: Terminal price of reference asset
+            hazard_rate: Hazard rate of reference asset
+            libor_rate: LIBOR rate for discounting
+
+        Returns:
+            Present value of total return payments
+        """
+        dt = 1.0 / self.payment_freq
+        times = jnp.arange(dt, self.T + dt, dt)
+
+        # Coupon payments (if no default)
+        coupon_payment = self.asset_coupon / self.payment_freq
+
+        def pv_coupon(t: float) -> float:
+            survival = jnp.exp(-hazard_rate * t)
+            discount = jnp.exp(-libor_rate * t)
+            return coupon_payment * survival * discount
+
+        total_coupons = jnp.sum(jax.vmap(pv_coupon)(times))
+
+        # Price appreciation/depreciation
+        survival = jnp.exp(-hazard_rate * self.T)
+        default_prob = 1.0 - survival
+
+        # If no default: return final price
+        # If default: return recovery value
+        expected_final = (
+            survival * final_asset_price +
+            default_prob * self.recovery_rate * 100.0
+        )
+
+        price_return = (expected_final - self.initial_asset_price) / 100.0
+        discount = jnp.exp(-libor_rate * self.T)
+
+        return self.notional * (total_coupons + price_return * discount)
+
+    def funding_leg(self, libor_rate: float, hazard_rate: float = 0.0) -> float:
+        """Calculate funding leg (paid by receiver).
+
+        Funding = (LIBOR + spread) paid periodically
+
+        Args:
+            libor_rate: LIBOR rate
+            hazard_rate: Hazard rate (affects payment if counterparty defaults)
+
+        Returns:
+            Present value of funding payments
+        """
+        dt = 1.0 / self.payment_freq
+        times = jnp.arange(dt, self.T + dt, dt)
+
+        funding_rate = libor_rate + self.funding_spread * 1e-4
+
+        def pv_funding(t: float) -> float:
+            survival = jnp.exp(-hazard_rate * t)
+            discount = jnp.exp(-libor_rate * t)
+            return funding_rate * dt * survival * discount
+
+        return self.notional * jnp.sum(jax.vmap(pv_funding)(times))
+
+    def payoff_terminal(self, state: Array) -> Array:
+        """Calculate TRS value.
+
+        TRS value = Total Return Leg - Funding Leg
+
+        Args:
+            state: Array containing [final_asset_price, hazard_rate, libor_rate]
+
+        Returns:
+            Present value of TRS from receiver's perspective
+        """
+        # Unpack state
+        if state.size >= 3:
+            final_price = state[0]
+            hazard_rate = state[1]
+            libor_rate = state[2]
+        else:
+            # Default values if not enough inputs
+            final_price = 100.0
+            hazard_rate = state[0] if state.size >= 1 else 0.01
+            libor_rate = 0.03
+
+        total_return = self.total_return_leg(final_price, hazard_rate, libor_rate)
+        funding = self.funding_leg(libor_rate, hazard_rate)
+
+        return total_return - funding
+
+    def breakeven_spread(
+        self,
+        final_asset_price: float,
+        hazard_rate: float,
+        libor_rate: float
+    ) -> float:
+        """Calculate breakeven funding spread.
+
+        The spread that makes TRS value zero at inception.
+
+        Args:
+            final_asset_price: Expected final price of reference asset
+            hazard_rate: Hazard rate
+            libor_rate: LIBOR rate
+
+        Returns:
+            Breakeven spread in basis points
+        """
+        total_return = self.total_return_leg(final_asset_price, hazard_rate, libor_rate)
+
+        # Calculate funding leg with 1bp spread
+        dt = 1.0 / self.payment_freq
+        times = jnp.arange(dt, self.T + dt, dt)
+
+        pv01 = jnp.sum(
+            jax.vmap(lambda t: jnp.exp(-hazard_rate * t) *
+                     jnp.exp(-libor_rate * t) * dt)(times)
+        )
+
+        # Breakeven: total_return = (libor + spread) * pv01
+        libor_pv = libor_rate * self.notional * pv01
+        spread_in_decimal = (total_return - libor_pv) / (self.notional * pv01)
+
+        return spread_in_decimal * 1e4  # Convert to basis points
+
+
+@dataclass
+class CollateralizedLoanObligation(Product):
+    """Collateralized Loan Obligation (CLO) tranche.
+
+    CLOs are structured finance securities backed by a pool of loans, typically
+    leveraged loans. The cash flows from the loan pool are divided into tranches
+    with different seniority levels.
+
+    Key differences from CDOs:
+    - Backed by actual loans (not synthetic)
+    - Higher recovery rates (60-70% vs 40% for bonds)
+    - Floating rate assets (loans tied to LIBOR/SOFR)
+    - Active management of loan portfolio
+
+    Args:
+        T: Time to maturity (years)
+        notional: Tranche notional
+        attachment: Lower bound of tranche (as fraction of portfolio)
+        detachment: Upper bound of tranche (as fraction of portfolio)
+        spread: Tranche spread over LIBOR (bps)
+        recovery_rate: Expected recovery rate for loans (typically 0.6-0.7)
+        correlation: Default correlation between loans
+        num_loans: Number of loans in portfolio
+        payment_freq: Payment frequency per year
+        loan_coupon: Average coupon rate of underlying loans (spread over LIBOR)
+
+    References:
+        - Tavakoli, J. (2003). Collateralized Debt Obligations and Structured Finance.
+        - Goodman, L. & Fabozzi, F. (2002). Collateralized Debt Obligations.
+    """
+
+    T: float
+    notional: float
+    attachment: float
+    detachment: float
+    spread: float  # Tranche spread in bps
+    recovery_rate: float = 0.65  # Higher for senior secured loans
+    correlation: float = 0.25
+    num_loans: int = 100
+    payment_freq: int = 4
+    loan_coupon: float = 400.0  # Average loan spread in bps (e.g., L+400)
+
+    def tranche_loss(self, portfolio_loss: float) -> float:
+        """Calculate tranche loss given portfolio loss.
+
+        Args:
+            portfolio_loss: Total portfolio loss as fraction of notional
+
+        Returns:
+            Tranche loss as fraction of tranche size
+        """
+        # Loss allocated to tranche
+        loss_to_tranche = jnp.maximum(
+            0.0,
+            jnp.minimum(
+                portfolio_loss - self.attachment,
+                self.detachment - self.attachment
+            )
+        )
+
+        # Normalize by tranche size
+        tranche_size = self.detachment - self.attachment
+        return loss_to_tranche / tranche_size if tranche_size > 0 else 0.0
+
+    def expected_tranche_loss_lhp(self, default_prob: float) -> float:
+        """Calculate expected tranche loss using Large Homogeneous Pool (LHP).
+
+        Uses Gaussian copula model with numerical integration.
+
+        Args:
+            default_prob: Unconditional default probability
+
+        Returns:
+            Expected loss for the tranche
+        """
+        # Convert default probability to threshold
+        K = norm.ppf(default_prob)
+
+        # Conditional loss function
+        def conditional_loss(market_factor: float) -> float:
+            # Conditional default probability given market factor
+            rho = self.correlation
+            threshold = (K - jnp.sqrt(rho) * market_factor) / jnp.sqrt(1 - rho)
+            cond_default_prob = norm.cdf(threshold)
+
+            # Portfolio loss (in LHP: E[loss] = default_prob * LGD)
+            lgd = 1.0 - self.recovery_rate
+            portfolio_loss = cond_default_prob * lgd
+
+            # Tranche loss
+            return self.tranche_loss(portfolio_loss)
+
+        # Numerical integration using Gauss-Hermite quadrature
+        n_points = 50
+        x, w = np.polynomial.hermite.hermgauss(n_points)
+        x = jnp.array(x) * jnp.sqrt(2.0)  # Scale for N(0,1)
+        w = jnp.array(w) / jnp.sqrt(jnp.pi)
+
+        expected_loss = jnp.sum(
+            jax.vmap(conditional_loss)(x) * w
+        )
+
+        return expected_loss
+
+    def interest_waterfall(
+        self,
+        libor_rate: float,
+        default_prob: float,
+        tranche_outstanding: float = 1.0
+    ) -> float:
+        """Calculate interest payments considering waterfall structure.
+
+        In a CLO, interest is paid in order of seniority (waterfall).
+
+        Args:
+            libor_rate: LIBOR rate
+            default_prob: Portfolio default probability
+            tranche_outstanding: Fraction of tranche still outstanding
+
+        Returns:
+            Expected interest payment to tranche
+        """
+        # Interest rate for this tranche
+        tranche_rate = libor_rate + self.spread * 1e-4
+
+        # Available interest from loan pool
+        pool_rate = libor_rate + self.loan_coupon * 1e-4
+
+        # Survival probability
+        survival = 1.0 - default_prob
+
+        # Interest payment (simplified: assumes senior tranches get full payment)
+        # More sophisticated model would consider full waterfall
+        interest = tranche_rate * tranche_outstanding * survival
+
+        return interest
+
+    def payoff_terminal(self, params: Array) -> Array:
+        """Calculate CLO tranche value.
+
+        Args:
+            params: Array containing [default_prob, libor_rate]
+
+        Returns:
+            Present value of CLO tranche
+        """
+        # Unpack parameters
+        if params.size >= 2:
+            default_prob = params[0]
+            libor_rate = params[1]
+        else:
+            default_prob = params[0] if params.size >= 1 else 0.03
+            libor_rate = 0.03
+
+        # Expected tranche loss
+        expected_loss = self.expected_tranche_loss_lhp(default_prob)
+
+        # Interest payments
+        dt = 1.0 / self.payment_freq
+        times = jnp.arange(dt, self.T + dt, dt)
+
+        def pv_interest(t: float) -> float:
+            # Outstanding tranche notional
+            outstanding = 1.0 - expected_loss  # Simplified
+
+            # Interest payment
+            interest = self.interest_waterfall(libor_rate, default_prob, outstanding)
+
+            # Discount factor
+            discount = jnp.exp(-libor_rate * t)
+
+            return interest * dt * discount
+
+        total_interest = jnp.sum(jax.vmap(pv_interest)(times))
+
+        # Principal repayment
+        remaining_principal = 1.0 - expected_loss
+        discount = jnp.exp(-libor_rate * self.T)
+        principal_pv = remaining_principal * discount
+
+        # Total value
+        return self.notional * (total_interest + principal_pv)
+
+    def expected_return(self, default_prob: float, libor_rate: float) -> float:
+        """Calculate expected return for equity tranche investors.
+
+        Args:
+            default_prob: Portfolio default probability
+            libor_rate: LIBOR rate
+
+        Returns:
+            Expected annualized return
+        """
+        pv = self.payoff_terminal(jnp.array([default_prob, libor_rate]))
+        implied_rate = (pv / self.notional) ** (1.0 / self.T) - 1.0
+        return implied_rate
