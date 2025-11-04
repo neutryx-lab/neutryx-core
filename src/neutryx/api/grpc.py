@@ -11,9 +11,9 @@ from google.protobuf import json_format
 from google.protobuf.struct_pb2 import Struct
 
 from neutryx.core.engine import MCConfig, price_vanilla_mc
-from neutryx.valuations.cva import cva
-from neutryx.valuations.fva import fva
-from neutryx.valuations.mva import mva
+from neutryx.valuations.xva.cva import cva
+from neutryx.valuations.xva.fva import fva
+from neutryx.valuations.xva.mva import mva
 
 SERVICE_NAME = "neutryx.api.PricingService"
 

@@ -7,7 +7,7 @@ from typing import Mapping
 
 import jax.numpy as jnp
 
-from neutryx.valuations import cva as cva_module
+from neutryx.valuations.xva import cva as cva_module
 
 Array = jnp.ndarray
 

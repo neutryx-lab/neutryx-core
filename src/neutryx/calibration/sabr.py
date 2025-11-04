@@ -7,7 +7,7 @@ import jax
 import jax.numpy as jnp
 import optax
 
-from .models.sabr import SABRParams, hagan_implied_vol
+from neutryx.models.sabr import SABRParams, hagan_implied_vol
 
 from . import losses
 from .base import CalibrationController, ParameterSpec

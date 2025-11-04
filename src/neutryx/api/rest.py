@@ -9,9 +9,9 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
 from neutryx.core.engine import MCConfig, price_vanilla_mc
-from neutryx.valuations.cva import cva
-from neutryx.valuations.fva import fva
-from neutryx.valuations.mva import mva
+from neutryx.valuations.xva.cva import cva
+from neutryx.valuations.xva.fva import fva
+from neutryx.valuations.xva.mva import mva
 
 
 class VanillaOptionRequest(BaseModel):

@@ -6,13 +6,20 @@ including simulation, pricing via characteristic function, and calibration.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal
+from typing import Any, Literal, Mapping, Optional
 
 import jax
 import jax.numpy as jnp
 import optax
 from jax.scipy.stats import norm
 
+from neutryx.core.infrastructure.tracking import (
+    BaseTracker,
+    TrackingConfig,
+    calibration_metric_template,
+    calibration_param_template,
+    resolve_tracker,
+)
 from .heston_cf import characteristic_function
 
 Array = jnp.ndarray
@@ -279,6 +286,99 @@ def heston_call_price_cf(
     return float(call_price)
 
 
+def heston_call_price_semi_analytical(
+    S0: float,
+    K: float,
+    T: float,
+    r: float,
+    q: float,
+    params: HestonParams,
+    n_points: int = 256,
+) -> float:
+    """Price European call using semi-analytical Heston formula.
+
+    Uses the standard Heston (1993) formula with Fourier inversion.
+    Implements the formulation from Albrecher et al. (2007).
+
+    Parameters
+    ----------
+    S0 : float
+        Current spot price
+    K : float
+        Strike price
+    T : float
+        Time to maturity
+    r : float
+        Risk-free rate
+    q : float
+        Dividend yield
+    params : HestonParams
+        Heston model parameters
+    n_points : int
+        Number of integration points (default: 256)
+
+    Returns
+    -------
+    float
+        Call option price
+
+    Notes
+    -----
+    Formula: C = S*exp(-qT)*P1 - K*exp(-rT)*P2
+    where P1, P2 are probabilities computed via characteristic function.
+    """
+    def integrand(u, j):
+        """Integrand for computing probabilities P1 (j=1) and P2 (j=2)."""
+        # Compute characteristic function with appropriate modification
+        if j == 1:
+            # For P1, use modified cf with shift
+            cf_arg = u - 1j
+        else:
+            # For P2, use standard cf
+            cf_arg = u
+
+        cf = characteristic_function(
+            cf_arg, T, params.v0, params.kappa, params.theta,
+            params.sigma, params.rho, r, q
+        )
+
+        # Forward price
+        F = S0 * jnp.exp((r - q) * T)
+
+        # Compute integrand Re[(exp(-iu*log(K/F)) * cf / cf(0)) / (iu)]
+        if j == 1:
+            # P1 integrand
+            cf0 = characteristic_function(
+                -1j, T, params.v0, params.kappa, params.theta,
+                params.sigma, params.rho, r, q
+            )
+            numerator = jnp.exp(-1j * u * jnp.log(K / F)) * cf / cf0
+        else:
+            # P2 integrand
+            numerator = jnp.exp(-1j * u * jnp.log(K / F)) * cf
+
+        denominator = 1j * u
+
+        return jnp.real(numerator / denominator)
+
+    # Numerical integration parameters
+    u_max = 100.0
+    u_vals = jnp.linspace(0.0001, u_max, n_points)
+    du = u_vals[1] - u_vals[0]
+
+    # Compute P1 and P2 via numerical integration
+    integrand1 = jax.vmap(lambda u: integrand(u, 1))(u_vals)
+    integrand2 = jax.vmap(lambda u: integrand(u, 2))(u_vals)
+
+    P1 = 0.5 + (1.0 / jnp.pi) * du * jnp.sum(integrand1)
+    P2 = 0.5 + (1.0 / jnp.pi) * du * jnp.sum(integrand2)
+
+    # Option price formula
+    call_price = S0 * jnp.exp(-q * T) * P1 - K * jnp.exp(-r * T) * P2
+
+    return jnp.maximum(call_price, 0.0)
+
+
 def calibrate_heston(
     S0: float,
     strikes: Array,
@@ -289,6 +389,11 @@ def calibrate_heston(
     initial_params: HestonParams | None = None,
     n_iterations: int = 300,
     lr: float = 1e-2,
+    use_transform: bool = True,
+    pricing_method: Literal["fft", "semi_analytical"] = "fft",
+    tracker: Optional[BaseTracker] = None,
+    tracking_config: Optional[TrackingConfig | Mapping[str, Any]] = None,
+    log_every: Optional[int] = None,
 ) -> HestonParams:
     """Calibrate Heston parameters to market option prices.
 
@@ -312,6 +417,16 @@ def calibrate_heston(
         Number of optimization iterations
     lr : float
         Learning rate
+    use_transform : bool
+        Use log/tanh transforms for unconstrained optimization (default: True)
+    pricing_method : str
+        Pricing method: 'fft' (Carr-Madan) or 'semi_analytical' (direct integration)
+    tracker : BaseTracker | None
+        Tracking backend for logging calibration progress
+    tracking_config : TrackingConfig | Mapping | None
+        Configuration for tracking
+    log_every : int | None
+        Log metrics every N iterations (overrides tracking_config.log_every)
 
     Returns
     -------
@@ -323,54 +438,121 @@ def calibrate_heston(
             v0=0.04, kappa=2.0, theta=0.04, sigma=0.3, rho=-0.5
         )
 
-    # Transform parameters for unconstrained optimization
-    params = {
-        "v0": jnp.log(jnp.array(initial_params.v0)),
-        "kappa": jnp.log(jnp.array(initial_params.kappa)),
-        "theta": jnp.log(jnp.array(initial_params.theta)),
-        "sigma": jnp.log(jnp.array(initial_params.sigma)),
-        "rho": jnp.arctanh(jnp.array(initial_params.rho * 0.99)),
-    }
-
-    optimizer = optax.adam(lr)
-    opt_state = optimizer.init(params)
-
     strikes = jnp.asarray(strikes)
     maturities = jnp.asarray(maturities)
     market_prices = jnp.asarray(market_prices)
 
-    def transform_params(p):
-        """Transform to valid Heston parameters."""
-        return HestonParams(
-            v0=jnp.exp(p["v0"]),
-            kappa=jnp.exp(p["kappa"]),
-            theta=jnp.exp(p["theta"]),
-            sigma=jnp.exp(p["sigma"]),
-            rho=jnp.tanh(p["rho"]),
-        )
+    # Choose pricing function
+    if pricing_method == "fft":
+        price_fn = heston_call_price_cf
+    elif pricing_method == "semi_analytical":
+        price_fn = heston_call_price_semi_analytical
+    else:
+        raise ValueError(f"Unknown pricing_method: {pricing_method}")
+
+    if use_transform:
+        # Transform parameters for unconstrained optimization
+        params = {
+            "v0": jnp.log(jnp.array(initial_params.v0)),
+            "kappa": jnp.log(jnp.array(initial_params.kappa)),
+            "theta": jnp.log(jnp.array(initial_params.theta)),
+            "sigma": jnp.log(jnp.array(initial_params.sigma)),
+            "rho": jnp.arctanh(jnp.array(initial_params.rho * 0.99)),
+        }
+
+        def transform_params(p):
+            """Transform to valid Heston parameters."""
+            return HestonParams(
+                v0=jnp.exp(p["v0"]),
+                kappa=jnp.exp(p["kappa"]),
+                theta=jnp.exp(p["theta"]),
+                sigma=jnp.exp(p["sigma"]),
+                rho=jnp.tanh(p["rho"]),
+            )
+    else:
+        # Direct optimization with constraints applied post-update
+        params = {
+            "v0": jnp.array(initial_params.v0),
+            "kappa": jnp.array(initial_params.kappa),
+            "theta": jnp.array(initial_params.theta),
+            "sigma": jnp.array(initial_params.sigma),
+            "rho": jnp.array(initial_params.rho),
+        }
+
+        def transform_params(p):
+            """Apply constraints to ensure valid parameters."""
+            return HestonParams(
+                v0=jnp.maximum(p["v0"], 1e-6),
+                kappa=jnp.maximum(p["kappa"], 0.01),
+                theta=jnp.maximum(p["theta"], 1e-6),
+                sigma=jnp.maximum(p["sigma"], 0.01),
+                rho=jnp.clip(p["rho"], -0.99, 0.99),
+            )
+
+    optimizer = optax.adam(lr)
+    opt_state = optimizer.init(params)
 
     def loss_fn(p):
         """MSE loss."""
         hp = transform_params(p)
 
         def price_single(K, T):
-            return heston_call_price_cf(S0, K, T, r, q, hp)
+            return price_fn(S0, K, T, r, q, hp)
 
         model_prices = jax.vmap(price_single)(strikes, maturities)
         return jnp.mean((model_prices - market_prices) ** 2)
 
-    # Optimization
-    for _ in range(n_iterations):
-        loss_val, grads = jax.value_and_grad(loss_fn)(params)
-        updates, opt_state = optimizer.update(grads, opt_state)
-        params = optax.apply_updates(params, updates)
+    # Setup tracking
+    tracking_cfg: Optional[TrackingConfig]
+    if isinstance(tracking_config, TrackingConfig):
+        tracking_cfg = tracking_config
+    elif tracking_config is not None:
+        tracking_cfg = TrackingConfig(**dict(tracking_config))
+    else:
+        tracking_cfg = None
+
+    log_cadence = log_every or (tracking_cfg.log_every if tracking_cfg else 25)
+
+    # Optimization loop with tracking
+    with resolve_tracker(tracker, tracking_cfg) as active_tracker:
+        # Log initial parameters
+        initial_dict = {k: float(v) for k, v in params.items()}
+        active_tracker.log_params(
+            calibration_param_template(initial_dict, prefix="heston")
+        )
+
+        for i in range(n_iterations):
+            loss_val, grads = jax.value_and_grad(loss_fn)(params)
+            updates, opt_state = optimizer.update(grads, opt_state)
+            params = optax.apply_updates(params, updates)
+
+            # Apply constraints for non-transformed case
+            if not use_transform:
+                params['v0'] = jnp.maximum(params['v0'], 1e-6)
+                params['theta'] = jnp.maximum(params['theta'], 1e-6)
+                params['kappa'] = jnp.maximum(params['kappa'], 0.01)
+                params['sigma'] = jnp.maximum(params['sigma'], 0.01)
+                params['rho'] = jnp.clip(params['rho'], -0.99, 0.99)
+
+            # Log metrics
+            if i % log_cadence == 0 or i == n_iterations - 1:
+                param_dict = {k: float(v) for k, v in params.items()}
+                active_tracker.log_metrics(
+                    calibration_metric_template(float(loss_val), param_dict, prefix="heston"),
+                    step=i,
+                )
 
     return transform_params(params)
 
+
+# Compatibility alias for legacy code
+heston_call_price = heston_call_price_semi_analytical
 
 __all__ = [
     "HestonParams",
     "simulate_heston",
     "heston_call_price_cf",
+    "heston_call_price_semi_analytical",
+    "heston_call_price",  # compatibility alias
     "calibrate_heston",
 ]

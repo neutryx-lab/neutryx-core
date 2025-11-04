@@ -1,6 +1,5 @@
 """Calibration utilities."""
 
-from . import models
 from .base import (
     CalibrationController,
     CalibrationResult,
@@ -27,5 +26,4 @@ __all__ = [
     "build_residual_plot_data",
     "compute_identifiability_metrics",
     "generate_calibration_diagnostics",
-    "models",
 ]

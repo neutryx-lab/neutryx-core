@@ -4,9 +4,9 @@ import jax.numpy as jnp
 import pytest
 
 from neutryx.core.engine import MCConfig, simulate_gbm
-from neutryx.valuations import cva as cva_module
-from neutryx.valuations import fva as fva_module
-from neutryx.valuations import mva as mva_module
+from neutryx.valuations.xva import cva as cva_module
+from neutryx.valuations.xva import fva as fva_module
+from neutryx.valuations.xva import mva as mva_module
 from neutryx.valuations.exposure import epe
 from neutryx.valuations.xva.capital import CapitalCalculator
 

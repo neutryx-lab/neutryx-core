@@ -8,12 +8,12 @@ from neutryx.calibration.diagnostics import (
     build_residual_plot_data,
     generate_calibration_diagnostics,
 )
-from neutryx.calibration.models.heston import HestonParams, heston_call_price
-from neutryx.calibration.models.heston import calibrate as calibrate_heston
+from neutryx.models.heston import HestonParams, heston_call_price_semi_analytical
+from neutryx.models.heston import calibrate_heston
 
 
 def _heston_surface(params, *, strike, maturity, S0, r, q):
-    pricing_fn = jax.vmap(lambda K, T: heston_call_price(S0, K, T, r, q, params))
+    pricing_fn = jax.vmap(lambda K, T: heston_call_price_semi_analytical(S0, K, T, r, q, params))
     return pricing_fn(strike, maturity)
 
 

@@ -2,8 +2,8 @@
 import jax
 import jax.numpy as jnp
 
-from neutryx.calibration.models.heston import HestonParams, heston_call_price
-from neutryx.calibration.models.sabr import SABRParams, hagan_implied_vol
+from neutryx.models.heston import HestonParams, heston_call_price_semi_analytical
+from neutryx.models.sabr import SABRParams, hagan_implied_vol
 
 
 def test_sabr_vectorized_equals_scalar():
@@ -36,9 +36,9 @@ def test_heston_vectorized_equals_scalar():
     strikes = jnp.array([90.0, 100.0, 110.0])
     maturities = jnp.array([0.5, 1.0, 1.5])
 
-    vectorized = jax.vmap(lambda K, T: heston_call_price(S0, K, T, r, q, params))(strikes, maturities)
+    vectorized = jax.vmap(lambda K, T: heston_call_price_semi_analytical(S0, K, T, r, q, params))(strikes, maturities)
     scalar = jnp.array([
-        heston_call_price(S0, float(K), float(T), r, q, params)
+        heston_call_price_semi_analytical(S0, float(K), float(T), r, q, params)
         for K, T in zip(strikes, maturities)
     ])
 
@@ -50,6 +50,6 @@ def test_heston_price_decreases_with_strike():
     S0, r, q, T = 100.0, 0.02, 0.0, 1.0
     strikes = jnp.array([80.0, 100.0, 120.0])
 
-    prices = jax.vmap(lambda K: heston_call_price(S0, K, T, r, q, params))(strikes)
+    prices = jax.vmap(lambda K: heston_call_price_semi_analytical(S0, K, T, r, q, params))(strikes)
 
     assert prices[0] > prices[1] > prices[2]

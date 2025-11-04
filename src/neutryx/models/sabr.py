@@ -7,11 +7,20 @@ volatility and supports full calibration to market data.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal
+from typing import Any, Literal, Mapping, Optional
 
 import jax
 import jax.numpy as jnp
 import optax
+
+from neutryx.core.utils.precision import apply_loss_scaling, get_loss_scale, undo_loss_scaling
+from neutryx.core.infrastructure.tracking import (
+    BaseTracker,
+    TrackingConfig,
+    calibration_metric_template,
+    calibration_param_template,
+    resolve_tracker,
+)
 
 Array = jnp.ndarray
 
@@ -147,6 +156,33 @@ def sabr_implied_volatility_hagan(
     return jnp.maximum(result, 1e-8)
 
 
+def hagan_implied_vol(F: float, K: float, T: float, params: SABRParams) -> float:
+    """Compute SABR implied volatility using Hagan's formula (convenience wrapper).
+
+    This is a convenience function that wraps sabr_implied_volatility_hagan
+    with a SABRParams object.
+
+    Parameters
+    ----------
+    F : float
+        Forward price
+    K : float
+        Strike price
+    T : float
+        Time to maturity
+    params : SABRParams
+        SABR parameters
+
+    Returns
+    -------
+    float
+        Implied volatility (annualized)
+    """
+    return sabr_implied_volatility_hagan(
+        F, K, T, params.alpha, params.beta, params.rho, params.nu
+    )
+
+
 def sabr_call_price(
     F: float,
     K: float,
@@ -205,7 +241,7 @@ def sabr_call_price(
 def calibrate_sabr(
     F: float,
     strikes: Array,
-    T: float,
+    T: float | Array,
     market_vols: Array,
     beta: float = 0.5,
     initial_alpha: float | None = None,
@@ -213,6 +249,10 @@ def calibrate_sabr(
     initial_nu: float = 0.3,
     n_iterations: int = 500,
     lr: float = 1e-2,
+    use_loss_scaling: bool = False,
+    tracker: Optional[BaseTracker] = None,
+    tracking_config: Optional[TrackingConfig | Mapping[str, Any]] = None,
+    log_every: Optional[int] = None,
 ) -> SABRParams:
     """Calibrate SABR parameters to market implied volatilities.
 
@@ -222,8 +262,8 @@ def calibrate_sabr(
         Forward price
     strikes : Array
         Strike prices
-    T : float
-        Time to expiry
+    T : float | Array
+        Time to expiry (single value or array matching strikes)
     market_vols : Array
         Market implied volatilities
     beta : float
@@ -238,6 +278,14 @@ def calibrate_sabr(
         Number of optimization iterations
     lr : float
         Learning rate
+    use_loss_scaling : bool
+        Use mixed precision loss scaling (default: False)
+    tracker : BaseTracker | None
+        Tracking backend for logging calibration progress
+    tracking_config : TrackingConfig | Mapping | None
+        Configuration for tracking
+    log_every : int | None
+        Log metrics every N iterations (overrides tracking_config.log_every)
 
     Returns
     -------
@@ -246,6 +294,13 @@ def calibrate_sabr(
     """
     strikes = jnp.asarray(strikes)
     market_vols = jnp.asarray(market_vols)
+
+    # Handle scalar or array T
+    if isinstance(T, (int, float)):
+        T_val = float(T)
+        maturities = jnp.full_like(strikes, T_val)
+    else:
+        maturities = jnp.asarray(T)
 
     # Initial guess for alpha (ATM vol if not provided)
     if initial_alpha is None:
@@ -276,17 +331,65 @@ def calibrate_sabr(
 
         # Compute model implied vols
         model_vols = jax.vmap(
-            lambda K: sabr_implied_volatility_hagan(F, K, T, alpha, beta, rho, nu)
-        )(strikes)
+            lambda K, T_i: sabr_implied_volatility_hagan(F, K, T_i, alpha, beta, rho, nu)
+        )(strikes, maturities)
 
         # Mean squared error
         return jnp.mean((model_vols - market_vols) ** 2)
 
-    # Optimization loop
-    for _ in range(n_iterations):
-        loss_val, grads = jax.value_and_grad(loss_fn)(params)
-        updates, opt_state = optimizer.update(grads, opt_state)
-        params = optax.apply_updates(params, updates)
+    def scaled_loss_fn(params_raw, loss_scale):
+        """Loss with scaling for mixed precision."""
+        return apply_loss_scaling(loss_fn(params_raw), loss_scale=loss_scale)
+
+    # Setup tracking
+    tracking_cfg: Optional[TrackingConfig]
+    if isinstance(tracking_config, TrackingConfig):
+        tracking_cfg = tracking_config
+    elif tracking_config is not None:
+        tracking_cfg = TrackingConfig(**dict(tracking_config))
+    else:
+        tracking_cfg = None
+
+    log_cadence = log_every or (tracking_cfg.log_every if tracking_cfg else 25)
+
+    # Optimization loop with tracking
+    with resolve_tracker(tracker, tracking_cfg) as active_tracker:
+        # Log initial parameters
+        initial_dict = {
+            "alpha": float(initial_alpha),
+            "beta": beta,
+            "rho": initial_rho,
+            "nu": initial_nu,
+        }
+        active_tracker.log_params(
+            calibration_param_template(initial_dict, prefix="sabr")
+        )
+
+        for i in range(n_iterations):
+            if use_loss_scaling:
+                loss_scale = get_loss_scale()
+                loss_val_scaled, grads_scaled = jax.value_and_grad(
+                    lambda p: scaled_loss_fn(p, loss_scale)
+                )(params)
+                grads = undo_loss_scaling(grads_scaled, loss_scale=loss_scale)
+                loss_val = undo_loss_scaling(loss_val_scaled, loss_scale=loss_scale)
+            else:
+                loss_val, grads = jax.value_and_grad(loss_fn)(params)
+
+            updates, opt_state = optimizer.update(grads, opt_state)
+            params = optax.apply_updates(params, updates)
+
+            # Log metrics
+            if i % log_cadence == 0 or i == n_iterations - 1:
+                param_dict = {
+                    "alpha_raw": float(params["alpha_raw"]),
+                    "rho_raw": float(params["rho_raw"]),
+                    "nu_raw": float(params["nu_raw"]),
+                }
+                active_tracker.log_metrics(
+                    calibration_metric_template(float(loss_val), param_dict, prefix="sabr"),
+                    step=i,
+                )
 
     # Extract final parameters
     alpha_final, rho_final, nu_final = transform_params(params)
@@ -342,6 +445,7 @@ def sabr_density(
 __all__ = [
     "SABRParams",
     "sabr_implied_volatility_hagan",
+    "hagan_implied_vol",
     "sabr_call_price",
     "calibrate_sabr",
     "sabr_density",

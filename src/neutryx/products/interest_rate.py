@@ -260,7 +260,7 @@ def sabr_implied_vol_caplet(
     float
         Implied volatility
     """
-    from neutryx.calibration.models.sabr import hagan_implied_vol, SABRParams
+    from neutryx.models.sabr import hagan_implied_vol, SABRParams
 
     params = SABRParams(alpha=alpha, beta=beta, rho=rho, nu=nu)
     return float(hagan_implied_vol(forward_rate, strike, time_to_expiry, params))

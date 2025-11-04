@@ -2,7 +2,7 @@
 import jax.numpy as jnp
 from jax.scipy.stats import norm
 
-from neutryx.credit import (
+from neutryx.market.credit import (
     BlackCoxModel,
     HazardRateCurve,
     MertonModel,

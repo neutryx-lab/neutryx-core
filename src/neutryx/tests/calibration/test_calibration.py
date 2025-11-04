@@ -14,8 +14,8 @@ from neutryx.calibration.slv import (
     SLVCalibrationController,
     generate_slv_market_data,
 )
-from neutryx.calibration.models.heston import HestonParams
-from neutryx.calibration.models.sabr import SABRParams
+from neutryx.models.heston import HestonParams
+from neutryx.models.sabr import SABRParams
 
 
 def test_sabr_controller_recovers_parameters():
