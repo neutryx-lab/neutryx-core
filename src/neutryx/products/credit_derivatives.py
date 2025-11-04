@@ -15,6 +15,7 @@ from typing import Callable, Optional
 
 import jax
 import jax.numpy as jnp
+import numpy as np
 from jax.scipy.stats import norm
 
 from neutryx.products.base import Product, PathProduct
@@ -162,9 +163,9 @@ class SyntheticCDO(Product):
 
         # Integrate over market factor distribution (Gaussian quadrature)
         n_points = 50
-        x, w = jnp.polynomial.hermite.hermgauss(n_points)
-        x = x * jnp.sqrt(2.0)  # Scale for N(0,1)
-        w = w / jnp.sqrt(jnp.pi)
+        x, w = np.polynomial.hermite.hermgauss(n_points)
+        x = jnp.array(x) * jnp.sqrt(2.0)  # Scale for N(0,1)
+        w = jnp.array(w) / jnp.sqrt(jnp.pi)
 
         expected_tranche_loss = jnp.sum(
             jax.vmap(lambda xi: conditional_loss(xi))(x) * w
