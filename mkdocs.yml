@@ -11,6 +11,12 @@ nav:
       - Roadmap: roadmap.md
       - Design Decisions: design_decisions.md
       - Tutorials Index: tutorials.md
+  - Theory and Foundations:
+      - Mathematical Foundations: theory/mathematical_foundations.md
+      - Pricing Models Theory: theory/pricing_models.md
+      - Numerical Methods Theory: theory/numerical_methods.md
+      - Calibration Theory: theory/calibration_theory.md
+      - Bibliography and References: references.md
   - Models:
       - Modeling Hub: models/index.md
       - Playbooks:
