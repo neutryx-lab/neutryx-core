@@ -46,6 +46,17 @@ class TenantLimits:
 
 
 @dataclass(slots=True)
+class LimitEvaluation:
+    """Result of comparing tenant usage against configured limits."""
+
+    tenant_id: str
+    within_limits: bool
+    breaches: dict[str, float]
+    limits: TenantLimits | None
+    usage: "TenantUsage"
+
+
+@dataclass(slots=True)
 class TenantUsage:
     """Runtime usage statistics for a tenant."""
 
@@ -160,6 +171,13 @@ class TenantManager:
                 "storage_gb": storage_gb,
             },
         )
+        evaluation = self.check_limits(tenant_id)
+        if not evaluation.within_limits:
+            self._log(
+                action="tenant.limits.breach",
+                tenant_id=tenant_id,
+                metadata={"breaches": dict(evaluation.breaches)},
+            )
         return usage
 
     def get_usage(self, tenant_id: str) -> TenantUsage:
@@ -196,6 +214,40 @@ class TenantManager:
         if removed:
             self._log(action="tenant.unregister", tenant_id=tenant_id)
 
+    def check_limits(self, tenant_id: str) -> LimitEvaluation:
+        """Evaluate tenant usage against configured limits."""
+
+        tenant = self.ensure(tenant_id)
+        with self._lock:
+            limits = self._limits.get(tenant.tenant_id)
+            usage = self._usage.get(tenant.tenant_id, TenantUsage())
+            usage_snapshot = TenantUsage(
+                active_users=set(usage.active_users),
+                jobs_run=usage.jobs_run,
+                compute_seconds=usage.compute_seconds,
+                storage_gb=usage.storage_gb,
+                last_activity=usage.last_activity,
+            )
+        breaches: dict[str, float] = {}
+        if limits is not None:
+            user_count = len(usage_snapshot.active_users)
+            if limits.max_users is not None and user_count > limits.max_users:
+                breaches["active_users"] = float(user_count - limits.max_users)
+            if (
+                limits.compute_seconds is not None
+                and usage_snapshot.compute_seconds > limits.compute_seconds
+            ):
+                breaches["compute_seconds"] = usage_snapshot.compute_seconds - limits.compute_seconds
+            if limits.storage_gb is not None and usage_snapshot.storage_gb > limits.storage_gb:
+                breaches["storage_gb"] = usage_snapshot.storage_gb - limits.storage_gb
+        return LimitEvaluation(
+            tenant_id=tenant.tenant_id,
+            within_limits=not breaches,
+            breaches=breaches,
+            limits=limits,
+            usage=usage_snapshot,
+        )
+
     def _log(
         self,
         *,
@@ -231,6 +283,7 @@ def tenant_scope(tenant_manager: TenantManager, tenant_id: str, *, user_id: str 
 __all__ = [
     "Tenant",
     "TenantLimits",
+    "LimitEvaluation",
     "TenantManager",
     "TenantUsage",
     "current_tenant_id",

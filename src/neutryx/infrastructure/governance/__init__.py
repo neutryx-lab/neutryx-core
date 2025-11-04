@@ -9,6 +9,7 @@ from .compliance import (
     ComplianceReport,
     ComplianceReporter,
     ComplianceRule,
+    LimitBreachRule,
     InactivityRule,
     SuspendedTenantAccessRule,
     TenantLimitsRule,
@@ -19,6 +20,7 @@ from .rbac import RBACManager, Role
 from .service import GovernanceService
 from .sla import SLAEvaluation, SLAMonitor, SLAPolicy
 from .tenancy import (
+    LimitEvaluation,
     Tenant,
     TenantLimits,
     TenantManager,
@@ -42,11 +44,13 @@ __all__ = [
     "ComplianceReporter",
     "ComplianceRule",
     "AuditCoverageRule",
+    "LimitBreachRule",
     "InactivityRule",
     "SuspendedTenantAccessRule",
     "TenantLimitsRule",
     "default_rules",
     "GovernanceService",
+    "LimitEvaluation",
     "Tenant",
     "TenantLimits",
     "TenantManager",

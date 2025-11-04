@@ -9,7 +9,7 @@ from .compliance import ComplianceReport, ComplianceReporter, ComplianceRule
 from .costs import CostTracker
 from .rbac import RBACManager, Role
 from .sla import SLAEvaluation, SLAMonitor, SLAPolicy
-from .tenancy import Tenant, TenantLimits, TenantManager, tenant_scope
+from .tenancy import LimitEvaluation, Tenant, TenantLimits, TenantManager, tenant_scope
 
 
 class GovernanceService:
@@ -89,6 +89,9 @@ class GovernanceService:
 
     def generate_compliance_report(self, tenant_id: str | None = None) -> ComplianceReport:
         return self.compliance.generate_report(tenant_id=tenant_id)
+
+    def check_limits(self, tenant_id: str) -> LimitEvaluation:
+        return self.tenants.check_limits(tenant_id)
 
     def allocate_costs(self, tenant_id: str, allocations: Mapping[str, float]) -> Mapping[str, float]:
         return self.costs.allocate(tenant_id, allocations)

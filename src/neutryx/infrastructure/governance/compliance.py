@@ -197,11 +197,45 @@ class InactivityRule(ComplianceRule):
                 )
 
 
+class LimitBreachRule(ComplianceRule):
+    """Detect tenants that exceed their configured limits."""
+
+    name = "tenant_limit_breach"
+    description = "Tenants must operate within assigned quotas."
+
+    def __init__(self, *, severity: str = "HIGH"):
+        self._severity = severity
+
+    def evaluate(
+        self,
+        *,
+        tenant_manager: TenantManager,
+        rbac_manager: RBACManager,
+        audit_records: Sequence[AuditRecord],
+        tenant_id: str | None = None,
+    ) -> Iterable[ComplianceIssue]:
+        tenant_ids = (
+            [tenant_id] if tenant_id else [tenant.tenant_id for tenant in tenant_manager.list_tenants()]
+        )
+        for tid in tenant_ids:
+            evaluation = tenant_manager.check_limits(tid)
+            if evaluation.limits is None or evaluation.within_limits:
+                continue
+            yield ComplianceIssue(
+                rule=self.name,
+                severity=self._severity,
+                tenant_id=tid,
+                message="Tenant usage exceeds configured limits",
+                metadata={"breaches": dict(evaluation.breaches)},
+            )
+
+
 def default_rules() -> List[ComplianceRule]:
     """Return the default rule set used by the reporter."""
 
     return [
         TenantLimitsRule(),
+        LimitBreachRule(),
         SuspendedTenantAccessRule(),
         AuditCoverageRule(),
         InactivityRule(),
@@ -260,10 +294,10 @@ __all__ = [
     "ComplianceReport",
     "ComplianceReporter",
     "ComplianceRule",
+    "LimitBreachRule",
     "AuditCoverageRule",
     "InactivityRule",
     "SuspendedTenantAccessRule",
     "TenantLimitsRule",
     "default_rules",
 ]
-

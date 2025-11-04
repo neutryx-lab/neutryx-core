@@ -19,7 +19,10 @@ from neutryx.infrastructure.governance import (
 def test_governance_end_to_end_flow():
     service = GovernanceService()
 
-    service.register_tenant(Tenant("tenant-a", "Alpha"), limits=TenantLimits(max_users=25))
+    service.register_tenant(
+        Tenant("tenant-a", "Alpha"),
+        limits=TenantLimits(max_users=10, compute_seconds=120.0, storage_gb=1.0),
+    )
     service.register_tenant(Tenant("tenant-b", "Beta"))
     service.tenants.update_status("tenant-b", status="suspended")
 
@@ -37,6 +40,9 @@ def test_governance_end_to_end_flow():
         compute_seconds=180.0,
         storage_gb=2.5,
     )
+    limit_eval = service.tenants.check_limits("tenant-a")
+    assert not limit_eval.within_limits
+    assert set(limit_eval.breaches) == {"compute_seconds", "storage_gb"}
 
     service.sla.record_availability("tenant-a", 99.8)
     service.sla.record_latency("tenant-a", 150.0)
@@ -68,12 +74,25 @@ def test_governance_end_to_end_flow():
     )
 
     report = service.generate_compliance_report()
-    issues = [issue for issue in report.issues if issue.tenant_id == "tenant-b"]
-    codes = {issue.rule: issue for issue in issues}
-    assert "tenant_limits" in codes
-    assert codes["tenant_limits"].severity == "WARN"
-    assert "suspended_tenant_access" in codes
-    assert codes["suspended_tenant_access"].severity == "HIGH"
+    tenant_a_codes = {
+        issue.rule: issue
+        for issue in report.issues
+        if issue.tenant_id == "tenant-a"
+    }
+    assert "tenant_limit_breach" in tenant_a_codes
+    assert tenant_a_codes["tenant_limit_breach"].severity == "HIGH"
+    assert tenant_a_codes["tenant_limit_breach"].metadata["breaches"]["compute_seconds"] == pytest.approx(
+        60.0, abs=1e-6
+    )
+    tenant_b_codes = {
+        issue.rule: issue
+        for issue in report.issues
+        if issue.tenant_id == "tenant-b"
+    }
+    assert "tenant_limits" in tenant_b_codes
+    assert tenant_b_codes["tenant_limits"].severity == "WARN"
+    assert "suspended_tenant_access" in tenant_b_codes
+    assert tenant_b_codes["suspended_tenant_access"].severity == "HIGH"
 
     with service.scoped("tenant-a", user_id="alice"):
         assert current_tenant_id() == "tenant-a"
