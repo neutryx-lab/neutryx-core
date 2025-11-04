@@ -1,8 +1,6 @@
-"""Volatility surface utilities including SABR interpolation."""
+"""Volatility surface utilities including SABR interpolation and smile modeling."""
 
 from __future__ import annotations
-
-"""Volatility surface utilities including SABR interpolation."""
 
 from dataclasses import dataclass
 from typing import Sequence
@@ -10,6 +8,24 @@ from typing import Sequence
 import jax.numpy as jnp
 
 ArrayLike = jnp.ndarray | float
+
+
+@dataclass
+class VolSmile:
+    """Simple volatility smile with linear interpolation.
+
+    Attributes:
+        K: Strike prices
+        iv: Implied volatilities
+        T: Time to maturity
+    """
+    K: jnp.ndarray
+    iv: jnp.ndarray
+    T: float
+
+    def interp(self, k):
+        """Interpolate implied volatility at strike k using linear interpolation."""
+        return jnp.interp(k, self.K, self.iv)
 
 
 @dataclass
