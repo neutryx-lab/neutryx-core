@@ -14,7 +14,10 @@ from neutryx.valuations.regulatory import (
     SACCRCalculator,
     SACCRTrade,
 )
-from neutryx.valuations.regulatory.frtb import FRTBChargeBreakdown
+from neutryx.valuations.regulatory.frtb import (
+    DEFAULT_CROSS_BUCKET_CORRELATION,
+    FRTBChargeBreakdown,
+)
 from neutryx.valuations.regulatory.saccr import DEFAULT_SUPERVISORY_FACTORS
 from neutryx.valuations.simm.risk_weights import RiskClass, get_risk_weights
 from neutryx.valuations.simm.sensitivities import RiskFactorType, SensitivityType
@@ -83,7 +86,7 @@ class TestFRTBStandardizedApproach:
 
         w_usd = get_risk_weights(RiskClass.INTEREST_RATE, bucket="USD", tenor="5Y")
         w_eur = get_risk_weights(RiskClass.INTEREST_RATE, bucket="EUR", tenor="5Y")
-        rho = calc._cross_bucket_correlation[RiskClass.INTEREST_RATE]
+        rho = DEFAULT_CROSS_BUCKET_CORRELATION[RiskClass.INTEREST_RATE]
         expected = math.sqrt(w_usd**2 + w_eur**2 + 2.0 * rho * w_usd * w_eur)
 
         ir_charge = result.charges_by_risk_class[RiskClass.INTEREST_RATE]
