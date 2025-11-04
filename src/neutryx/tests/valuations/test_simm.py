@@ -330,6 +330,26 @@ class TestSIMMCalculator:
         # Delta should be 0 (no delta sensitivities)
         assert result.delta_im == 0.0
 
+    def test_curvature_simm_calculation(self):
+        """Curvature sensitivities should contribute to SIMM margin."""
+        sensitivities = [
+            RiskFactorSensitivity(
+                RiskFactorType.IR,
+                SensitivityType.CURVATURE,
+                "USD",
+                "USD-SWAPTION-5Y",
+                2500.0,
+                "5Y",
+            )
+        ]
+
+        result = calculate_simm(sensitivities)
+
+        assert result.curvature_im > 0.0
+        assert result.delta_im == 0.0
+        assert result.vega_im == 0.0
+        assert result.total_im == pytest.approx(result.curvature_im)
+
     def test_delta_and_vega_combined(self):
         """Test SIMM with both delta and vega."""
         sensitivities = [

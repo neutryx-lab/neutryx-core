@@ -15,6 +15,7 @@ from neutryx.valuations.simm.risk_weights import (
     apply_concentration_risk,
     get_concentration_threshold,
     get_correlations,
+    get_vega_risk_weight,
     get_risk_weights,
 )
 from neutryx.valuations.simm.sensitivities import (
@@ -58,7 +59,8 @@ class SIMMResult:
         return (
             f"SIMMResult(total_im={self.total_im:,.0f}, "
             f"delta={self.delta_im:,.0f}, "
-            f"vega={self.vega_im:,.0f})"
+            f"vega={self.vega_im:,.0f}, "
+            f"curvature={self.curvature_im:,.0f})"
         )
 
 
@@ -99,36 +101,48 @@ class SIMMCalculator:
         # Bucket sensitivities
         bucketed = bucket_sensitivities(sensitivities)
 
-        # Calculate delta margin
-        delta_im_by_class = {}
+        # Calculate component margins
+        delta_im_by_class: Dict[RiskClass, float] = {}
+        vega_im_by_class: Dict[RiskClass, float] = {}
+        curvature_im_by_class: Dict[RiskClass, float] = {}
+
         for (rf_type, sens_type), bucketed_sens in bucketed.items():
+            risk_class = self._map_rf_type_to_risk_class(rf_type)
             if sens_type == SensitivityType.DELTA:
-                risk_class = self._map_rf_type_to_risk_class(rf_type)
-                im = self._calculate_delta_margin(risk_class, bucketed_sens)
+                im = self._calculate_margin(
+                    risk_class,
+                    bucketed_sens,
+                    sensitivity_type=SensitivityType.DELTA,
+                )
                 delta_im_by_class[risk_class] = im
-
-        # Calculate vega margin
-        vega_im_by_class = {}
-        for (rf_type, sens_type), bucketed_sens in bucketed.items():
-            if sens_type == SensitivityType.VEGA:
-                risk_class = self._map_rf_type_to_risk_class(rf_type)
-                im = self._calculate_vega_margin(risk_class, bucketed_sens)
+            elif sens_type == SensitivityType.VEGA:
+                im = self._calculate_margin(
+                    risk_class,
+                    bucketed_sens,
+                    sensitivity_type=SensitivityType.VEGA,
+                )
                 vega_im_by_class[risk_class] = im
+            elif sens_type == SensitivityType.CURVATURE:
+                im = self._calculate_margin(
+                    risk_class,
+                    bucketed_sens,
+                    sensitivity_type=SensitivityType.CURVATURE,
+                )
+                curvature_im_by_class[risk_class] = im
 
-        # Aggregate across risk classes
         delta_im_total = sum(delta_im_by_class.values())
         vega_im_total = sum(vega_im_by_class.values())
+        curvature_im_total = sum(curvature_im_by_class.values())
 
         # Combine all risk classes
-        all_im_by_class = {}
-        for risk_class in set(list(delta_im_by_class.keys()) + list(vega_im_by_class.keys())):
+        all_im_by_class: Dict[RiskClass, float] = {}
+        risk_classes = set(delta_im_by_class) | set(vega_im_by_class) | set(curvature_im_by_class)
+        for risk_class in risk_classes:
             delta_component = delta_im_by_class.get(risk_class, 0.0)
             vega_component = vega_im_by_class.get(risk_class, 0.0)
-            # Simple sum (actual SIMM has more complex aggregation)
-            all_im_by_class[risk_class] = delta_component + vega_component
+            curvature_component = curvature_im_by_class.get(risk_class, 0.0)
+            all_im_by_class[risk_class] = delta_component + vega_component + curvature_component
 
-        # Apply cross-risk-class aggregation (simplified: sum)
-        # Full SIMM uses correlation matrix for cross-risk aggregation
         total_im = sum(all_im_by_class.values())
 
         # Apply product class multiplier
@@ -139,66 +153,64 @@ class SIMMCalculator:
             im_by_risk_class=all_im_by_class,
             delta_im=delta_im_total,
             vega_im=vega_im_total,
+            curvature_im=curvature_im_total,
             product_class_multiplier=self.product_class_multiplier,
         )
 
-    def _calculate_delta_margin(
+    def _calculate_margin(
         self,
         risk_class: RiskClass,
         bucketed_sens: BucketedSensitivities,
+        *,
+        sensitivity_type: SensitivityType,
     ) -> float:
-        """Calculate delta margin for a risk class.
-
-        Parameters
-        ----------
-        risk_class : RiskClass
-            Risk class
-        bucketed_sens : BucketedSensitivities
-            Bucketed sensitivities
-
-        Returns
-        -------
-        float
-            Delta margin for the risk class
-        """
-        # Calculate weighted sensitivities by bucket
+        """Calculate margin for a risk class and sensitivity type."""
         bucket_margins = []
 
         for bucket, sensitivities in bucketed_sens.bucket_sensitivities.items():
-            # Calculate weighted sensitivity for bucket
             ws = self._calculate_weighted_sensitivity(
-                risk_class, bucket, sensitivities
+                risk_class,
+                bucket,
+                sensitivities,
+                sensitivity_type=sensitivity_type,
             )
 
-            # Apply concentration risk
-            threshold = get_concentration_threshold(risk_class, bucket)
-            cr = apply_concentration_risk(ws, threshold)
+            if sensitivity_type == SensitivityType.DELTA:
+                threshold = get_concentration_threshold(risk_class, bucket)
+                cr = apply_concentration_risk(ws, threshold)
+                ws = jnp.sign(ws) * abs(ws) * cr
+            else:
+                cr = 1.0
 
-            # Bucket margin
-            bucket_margin = abs(ws) * cr
-            bucket_margins.append((bucket, bucket_margin, ws))
+            bucket_margins.append((bucket, ws))
 
-        # Aggregate across buckets with correlation
         if len(bucket_margins) == 0:
             return 0.0
 
-        # Simplified aggregation: sqrt(sum of squares with correlation)
-        rho = get_correlations(risk_class, within_bucket=False)  # Cross-bucket correlation
+        rho = get_correlations(risk_class, within_bucket=False)
 
         total_variance = 0.0
-        for i, (bucket_i, margin_i, ws_i) in enumerate(bucket_margins):
-            for j, (bucket_j, margin_j, ws_j) in enumerate(bucket_margins):
+        for i, (_, ws_i) in enumerate(bucket_margins):
+            for j, (_, ws_j) in enumerate(bucket_margins):
                 correlation = 1.0 if i == j else rho
                 total_variance += ws_i * ws_j * correlation
 
-        delta_margin = jnp.sqrt(max(0.0, total_variance))
-        return float(delta_margin)
+        margin = jnp.sqrt(max(0.0, total_variance))
+
+        if sensitivity_type == SensitivityType.VEGA:
+            margin *= 0.5
+        elif sensitivity_type == SensitivityType.CURVATURE:
+            margin *= 0.3
+
+        return float(margin)
 
     def _calculate_weighted_sensitivity(
         self,
         risk_class: RiskClass,
         bucket: str,
         sensitivities: List[RiskFactorSensitivity],
+        *,
+        sensitivity_type: SensitivityType,
     ) -> float:
         """Calculate weighted sensitivity for a bucket.
 
@@ -211,57 +223,37 @@ class SIMMCalculator:
         sensitivities : List[RiskFactorSensitivity]
             Sensitivities in the bucket
 
+        sensitivity_type : SensitivityType
+            Sensitivity type for risk-weight selection
+
         Returns
         -------
         float
             Weighted sensitivity (WS)
-
-        Notes
-        -----
-        WS = sum(sensitivity * risk_weight)
         """
         ws = 0.0
         for sens in sensitivities:
-            rw = get_risk_weights(
-                risk_class=risk_class,
-                bucket=bucket,
-                tenor=sens.tenor,
-            )
-            ws += sens.sensitivity * rw
+            if sensitivity_type == SensitivityType.VEGA:
+                delta_rw = get_risk_weights(
+                    risk_class=risk_class,
+                    bucket=bucket,
+                    tenor=sens.tenor,
+                )
+                rw = get_vega_risk_weight(risk_class, delta_rw)
+            else:
+                rw = get_risk_weights(
+                    risk_class=risk_class,
+                    bucket=bucket,
+                    tenor=sens.tenor,
+                )
+
+            value = sens.sensitivity
+            if sensitivity_type == SensitivityType.CURVATURE:
+                value = abs(value)
+
+            ws += value * rw
 
         return ws
-
-    def _calculate_vega_margin(
-        self,
-        risk_class: RiskClass,
-        bucketed_sens: BucketedSensitivities,
-    ) -> float:
-        """Calculate vega margin for a risk class.
-
-        Parameters
-        ----------
-        risk_class : RiskClass
-            Risk class
-        bucketed_sens : BucketedSensitivities
-            Bucketed vega sensitivities
-
-        Returns
-        -------
-        float
-            Vega margin
-
-        Notes
-        -----
-        Vega margin follows similar aggregation to delta, but with
-        vega-specific risk weights.
-        """
-        # Simplified: use delta margin calculation with vega multiplier
-        # Full implementation would have vega-specific risk weights
-        vega_margin = self._calculate_delta_margin(risk_class, bucketed_sens)
-
-        # Vega multiplier (simplified)
-        vega_multiplier = 0.50
-        return vega_margin * vega_multiplier
 
     def _map_rf_type_to_risk_class(self, rf_type: RiskFactorType) -> RiskClass:
         """Map RiskFactorType to RiskClass.
