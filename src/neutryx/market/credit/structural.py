@@ -182,3 +182,155 @@ def calibrate_black_cox_barrier(
         payout,
         recovery_rate,
     )
+
+
+@dataclass
+class KMVModel:
+    """Moody's KMV variant of the structural credit model.
+
+    The KMV framework refines the classic Merton setup by recognising that the
+    effective default threshold is rarely the full face value of outstanding
+    debt. Instead, the default point is approximated as short-term debt plus
+    one half of long-term debt, reflecting refinancing options and balance
+    sheet management typical for corporates.
+
+    Parameters
+    ----------
+    asset_value:
+        Market value of firm assets.
+    short_term_debt:
+        Current liabilities that must be settled within one year.
+    long_term_debt:
+        Longer-dated obligations; only half is assumed to pressure the firm at
+        the horizon.
+    maturity:
+        Time horizon (in years) used to measure distance to default. Moody's
+        KMV commonly uses 1 year but other horizons are possible.
+    asset_vol:
+        Volatility of asset value under the risk-neutral measure.
+    rate:
+        Risk-free rate used for discounting.
+    payout:
+        Continuous payout/dividend ratio of firm assets.
+    """
+
+    asset_value: float
+    short_term_debt: float
+    long_term_debt: float
+    maturity: float
+    asset_vol: float
+    rate: float
+    payout: float = 0.0
+
+    @property
+    def default_point(self) -> jnp.ndarray:
+        """Default point used as strike in the option representation."""
+
+        return self.short_term_debt + 0.5 * self.long_term_debt
+
+    def _d1d2(self) -> Tuple[jnp.ndarray, jnp.ndarray]:
+        sigma_sqrt_t = self.asset_vol * jnp.sqrt(self.maturity)
+        if sigma_sqrt_t <= 0:
+            raise ValueError("Asset volatility must be positive.")
+        log_ratio = jnp.log(self.asset_value / self.default_point)
+        drift = (self.rate - self.payout + 0.5 * self.asset_vol**2) * self.maturity
+        d1 = (log_ratio + drift) / sigma_sqrt_t
+        d2 = d1 - sigma_sqrt_t
+        return d1, d2
+
+    def distance_to_default(self) -> jnp.ndarray:
+        """Number of asset standard deviations away from the default point."""
+
+        _, d2 = self._d1d2()
+        return d2
+
+    def survival_probability(self) -> jnp.ndarray:
+        return norm.cdf(self.distance_to_default())
+
+    def default_probability(self) -> jnp.ndarray:
+        return 1.0 - self.survival_probability()
+
+    def expected_default_frequency(self) -> jnp.ndarray:
+        """KMV-style mapping from distance-to-default to EDF."""
+
+        dd = self.distance_to_default()
+        return norm.cdf(-dd)
+
+    def equity_value(self) -> jnp.ndarray:
+        d1, d2 = self._d1d2()
+        disc_asset = self.asset_value * jnp.exp(-self.payout * self.maturity)
+        disc_default = self.default_point * jnp.exp(-self.rate * self.maturity)
+        return disc_asset * norm.cdf(d1) - disc_default * norm.cdf(d2)
+
+    def debt_value(self) -> jnp.ndarray:
+        return self.asset_value - self.equity_value()
+
+    def credit_spread(self) -> jnp.ndarray:
+        debt_val = self.debt_value()
+        risk_free = self.default_point * jnp.exp(-self.rate * self.maturity)
+        spread = -jnp.log(jnp.clip(debt_val / risk_free, 1e-12)) / self.maturity
+        return spread
+
+
+def calibrate_kmv_from_equity(
+    short_term_debt: float,
+    long_term_debt: float,
+    maturity: float,
+    rate: float,
+    equity_value: float,
+    equity_vol: float,
+    payout: float = 0.0,
+) -> KMVModel:
+    """Recover asset value/volatility that match observed equity inputs.
+
+    The calibration mirrors the Merton approach but replaces the debt face
+    value with the KMV default point. Equity is modelled as a call option on
+    firm assets with strike equal to that default point. Solving the two
+    non-linear equations (equity value and volatility) yields the asset
+    parameters consistent with market observables.
+    """
+
+    if equity_value <= 0:
+        raise ValueError("Equity value must be positive.")
+    if equity_vol <= 0:
+        raise ValueError("Equity volatility must be positive.")
+
+    default_point = short_term_debt + 0.5 * long_term_debt
+
+    def residuals(x: jnp.ndarray) -> jnp.ndarray:
+        asset_value, asset_vol = x
+        model = KMVModel(
+            asset_value,
+            short_term_debt,
+            long_term_debt,
+            maturity,
+            asset_vol,
+            rate,
+            payout,
+        )
+        equity_model = model.equity_value()
+        d1, _ = model._d1d2()
+        implied_equity_vol = asset_vol * asset_value * norm.cdf(d1) / equity_model
+        return jnp.array([
+            equity_model - equity_value,
+            implied_equity_vol - equity_vol,
+        ])
+
+    initial_asset = default_point + equity_value
+    initial_sigma = equity_vol * equity_value / initial_asset
+    guess = jnp.array([initial_asset, jnp.maximum(initial_sigma, 1e-4)])
+
+    result = optimize.root(lambda x: residuals(jnp.array(x)), guess, method="hybr")
+    if not result.success:
+        raise RuntimeError("KMV calibration failed: " + result.message)
+
+    calibrated_asset, calibrated_sigma = result.x
+    return KMVModel(
+        calibrated_asset,
+        short_term_debt,
+        long_term_debt,
+        maturity,
+        calibrated_sigma,
+        rate,
+        payout,
+    )

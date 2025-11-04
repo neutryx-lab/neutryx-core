@@ -176,11 +176,11 @@ Neutryx Core is evolving from a research prototype to a production-ready quantit
 - [ ] PnL explain tools
 
 ### Credit Risk
-- [ ] CDS pricing and calibration
-- [ ] Structural credit models (Merton, KMV)
-- [ ] Reduced-form models
-- [ ] Credit portfolio analytics
-- [ ] Default correlation modeling
+- [x] CDS pricing and calibration
+- [x] Structural credit models (Merton, KMV)
+- [x] Reduced-form models
+- [x] Credit portfolio analytics
+- [x] Default correlation modeling
 
 ### Regulatory Reporting
 - [ ] FRTB (Fundamental Review of Trading Book)
