@@ -94,6 +94,11 @@ class PollingMarketDataFeed(MarketDataFeed):
 
         return subscription_id
 
+    def _ensure_adapter_connected(self) -> None:
+        if not self._adapter.is_connected():
+            if not self._adapter.connect():
+                raise FeedError("Failed to connect to market data adapter")
+
     def start(self) -> None:
         """Start polling all registered subscriptions."""
         if self.state in (FeedState.RUNNING, FeedState.STARTING):
@@ -106,12 +111,7 @@ class PollingMarketDataFeed(MarketDataFeed):
                 self._loop = asyncio.get_event_loop_policy().get_event_loop()
 
         self._state = FeedState.STARTING
-
-        if not self._adapter.is_connected():
-            connected = self._adapter.connect()
-            if not connected:
-                self._state = FeedState.STOPPED
-                raise FeedError("Failed to connect to market data adapter")
+        self._ensure_adapter_connected()
 
         self._state = FeedState.RUNNING
         for subscription_id, subscription in list(self._subscriptions.items()):
@@ -143,6 +143,27 @@ class PollingMarketDataFeed(MarketDataFeed):
 
         super().unsubscribe(subscription_id)
 
+    async def poll_once(self, subscription_id: str) -> int:
+        """Poll a subscription once without relying on background tasks."""
+        subscription = self.get_subscription(subscription_id)
+        if subscription is None or not subscription.is_active:
+            raise FeedError(f"Unknown subscription: {subscription_id}")
+
+        self._ensure_adapter_connected()
+
+        try:
+            return await self._execute_poll(subscription)
+        except asyncio.CancelledError:  # pragma: no cover - defensive
+            raise
+        except FeedError as exc:
+            self._metrics.errors += 1
+            self._metrics.last_error = str(exc)
+            raise
+        except Exception as exc:  # pragma: no cover - defensive
+            self._metrics.errors += 1
+            self._metrics.last_error = str(exc)
+            raise FeedError(str(exc)) from exc
+
     def _spawn_task(self, subscription_id: str, subscription: FeedSubscription) -> None:
         """Spawn polling task for a subscription."""
         if self._loop is None:
@@ -154,31 +175,60 @@ class PollingMarketDataFeed(MarketDataFeed):
         task = self._loop.create_task(self._run_subscription(subscription_id))
         self._tasks[subscription_id] = task
 
+    async def _execute_poll(self, subscription: FeedSubscription) -> int:
+        adapter_method = getattr(self._adapter, subscription.adapter_method, None)
+        if adapter_method is None:
+            raise FeedError(f"Adapter missing method '{subscription.adapter_method}'")
+
+        result = await asyncio.to_thread(adapter_method, **subscription.params)
+        return await self._process_result(subscription, result)
+
+    async def _process_result(self, subscription: FeedSubscription, result: object) -> int:
+        data_points = self._normalize_result(result)
+
+        if not data_points:
+            self._metrics.dropped += 1
+            return 0
+
+        count = 0
+        for point in data_points:
+            subscription.last_update = datetime.utcnow()
+
+            validation_result: Optional[ValidationResult] = None
+            if self._validator:
+                validation_result = self._validator.validate(point)
+
+            if self._storage:
+                await self._persist(point, subscription)
+
+            await self._dispatch(subscription, point, validation_result)
+            self._metrics.delivered += 1
+            count += 1
+
+        return count
+
     async def _run_subscription(self, subscription_id: str) -> None:
         """Polling loop for a subscription."""
         subscription = self.get_subscription(subscription_id)
         if subscription is None:
             return
 
-        adapter_method = getattr(self._adapter, subscription.adapter_method, None)
-        if adapter_method is None:
-            self._metrics.errors += 1
-            self._metrics.last_error = (
-                f"Adapter missing method '{subscription.adapter_method}'"
-            )
-            logger.error(self._metrics.last_error)
-            return
-
         interval = max(subscription.polling_interval, 0.05)
 
         while self.state == FeedState.RUNNING and subscription.is_active:
             try:
-                result = await asyncio.to_thread(
-                    adapter_method,
-                    **subscription.params,
-                )
+                await self._execute_poll(subscription)
             except asyncio.CancelledError:  # pragma: no cover - handled by asyncio
                 raise
+            except FeedError as exc:
+                self._metrics.errors += 1
+                self._metrics.last_error = str(exc)
+                logger.error(
+                    "Polling error for %s (%s): %s",
+                    subscription.instrument_id,
+                    subscription.adapter_method,
+                    exc,
+                )
             except Exception as exc:  # pragma: no cover - defensive against adapter failures
                 self._metrics.errors += 1
                 self._metrics.last_error = str(exc)
@@ -190,26 +240,6 @@ class PollingMarketDataFeed(MarketDataFeed):
                 )
                 await asyncio.sleep(interval)
                 continue
-
-            data_points = self._normalize_result(result)
-
-            if not data_points:
-                self._metrics.dropped += 1
-                await asyncio.sleep(interval)
-                continue
-
-            for point in data_points:
-                subscription.last_update = datetime.utcnow()
-
-                validation_result: Optional[ValidationResult] = None
-                if self._validator:
-                    validation_result = self._validator.validate(point)
-
-                if self._storage:
-                    await self._persist(point, subscription)
-
-                await self._dispatch(subscription, point, validation_result)
-                self._metrics.delivered += 1
 
             await asyncio.sleep(interval)
 

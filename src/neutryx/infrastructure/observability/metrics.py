@@ -16,6 +16,59 @@ from .alerting import BaseAlertManager, NullAlertManager
 from .config import PrometheusConfig
 
 
+def _metric_name(namespace: str, subsystem: str, name: str) -> str:
+    prefix = ""
+    if namespace:
+        prefix += namespace + "_"
+    if subsystem:
+        prefix += subsystem + "_"
+    return f"{prefix}{name}" if prefix else name
+
+
+def _reusable_counter(
+    namespace: str,
+    subsystem: str,
+    *,
+    name: str,
+    documentation: str,
+    labelnames: tuple[str, ...],
+):
+    metric_id = _metric_name(namespace, subsystem, name)
+    existing = REGISTRY._names_to_collectors.get(metric_id)  # type: ignore[attr-defined]
+    if existing is not None:
+        return existing
+    return Counter(
+        name,
+        documentation,
+        namespace=namespace,
+        subsystem=subsystem,
+        labelnames=labelnames,
+    )
+
+
+def _reusable_histogram(
+    namespace: str,
+    subsystem: str,
+    *,
+    name: str,
+    documentation: str,
+    labelnames: tuple[str, ...],
+    buckets: tuple[float, ...],
+):
+    metric_id = _metric_name(namespace, subsystem, name)
+    existing = REGISTRY._names_to_collectors.get(metric_id)  # type: ignore[attr-defined]
+    if existing is not None:
+        return existing
+    return Histogram(
+        name,
+        documentation,
+        namespace=namespace,
+        subsystem=subsystem,
+        labelnames=labelnames,
+        buckets=buckets,
+    )
+
+
 def _safe_route_name(route: Optional[str]) -> str:
     if not route:
         return "unknown"

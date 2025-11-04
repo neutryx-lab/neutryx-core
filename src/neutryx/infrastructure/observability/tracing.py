@@ -5,14 +5,20 @@ from __future__ import annotations
 import logging
 from typing import Optional
 
-from opentelemetry import trace as ot_trace
-from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
-from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
-from opentelemetry.instrumentation.grpc import GrpcAioInstrumentor
-from opentelemetry.sdk.resources import Resource
-from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter
-from opentelemetry.sdk.trace.sampling import TraceIdRatioBased
+try:  # pragma: no cover - optional dependency handling
+    from opentelemetry import trace as ot_trace
+    from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+    from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+    from opentelemetry.instrumentation.grpc import GrpcAioInstrumentor
+    from opentelemetry.sdk.resources import Resource
+    from opentelemetry.sdk.trace import TracerProvider
+    from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter
+    from opentelemetry.sdk.trace.sampling import TraceIdRatioBased
+
+    _OTEL_AVAILABLE = True
+except ImportError:  # pragma: no cover - optional dependency handling
+    TracerProvider = object  # type: ignore[misc, assignment]
+    _OTEL_AVAILABLE = False
 
 from .config import TracingConfig
 
@@ -42,6 +48,9 @@ def setup_tracing(
 
     global _TRACING_INITIALISED  # noqa: PLW0603 - module level singleton
     if not config.enabled:
+        return None
+    if not _OTEL_AVAILABLE:
+        LOGGER.warning("OpenTelemetry is not installed; tracing setup skipped.")
         return None
     if _TRACING_INITIALISED:
         return ot_trace.get_tracer_provider()

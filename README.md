@@ -561,6 +561,7 @@ Neutryx Core has successfully implemented a comprehensive quantitative finance f
 - Multi-tenancy and access control
 - Audit logging and compliance reporting
 - Integration with commercial data providers (Bloomberg, Refinitiv)
+- Real-time market data feeds with validator pipeline and database connectors (PostgreSQL, MongoDB, TimescaleDB)
 - Regulatory reporting templates (FRTB, SA-CCR)
 
 #### Community & Ecosystem

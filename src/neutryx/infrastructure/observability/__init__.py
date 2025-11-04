@@ -3,10 +3,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional, Sequence
+from typing import Any, Optional, Sequence
 
 from fastapi import FastAPI
-from opentelemetry.sdk.trace import TracerProvider
 
 from .alerting import BaseAlertManager, BaseNotifier, create_alert_manager
 from .config import (
@@ -33,7 +32,7 @@ class ObservabilityState:
     config: ObservabilityConfig
     metrics: MetricsRecorder
     alert_manager: BaseAlertManager
-    tracer_provider: Optional[TracerProvider]
+    tracer_provider: Optional[Any]
 
 
 def _has_middleware(app: FastAPI, middleware_cls) -> bool:

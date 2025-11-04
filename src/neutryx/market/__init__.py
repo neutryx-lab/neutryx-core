@@ -25,16 +25,6 @@ from .curves import (
     ForwardRateCurve,
 )
 from .environment import MarketDataEnvironment
-from .feeds import PollingMarketDataFeed
-from .market_data import (
-    BloombergDataAdapter,
-    RefinitivDataAdapter,
-    SimulatedMarketData,
-    create_default_validator,
-    create_market_data_feed,
-    get_market_data_feed,
-    get_market_data_source,
-)
 from .fx import (
     CrossCurrencyBasisSpread,
     FXForwardCurve,
@@ -81,13 +71,4 @@ __all__ = [
     "SABRParameters",
     "SABRSurface",
     "sabr_implied_vol",
-    # Market data sources and feeds
-    "SimulatedMarketData",
-    "BloombergDataAdapter",
-    "RefinitivDataAdapter",
-    "get_market_data_source",
-    "create_market_data_feed",
-    "get_market_data_feed",
-    "PollingMarketDataFeed",
-    "create_default_validator",
 ]

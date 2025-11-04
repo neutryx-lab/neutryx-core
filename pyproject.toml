@@ -43,6 +43,10 @@ dev = [
 quantlib = ["QuantLib>=1.29"]
 eigen = ["pybind11>=2.11"]
 native = ["QuantLib>=1.29", "pybind11>=2.11"]
+marketdata = [
+  "asyncpg>=0.29.0",
+  "motor>=3.3.1"
+]
 
 [tool.setuptools.packages.find]
 where = ["src"]

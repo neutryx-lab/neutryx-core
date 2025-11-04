@@ -625,14 +625,14 @@ class TestMarketDataSources:
         source = get_market_data_source("simulated", base_vol=0.15)
         assert source.base_vol == 0.15
 
-    def test_bloomberg_adapter_not_implemented(self):
-        """Test Bloomberg adapter raises NotImplementedError."""
+    def test_bloomberg_adapter_requires_dependencies(self):
+        """Test Bloomberg adapter raises when dependencies are missing."""
         from neutryx.market.market_data import BloombergDataAdapter
         import pytest
 
         adapter = BloombergDataAdapter()
 
-        with pytest.raises(NotImplementedError):
+        with pytest.raises(RuntimeError):
             adapter.get_fx_vol_quote("EUR", "USD", 1.0)
 
 
