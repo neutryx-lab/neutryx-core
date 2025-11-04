@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from neutryx.ffi import quantlib
+from neutryx.integrations.ffi import quantlib
 
 # ``ql`` mirrors the historical interface: it is ``None`` when QuantLib is not available to keep the
 # import side-effect free for downstream projects.  Consumers that want richer diagnostics can use

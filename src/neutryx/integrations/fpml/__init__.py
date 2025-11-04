@@ -10,7 +10,7 @@ Key Features:
 - Support for Equity Options, FX Options, and Interest Rate Swaps
 
 Quick Start:
-    >>> from neutryx.bridge import fpml
+    >>> from neutryx.integrations import fpml
     >>>
     >>> # Parse FpML XML
     >>> doc = fpml.parse_fpml(xml_string)

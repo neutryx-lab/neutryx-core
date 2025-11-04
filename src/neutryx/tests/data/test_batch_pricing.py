@@ -3,7 +3,7 @@
 import jax.numpy as jnp
 import pytest
 
-from neutryx.compute import price_vanilla_options_batch
+from neutryx.data import price_vanilla_options_batch
 from neutryx.data import (
     TradeArrays,
     PortfolioBatch,

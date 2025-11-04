@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import math
 
-from neutryx.ffi.performance import BenchmarkResult, compare, summarise, time_callable
+from neutryx.integrations.ffi.performance import BenchmarkResult, compare, summarise, time_callable
 
 
 def _slow_square(value: float) -> float:

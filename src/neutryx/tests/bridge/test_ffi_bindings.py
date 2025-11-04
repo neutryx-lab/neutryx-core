@@ -4,7 +4,7 @@ import types
 
 import pytest
 
-from neutryx.ffi import eigen, quantlib
+from neutryx.integrations.ffi import eigen, quantlib
 
 
 def test_quantlib_binding_reports_availability() -> None:

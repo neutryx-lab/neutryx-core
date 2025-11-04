@@ -172,7 +172,7 @@ def create_app() -> FastAPI:
         converts it to Neutryx format, and returns the computed price.
         """
         try:
-            from neutryx.bridge import fpml
+            from neutryx.integrations import fpml
 
             # Parse FpML
             fpml_doc = fpml.parse_fpml(payload.fpml_xml)
@@ -255,7 +255,7 @@ def create_app() -> FastAPI:
         Useful for validating FpML documents and inspecting trade details.
         """
         try:
-            from neutryx.bridge import fpml
+            from neutryx.integrations import fpml
 
             fpml_doc = fpml.parse_fpml(payload.fpml_xml)
             trade = fpml_doc.primary_trade
@@ -307,7 +307,7 @@ def create_app() -> FastAPI:
         Returns validation status and any errors found.
         """
         try:
-            from neutryx.bridge import fpml
+            from neutryx.integrations import fpml
 
             fpml.parse_fpml(payload.fpml_xml)
             return {"valid": True, "message": "FpML document is valid"}

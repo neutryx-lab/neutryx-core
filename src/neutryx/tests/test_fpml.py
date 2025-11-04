@@ -7,7 +7,7 @@ from decimal import Decimal
 import pytest
 
 from neutryx.api.rest import VanillaOptionRequest
-from neutryx.bridge import fpml
+from neutryx.integrations import fpml
 
 
 # Sample FpML documents for testing
@@ -295,7 +295,7 @@ class TestFpMLAdapter:
 
     def test_adapter_price_from_xml(self):
         """Test pricing directly from XML."""
-        from neutryx.bridge.fpml_adapter import FpMLPricingAdapter
+        from neutryx.integrations.adapters.fpml_adapter import FpMLPricingAdapter
 
         adapter = FpMLPricingAdapter(seed=42)
         market_data = {
@@ -314,7 +314,7 @@ class TestFpMLAdapter:
 
     def test_adapter_export_to_fpml(self):
         """Test exporting parameters to FpML."""
-        from neutryx.bridge.fpml_adapter import FpMLPricingAdapter
+        from neutryx.integrations.adapters.fpml_adapter import FpMLPricingAdapter
 
         adapter = FpMLPricingAdapter()
         xml_string = adapter.export_to_fpml(
@@ -332,7 +332,7 @@ class TestFpMLAdapter:
 
     def test_quick_price_fpml(self):
         """Test quick pricing convenience function."""
-        from neutryx.bridge.fpml_adapter import quick_price_fpml
+        from neutryx.integrations.adapters.fpml_adapter import quick_price_fpml
 
         market_data = {
             "spot": 145.0,
@@ -345,7 +345,7 @@ class TestFpMLAdapter:
 
     def test_validate_fpml(self):
         """Test FpML validation."""
-        from neutryx.bridge.fpml_adapter import validate_fpml
+        from neutryx.integrations.adapters.fpml_adapter import validate_fpml
 
         assert validate_fpml(EQUITY_OPTION_FPML) is True
         assert validate_fpml("<invalid>xml") is False
