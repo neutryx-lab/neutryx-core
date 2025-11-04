@@ -455,6 +455,243 @@ def implied_swaption_volatility(
     return vol_mid
 
 
+def american_swaption_tree(
+    strike: float,
+    option_maturity: float,
+    swap_maturity: float,
+    initial_rate: float,
+    volatility: float,
+    discount_rate: float = 0.03,
+    notional: float = 1_000_000.0,
+    payment_frequency: int = 2,
+    is_payer: bool = True,
+    n_steps: int = 100,
+) -> float:
+    """Price an American swaption using a trinomial tree.
+
+    American swaptions can be exercised at any time before maturity,
+    requiring numerical methods like trees or LSM.
+
+    Parameters
+    ----------
+    strike : float
+        Fixed rate (strike) of the swaption
+    option_maturity : float
+        Time to swaption expiry in years
+    swap_maturity : float
+        Tenor of the underlying swap in years
+    initial_rate : float
+        Initial short rate
+    volatility : float
+        Interest rate volatility
+    discount_rate : float
+        Risk-free discount rate
+    notional : float
+        Notional principal amount
+    payment_frequency : int
+        Number of payments per year
+    is_payer : bool
+        True for payer swaption, False for receiver
+    n_steps : int
+        Number of tree steps
+
+    Returns
+    -------
+    float
+        American swaption price
+
+    Notes
+    -----
+    Uses a trinomial tree for the short rate with backward induction.
+    At each node, compares immediate exercise value with continuation value.
+    """
+    dt = option_maturity / n_steps
+
+    # Trinomial tree parameters
+    dr = volatility * jnp.sqrt(3.0 * dt)
+    pu = 1.0 / 6.0 + (discount_rate - initial_rate) ** 2 * dt / (6.0 * dr**2)
+    pm = 2.0 / 3.0
+    pd = 1.0 / 6.0 - (discount_rate - initial_rate) ** 2 * dt / (6.0 * dr**2)
+
+    # Ensure probabilities are valid
+    pu = float(jnp.clip(pu, 0.0, 1.0))
+    pd = float(jnp.clip(pd, 0.0, 1.0))
+    pm = float(jnp.clip(1.0 - pu - pd, 0.0, 1.0))
+
+    # Initialize rate tree
+    n_nodes = 2 * n_steps + 1
+    rates = jnp.zeros((n_steps + 1, n_nodes))
+    values = jnp.zeros((n_steps + 1, n_nodes))
+
+    # Build rate lattice
+    for i in range(n_steps + 1):
+        for j in range(-i, i + 1):
+            rates = rates.at[i, j + n_steps].set(initial_rate + j * dr)
+
+    # Calculate swap annuity and forward swap rate at each node
+    def calculate_swap_value(rate, time_left):
+        """Calculate swap value at a given node."""
+        if time_left <= 0:
+            return 0.0
+
+        n_payments = int(swap_maturity * payment_frequency)
+        year_fraction = 1.0 / payment_frequency
+
+        # Simplified: assume flat rate for discounting
+        payment_times = jnp.arange(1, n_payments + 1) * year_fraction
+        discount_factors = jnp.exp(-rate * payment_times)
+
+        annuity = float(jnp.sum(discount_factors * year_fraction))
+
+        # Forward swap rate (simplified)
+        df_start = 1.0
+        df_end = jnp.exp(-rate * swap_maturity)
+        fwd_swap_rate = (df_start - df_end) / annuity
+
+        # Intrinsic value
+        if is_payer:
+            intrinsic = jnp.maximum(fwd_swap_rate - strike, 0.0)
+        else:
+            intrinsic = jnp.maximum(strike - fwd_swap_rate, 0.0)
+
+        return notional * annuity * intrinsic
+
+    # Terminal condition
+    for j in range(-n_steps, n_steps + 1):
+        rate = rates[n_steps, j + n_steps]
+        values = values.at[n_steps, j + n_steps].set(calculate_swap_value(rate, 0))
+
+    # Backward induction
+    for i in range(n_steps - 1, -1, -1):
+        time_left = option_maturity - i * dt
+        for j in range(-i, i + 1):
+            idx = j + n_steps
+            rate = rates[i, idx]
+
+            # Continuation value (discounted expected value)
+            continuation = (
+                pu * values[i + 1, idx + 1]
+                + pm * values[i + 1, idx]
+                + pd * values[i + 1, idx - 1]
+            ) * jnp.exp(-rate * dt)
+
+            # Exercise value
+            exercise = calculate_swap_value(rate, time_left)
+
+            # American option: take max
+            values = values.at[i, idx].set(jnp.maximum(continuation, exercise))
+
+    return float(values[0, n_steps])
+
+
+def american_swaption_lsm(
+    strike: float,
+    option_maturity: float,
+    swap_maturity: float,
+    rate_paths: jnp.ndarray,
+    discount_factors: jnp.ndarray,
+    notional: float = 1_000_000.0,
+    payment_frequency: int = 2,
+    is_payer: bool = True,
+) -> float:
+    """Price an American swaption using Longstaff-Schwartz Monte Carlo.
+
+    Parameters
+    ----------
+    strike : float
+        Fixed rate (strike) of the swaption
+    option_maturity : float
+        Time to swaption expiry in years
+    swap_maturity : float
+        Tenor of the underlying swap in years
+    rate_paths : Array
+        Simulated short rate paths [n_paths, n_steps]
+    discount_factors : Array
+        Discount factors for each time step [n_steps]
+    notional : float
+        Notional principal amount
+    payment_frequency : int
+        Number of payments per year
+    is_payer : bool
+        True for payer swaption, False for receiver
+
+    Returns
+    -------
+    float
+        American swaption price
+
+    Notes
+    -----
+    Uses Longstaff-Schwartz regression to estimate continuation values.
+    """
+    n_paths, n_steps = rate_paths.shape
+
+    # Basis functions for regression
+    def basis_functions(x):
+        return jnp.array([jnp.ones_like(x), x, x**2, x**3]).T
+
+    # Calculate intrinsic values at each time step
+    def calculate_intrinsic(rate):
+        """Calculate intrinsic value of swaption."""
+        n_payments = int(swap_maturity * payment_frequency)
+        year_fraction = 1.0 / payment_frequency
+
+        payment_times = jnp.arange(1, n_payments + 1) * year_fraction
+        discount_factors_swap = jnp.exp(-rate * payment_times)
+        annuity = float(jnp.sum(discount_factors_swap * year_fraction))
+
+        df_start = 1.0
+        df_end = jnp.exp(-rate * swap_maturity)
+        fwd_swap_rate = (df_start - df_end) / annuity
+
+        if is_payer:
+            intrinsic = jnp.maximum(fwd_swap_rate - strike, 0.0)
+        else:
+            intrinsic = jnp.maximum(strike - fwd_swap_rate, 0.0)
+
+        return notional * annuity * intrinsic
+
+    # Initialize cashflows
+    cashflows = jnp.zeros(n_paths)
+    exercise_times = jnp.zeros(n_paths)
+
+    # Start from second-to-last time step
+    for t in range(n_steps - 1, 0, -1):
+        current_rates = rate_paths[:, t]
+        intrinsic = jax.vmap(calculate_intrinsic)(current_rates)
+
+        # Only consider in-the-money paths
+        itm_mask = intrinsic > 0
+
+        if jnp.sum(itm_mask) > 10:  # Need enough paths for regression
+            # Regression for continuation value
+            X = basis_functions(current_rates[itm_mask])
+            Y = cashflows[itm_mask] * discount_factors[t]
+
+            # Least squares
+            coeffs = jnp.linalg.lstsq(X, Y)[0]
+            continuation_value = jnp.zeros_like(cashflows)
+            continuation_value = continuation_value.at[itm_mask].set(
+                basis_functions(current_rates[itm_mask]) @ coeffs
+            )
+
+            # Exercise if intrinsic > continuation
+            exercise_now = (intrinsic > continuation_value) & itm_mask
+            cashflows = jnp.where(exercise_now, intrinsic, cashflows)
+            exercise_times = jnp.where(exercise_now, float(t), exercise_times)
+
+    # Terminal value for paths not yet exercised
+    terminal_rates = rate_paths[:, -1]
+    terminal_intrinsic = jax.vmap(calculate_intrinsic)(terminal_rates)
+    not_exercised = cashflows == 0
+    cashflows = jnp.where(not_exercised, terminal_intrinsic, cashflows)
+
+    # Discount back to present
+    discounted_cashflows = cashflows * discount_factors[0]
+
+    return float(jnp.mean(discounted_cashflows))
+
+
 __all__ = [
     "SwaptionSpecs",
     "SwaptionType",
@@ -465,4 +702,7 @@ __all__ = [
     "swap_annuity",
     "swaption_delta",
     "swaption_vega",
+    # American swaptions
+    "american_swaption_tree",
+    "american_swaption_lsm",
 ]

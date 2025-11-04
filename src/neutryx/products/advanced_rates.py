@@ -507,3 +507,238 @@ class TargetRedemptionNote(PathProduct):
         # If target not reached, pay at maturity
         total_payment += self.notional
         return total_payment
+
+
+@dataclass
+class SnowballNote(PathProduct):
+    """Snowball note with memory coupon feature.
+
+    A snowball note pays coupons that accumulate (snowball) if not paid.
+    Typical structure:
+    - Each period, coupon = Base Rate + Memory (unpaid coupons from past)
+    - If reference rate stays within range, coupon is paid
+    - If outside range, coupon is not paid and added to memory
+    - Often includes knock-out barrier
+
+    Args:
+        T: Maturity (years)
+        notional: Notional amount
+        base_coupon_rate: Base coupon rate per period
+        range_lower: Lower bound of accrual range
+        range_upper: Upper bound of accrual range
+        payment_freq: Payment frequency per year
+        knock_out_barrier: Optional knock-out barrier level
+        memory_cap: Optional cap on accumulated memory
+    """
+
+    T: float
+    notional: float
+    base_coupon_rate: float
+    range_lower: float
+    range_upper: float
+    payment_freq: int = 4
+    knock_out_barrier: Optional[float] = None
+    memory_cap: Optional[float] = None
+
+    def payoff_path(self, path: Array) -> Array:
+        """Calculate snowball payoff based on rate path.
+
+        Args:
+            path: Array of reference rates over time
+
+        Returns:
+            Total value including all coupon payments
+        """
+        dt = 1.0 / self.payment_freq
+        n_periods = int(self.T * self.payment_freq)
+
+        total_payment = 0.0
+        memory_coupon = 0.0
+        knocked_out = False
+
+        # Simulate each coupon period
+        for i in range(min(n_periods, len(path))):
+            current_rate = path[i]
+
+            # Check knock-out
+            if self.knock_out_barrier is not None:
+                if current_rate >= self.knock_out_barrier:
+                    knocked_out = True
+                    # Early redemption at par plus accrued
+                    total_payment += self.notional
+                    return total_payment
+
+            # Check if in range
+            in_range = (current_rate >= self.range_lower) and (current_rate <= self.range_upper)
+
+            if in_range:
+                # Pay base coupon + memory
+                period_coupon = self.base_coupon_rate + memory_coupon
+                total_payment += self.notional * period_coupon * dt
+                memory_coupon = 0.0  # Reset memory
+            else:
+                # Accumulate to memory
+                memory_coupon += self.base_coupon_rate
+
+                # Apply memory cap if specified
+                if self.memory_cap is not None:
+                    memory_coupon = float(jnp.minimum(memory_coupon, self.memory_cap))
+
+        # At maturity, return notional
+        if not knocked_out:
+            total_payment += self.notional
+
+        return total_payment
+
+
+@dataclass
+class AutocallableNote(PathProduct):
+    """Autocallable note (also known as auto-redemption note).
+
+    Automatically redeems (calls) if reference rate exceeds barrier on observation dates.
+
+    Args:
+        T: Maximum maturity (years)
+        notional: Notional amount
+        call_barrier: Barrier level for autocall
+        coupon_rate: Coupon rate per period
+        call_dates: Array of autocall observation dates
+        call_prices: Array of call prices (as % of notional)
+        memory_coupon: Whether coupons accumulate if not paid
+    """
+
+    T: float
+    notional: float
+    call_barrier: float
+    coupon_rate: float
+    call_dates: Array
+    call_prices: Optional[Array] = None
+    memory_coupon: bool = True
+
+    def __post_init__(self):
+        if self.call_prices is None:
+            # Default: call at par plus accrued coupon
+            n_calls = len(self.call_dates)
+            object.__setattr__(
+                self, 'call_prices', jnp.ones(n_calls) * 1.0  # 100% of notional
+            )
+
+    def payoff_path(self, path: Array) -> Array:
+        """Calculate autocallable payoff.
+
+        Args:
+            path: Array of reference rates over time
+
+        Returns:
+            Total value including redemption and coupons
+        """
+        n_steps = len(path)
+        dt = self.T / n_steps
+
+        accumulated_coupon = 0.0
+        total_payment = 0.0
+
+        # Check each call date
+        for i, call_date in enumerate(self.call_dates):
+            if call_date >= self.T:
+                continue
+
+            # Find corresponding path index
+            idx = int(call_date / dt)
+            if idx >= n_steps:
+                continue
+
+            current_rate = path[idx]
+
+            # Check if above barrier
+            if current_rate >= self.call_barrier:
+                # Autocall triggered
+                redemption = self.notional * self.call_prices[i]
+
+                # Pay accumulated coupon if memory feature
+                if self.memory_coupon:
+                    n_periods = i + 1
+                    coupon_payment = self.notional * self.coupon_rate * n_periods
+                else:
+                    coupon_payment = self.notional * self.coupon_rate
+
+                total_payment = redemption + coupon_payment
+                return total_payment
+            else:
+                # No call, accumulate coupon
+                if self.memory_coupon:
+                    accumulated_coupon += self.coupon_rate
+
+        # No autocall occurred, pay at maturity
+        final_coupon = (
+            accumulated_coupon * self.notional
+            if self.memory_coupon
+            else self.coupon_rate * self.notional * len(self.call_dates)
+        )
+        total_payment = self.notional + final_coupon
+
+        return total_payment
+
+
+@dataclass
+class RatchetCapFloor(PathProduct):
+    """Ratchet cap/floor with dynamic strike.
+
+    The strike adjusts (ratchets) based on previous fixings.
+
+    Args:
+        T: Maturity (years)
+        notional: Notional amount
+        initial_strike: Initial strike rate
+        ratchet_rate: Rate at which strike adjusts (e.g., 0.01 = 1%)
+        is_cap: True for cap, False for floor
+        payment_freq: Payment frequency per year
+        global_floor: Optional global floor on strike
+        global_cap: Optional global cap on strike
+    """
+
+    T: float
+    notional: float
+    initial_strike: float
+    ratchet_rate: float
+    is_cap: bool = True
+    payment_freq: int = 4
+    global_floor: Optional[float] = None
+    global_cap: Optional[float] = None
+
+    def payoff_path(self, path: Array) -> Array:
+        """Calculate ratchet cap/floor payoff.
+
+        Args:
+            path: Array of reference rates over time
+
+        Returns:
+            Total value of all caplet/floorlet payments
+        """
+        dt = 1.0 / self.payment_freq
+        n_periods = int(self.T * self.payment_freq)
+
+        total_payment = 0.0
+        current_strike = self.initial_strike
+
+        for i in range(min(n_periods, len(path))):
+            current_rate = path[i]
+
+            # Calculate payoff
+            if self.is_cap:
+                payoff = jnp.maximum(current_rate - current_strike, 0.0)
+            else:
+                payoff = jnp.maximum(current_strike - current_rate, 0.0)
+
+            total_payment += self.notional * payoff * dt
+
+            # Ratchet the strike
+            current_strike = current_rate + self.ratchet_rate
+
+            # Apply global bounds
+            if self.global_floor is not None:
+                current_strike = jnp.maximum(current_strike, self.global_floor)
+            if self.global_cap is not None:
+                current_strike = jnp.minimum(current_strike, self.global_cap)
+
+        return total_payment

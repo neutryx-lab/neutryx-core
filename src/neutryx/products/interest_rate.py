@@ -24,6 +24,7 @@ class CapFloorSpecs:
     maturity: float = 5.0  # Years
     payment_frequency: int = 4  # Quarterly
     is_cap: bool = True  # True for cap, False for floor
+    reference_rate: str = "LIBOR"  # "LIBOR" or "SOFR"
 
 
 @jit
@@ -216,6 +217,222 @@ def price_floor(
             volatilities[i],
             discount_factors[i],
             year_fractions[i],
+            notional,
+        )
+        for i in range(len(forward_rates))
+    ])
+
+    return float(jnp.sum(floorlet_prices))
+
+
+# SOFR-specific pricing
+@jit
+def sofr_caplet_price(
+    forward_rate: float,
+    strike: float,
+    time_to_expiry: float,
+    volatility: float,
+    discount_factor: float,
+    compounding_days: int,
+    notional: float = 1_000_000.0,
+) -> float:
+    """Price a SOFR caplet with daily compounding.
+
+    SOFR caplets differ from LIBOR caplets in that SOFR is compounded daily.
+
+    Parameters
+    ----------
+    forward_rate : float
+        Forward SOFR rate (daily compounded equivalent)
+    strike : float
+        Strike rate
+    time_to_expiry : float
+        Time to caplet expiry
+    volatility : float
+        Black volatility
+    discount_factor : float
+        Discount factor to payment date
+    compounding_days : int
+        Number of compounding days in the period (e.g., 90 for quarterly)
+    notional : float
+        Notional principal
+
+    Returns
+    -------
+    float
+        SOFR caplet price
+
+    Notes
+    -----
+    SOFR compounds daily using:
+        (1 + SOFR_daily)^n - 1
+
+    where n is the number of days. The pricing uses Black's formula on the
+    compounded rate.
+    """
+    # Convert simple rate to compounded rate (approximation)
+    # In practice, would use exact SOFR compounding formula
+    year_fraction = compounding_days / 360.0  # SOFR uses Act/360
+
+    # Use Black's formula with adjusted year fraction
+    sqrt_T = jnp.sqrt(time_to_expiry)
+    d1 = (jnp.log(forward_rate / strike) + 0.5 * volatility**2 * time_to_expiry) / (
+        volatility * sqrt_T
+    )
+    d2 = d1 - volatility * sqrt_T
+
+    caplet_value = (
+        notional
+        * year_fraction
+        * discount_factor
+        * (forward_rate * norm.cdf(d1) - strike * norm.cdf(d2))
+    )
+
+    return caplet_value
+
+
+@jit
+def sofr_floorlet_price(
+    forward_rate: float,
+    strike: float,
+    time_to_expiry: float,
+    volatility: float,
+    discount_factor: float,
+    compounding_days: int,
+    notional: float = 1_000_000.0,
+) -> float:
+    """Price a SOFR floorlet with daily compounding.
+
+    Parameters
+    ----------
+    forward_rate : float
+        Forward SOFR rate (daily compounded equivalent)
+    strike : float
+        Strike rate
+    time_to_expiry : float
+        Time to floorlet expiry
+    volatility : float
+        Black volatility
+    discount_factor : float
+        Discount factor to payment date
+    compounding_days : int
+        Number of compounding days in the period
+    notional : float
+        Notional principal
+
+    Returns
+    -------
+    float
+        SOFR floorlet price
+    """
+    year_fraction = compounding_days / 360.0  # SOFR uses Act/360
+
+    sqrt_T = jnp.sqrt(time_to_expiry)
+    d1 = (jnp.log(forward_rate / strike) + 0.5 * volatility**2 * time_to_expiry) / (
+        volatility * sqrt_T
+    )
+    d2 = d1 - volatility * sqrt_T
+
+    floorlet_value = (
+        notional
+        * year_fraction
+        * discount_factor
+        * (strike * norm.cdf(-d2) - forward_rate * norm.cdf(-d1))
+    )
+
+    return floorlet_value
+
+
+def price_sofr_cap(
+    forward_rates: Array,
+    strike: float,
+    times_to_expiry: Array,
+    volatilities: Array,
+    discount_factors: Array,
+    compounding_days: Array,
+    notional: float = 1_000_000.0,
+) -> float:
+    """Price a SOFR cap as a portfolio of SOFR caplets.
+
+    Parameters
+    ----------
+    forward_rates : Array
+        Forward SOFR rates for each period
+    strike : float
+        Cap strike rate
+    times_to_expiry : Array
+        Times to expiry for each caplet
+    volatilities : Array
+        Black volatilities for each caplet
+    discount_factors : Array
+        Discount factors for each payment
+    compounding_days : Array
+        Compounding days for each period
+    notional : float
+        Notional principal
+
+    Returns
+    -------
+    float
+        SOFR cap price
+    """
+    caplet_prices = jnp.array([
+        sofr_caplet_price(
+            forward_rates[i],
+            strike,
+            times_to_expiry[i],
+            volatilities[i],
+            discount_factors[i],
+            int(compounding_days[i]),
+            notional,
+        )
+        for i in range(len(forward_rates))
+    ])
+
+    return float(jnp.sum(caplet_prices))
+
+
+def price_sofr_floor(
+    forward_rates: Array,
+    strike: float,
+    times_to_expiry: Array,
+    volatilities: Array,
+    discount_factors: Array,
+    compounding_days: Array,
+    notional: float = 1_000_000.0,
+) -> float:
+    """Price a SOFR floor as a portfolio of SOFR floorlets.
+
+    Parameters
+    ----------
+    forward_rates : Array
+        Forward SOFR rates for each period
+    strike : float
+        Floor strike rate
+    times_to_expiry : Array
+        Times to expiry for each floorlet
+    volatilities : Array
+        Black volatilities for each floorlet
+    discount_factors : Array
+        Discount factors for each payment
+    compounding_days : Array
+        Compounding days for each period
+    notional : float
+        Notional principal
+
+    Returns
+    -------
+    float
+        SOFR floor price
+    """
+    floorlet_prices = jnp.array([
+        sofr_floorlet_price(
+            forward_rates[i],
+            strike,
+            times_to_expiry[i],
+            volatilities[i],
+            discount_factors[i],
+            int(compounding_days[i]),
             notional,
         )
         for i in range(len(forward_rates))
@@ -621,6 +838,315 @@ def lmm_simulate_forward_rates(
     return paths
 
 
+# CMS Caplets and Floorlets
+@jit
+def cms_caplet_price(
+    cms_forward: float,
+    strike: float,
+    time_to_expiry: float,
+    volatility: float,
+    discount_factor: float,
+    annuity: float,
+    notional: float = 1_000_000.0,
+    convexity_adjustment: float = 0.0,
+) -> float:
+    """Price a CMS caplet using Black's formula with convexity adjustment.
+
+    Parameters
+    ----------
+    cms_forward : float
+        Forward CMS rate
+    strike : float
+        Strike rate
+    time_to_expiry : float
+        Time to caplet expiry
+    volatility : float
+        CMS rate volatility
+    discount_factor : float
+        Discount factor to payment date
+    annuity : float
+        Annuity factor
+    notional : float
+        Notional principal
+    convexity_adjustment : float
+        Convexity adjustment for CMS rate (optional)
+
+    Returns
+    -------
+    float
+        CMS caplet price
+
+    Notes
+    -----
+    CMS rates require convexity adjustments due to the nonlinear relationship
+    between the swap rate and the discount factors.
+
+    Adjusted forward = Forward * (1 + convexity_adjustment)
+    """
+    # Apply convexity adjustment
+    adjusted_forward = cms_forward * (1.0 + convexity_adjustment)
+
+    # Black's formula
+    sqrt_T = jnp.sqrt(time_to_expiry)
+    d1 = (jnp.log(adjusted_forward / strike) + 0.5 * volatility**2 * time_to_expiry) / (
+        volatility * sqrt_T
+    )
+    d2 = d1 - volatility * sqrt_T
+
+    caplet_value = (
+        notional
+        * annuity
+        * discount_factor
+        * (adjusted_forward * norm.cdf(d1) - strike * norm.cdf(d2))
+    )
+
+    return caplet_value
+
+
+@jit
+def cms_floorlet_price(
+    cms_forward: float,
+    strike: float,
+    time_to_expiry: float,
+    volatility: float,
+    discount_factor: float,
+    annuity: float,
+    notional: float = 1_000_000.0,
+    convexity_adjustment: float = 0.0,
+) -> float:
+    """Price a CMS floorlet using Black's formula with convexity adjustment.
+
+    Parameters
+    ----------
+    cms_forward : float
+        Forward CMS rate
+    strike : float
+        Strike rate
+    time_to_expiry : float
+        Time to floorlet expiry
+    volatility : float
+        CMS rate volatility
+    discount_factor : float
+        Discount factor to payment date
+    annuity : float
+        Annuity factor
+    notional : float
+        Notional principal
+    convexity_adjustment : float
+        Convexity adjustment for CMS rate
+
+    Returns
+    -------
+    float
+        CMS floorlet price
+    """
+    # Apply convexity adjustment
+    adjusted_forward = cms_forward * (1.0 + convexity_adjustment)
+
+    # Black's formula
+    sqrt_T = jnp.sqrt(time_to_expiry)
+    d1 = (jnp.log(adjusted_forward / strike) + 0.5 * volatility**2 * time_to_expiry) / (
+        volatility * sqrt_T
+    )
+    d2 = d1 - volatility * sqrt_T
+
+    floorlet_value = (
+        notional
+        * annuity
+        * discount_factor
+        * (strike * norm.cdf(-d2) - adjusted_forward * norm.cdf(-d1))
+    )
+
+    return floorlet_value
+
+
+def cms_convexity_adjustment(
+    forward_rate: float,
+    volatility: float,
+    time_to_payment: float,
+    swap_tenor: float,
+    payment_frequency: int = 2,
+) -> float:
+    """Calculate convexity adjustment for CMS rate.
+
+    Parameters
+    ----------
+    forward_rate : float
+        Forward swap rate
+    volatility : float
+        Swap rate volatility
+    time_to_payment : float
+        Time to payment date
+    swap_tenor : float
+        Tenor of the CMS swap
+    payment_frequency : int
+        Payment frequency per year
+
+    Returns
+    -------
+    float
+        Convexity adjustment (additive)
+
+    Notes
+    -----
+    Approximate convexity adjustment formula:
+        CA ≈ 0.5 * σ² * T * D * S
+
+    where D is the duration of the swap annuity and S is the forward rate.
+
+    More accurate formulas would use replication methods or
+    numerical integration.
+    """
+    # Approximate annuity duration
+    n_periods = swap_tenor * payment_frequency
+    dt = 1.0 / payment_frequency
+
+    # Simplified duration calculation
+    discount_sum = 0.0
+    time_weighted_sum = 0.0
+
+    for i in range(1, int(n_periods) + 1):
+        t = i * dt
+        df = jnp.exp(-forward_rate * t)
+        discount_sum += df
+        time_weighted_sum += t * df
+
+    duration = time_weighted_sum / discount_sum if discount_sum > 0 else swap_tenor / 2
+
+    # Convexity adjustment
+    adjustment = 0.5 * volatility**2 * time_to_payment * duration * forward_rate
+
+    return float(adjustment)
+
+
+def price_cms_cap(
+    cms_forwards: Array,
+    strike: float,
+    times_to_expiry: Array,
+    volatilities: Array,
+    discount_factors: Array,
+    annuities: Array,
+    notional: float = 1_000_000.0,
+    apply_convexity_adjustment: bool = True,
+    swap_tenor: float = 10.0,
+) -> float:
+    """Price a CMS cap as a portfolio of CMS caplets.
+
+    Parameters
+    ----------
+    cms_forwards : Array
+        Forward CMS rates for each period
+    strike : float
+        Cap strike rate
+    times_to_expiry : Array
+        Times to expiry for each caplet
+    volatilities : Array
+        Volatilities for each caplet
+    discount_factors : Array
+        Discount factors for each payment
+    annuities : Array
+        Annuity factors for each period
+    notional : float
+        Notional principal
+    apply_convexity_adjustment : bool
+        Whether to apply convexity adjustment
+    swap_tenor : float
+        Tenor of CMS swap
+
+    Returns
+    -------
+    float
+        CMS cap price
+    """
+    caplet_prices = []
+
+    for i in range(len(cms_forwards)):
+        if apply_convexity_adjustment:
+            conv_adj = cms_convexity_adjustment(
+                cms_forwards[i], volatilities[i], times_to_expiry[i], swap_tenor
+            )
+        else:
+            conv_adj = 0.0
+
+        caplet = cms_caplet_price(
+            cms_forwards[i],
+            strike,
+            times_to_expiry[i],
+            volatilities[i],
+            discount_factors[i],
+            annuities[i],
+            notional,
+            conv_adj,
+        )
+        caplet_prices.append(caplet)
+
+    return float(jnp.sum(jnp.array(caplet_prices)))
+
+
+def price_cms_floor(
+    cms_forwards: Array,
+    strike: float,
+    times_to_expiry: Array,
+    volatilities: Array,
+    discount_factors: Array,
+    annuities: Array,
+    notional: float = 1_000_000.0,
+    apply_convexity_adjustment: bool = True,
+    swap_tenor: float = 10.0,
+) -> float:
+    """Price a CMS floor as a portfolio of CMS floorlets.
+
+    Parameters
+    ----------
+    cms_forwards : Array
+        Forward CMS rates for each period
+    strike : float
+        Floor strike rate
+    times_to_expiry : Array
+        Times to expiry for each floorlet
+    volatilities : Array
+        Volatilities for each floorlet
+    discount_factors : Array
+        Discount factors for each payment
+    annuities : Array
+        Annuity factors for each period
+    notional : float
+        Notional principal
+    apply_convexity_adjustment : bool
+        Whether to apply convexity adjustment
+    swap_tenor : float
+        Tenor of CMS swap
+
+    Returns
+    -------
+    float
+        CMS floor price
+    """
+    floorlet_prices = []
+
+    for i in range(len(cms_forwards)):
+        if apply_convexity_adjustment:
+            conv_adj = cms_convexity_adjustment(
+                cms_forwards[i], volatilities[i], times_to_expiry[i], swap_tenor
+            )
+        else:
+            conv_adj = 0.0
+
+        floorlet = cms_floorlet_price(
+            cms_forwards[i],
+            strike,
+            times_to_expiry[i],
+            volatilities[i],
+            discount_factors[i],
+            annuities[i],
+            notional,
+            conv_adj,
+        )
+        floorlet_prices.append(floorlet)
+
+    return float(jnp.sum(jnp.array(floorlet_prices)))
+
+
 __all__ = [
     # Cap/Floor
     "CapFloorSpecs",
@@ -629,6 +1155,11 @@ __all__ = [
     "price_cap",
     "price_floor",
     "sabr_implied_vol_caplet",
+    # SOFR Cap/Floor
+    "sofr_caplet_price",
+    "sofr_floorlet_price",
+    "price_sofr_cap",
+    "price_sofr_floor",
     # Digital caplets/floorlets
     "digital_caplet_price",
     "digital_floorlet_price",
@@ -639,6 +1170,12 @@ __all__ = [
     "CMSSpreadOptionSpecs",
     "price_cms_spread_option",
     "price_cms_spread_option_mc",
+    # CMS caplets/floorlets
+    "cms_caplet_price",
+    "cms_floorlet_price",
+    "cms_convexity_adjustment",
+    "price_cms_cap",
+    "price_cms_floor",
     # LMM utilities
     "lmm_simulate_forward_rates",
 ]
