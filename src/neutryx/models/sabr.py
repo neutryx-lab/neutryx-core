@@ -51,16 +51,10 @@ class SABRParams:
     rho: float
     nu: float
 
-    def __post_init__(self):
-        """Validate parameters."""
-        if not (0.0 <= self.beta <= 1.0):
-            raise ValueError(f"beta must be in [0, 1], got {self.beta}")
-        if not (-1.0 <= self.rho <= 1.0):
-            raise ValueError(f"rho must be in [-1, 1], got {self.rho}")
-        if self.alpha < 0:
-            raise ValueError(f"alpha must be non-negative, got {self.alpha}")
-        if self.nu < 0:
-            raise ValueError(f"nu must be non-negative, got {self.nu}")
+    # Note: Validation removed to support JAX JIT compilation.
+    # When using this class inside JIT-compiled functions, parameters become tracers
+    # and Python control flow (if statements) is not allowed.
+    # Users should ensure parameters are valid before passing to JIT-compiled code.
 
 
 def sabr_implied_volatility_hagan(

@@ -4,7 +4,7 @@ from jax.scipy.stats import norm
 
 from neutryx.core.engine import MCConfig
 from neutryx.models import bs as bs_model
-from neutryx.monte_carlo import (
+from neutryx.engines import (
     AMCInputs,
     american_put_lsm,
     asian_arithmetic_call,

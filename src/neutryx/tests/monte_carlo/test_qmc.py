@@ -1,7 +1,7 @@
 import jax
 import jax.numpy as jnp
 from jax.scipy.stats import norm
-from neutryx.monte_carlo.qmc import (
+from neutryx.engines import (
     MLMCLevel,
     MLMCOrchestrator,
     SobolGenerator,
