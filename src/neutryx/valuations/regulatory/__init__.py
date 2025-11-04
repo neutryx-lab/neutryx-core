@@ -8,6 +8,7 @@ from .basel import (
     BaselCapitalResult,
     BaselExposure,
 )
+from .engine import RegulatoryCapitalEngine, RegulatoryCapitalSummary
 from .frtb import (
     FRTBChargeBreakdown,
     FRTBResult,
@@ -31,6 +32,8 @@ __all__ = [
     "FRTBResult",
     "FRTBSensitivity",
     "FRTBStandardizedApproach",
+    "RegulatoryCapitalEngine",
+    "RegulatoryCapitalSummary",
     "SACCRCalculator",
     "SACCRResult",
     "SACCRTrade",

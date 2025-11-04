@@ -11,6 +11,7 @@ from neutryx.valuations.regulatory import (
     BaselExposure,
     FRTBSensitivity,
     FRTBStandardizedApproach,
+    RegulatoryCapitalEngine,
     SACCRCalculator,
     SACCRTrade,
 )
@@ -19,8 +20,13 @@ from neutryx.valuations.regulatory.frtb import (
     FRTBChargeBreakdown,
 )
 from neutryx.valuations.regulatory.saccr import DEFAULT_SUPERVISORY_FACTORS
+from neutryx.valuations.simm.calculator import SIMMCalculator
 from neutryx.valuations.simm.risk_weights import RiskClass, get_risk_weights
-from neutryx.valuations.simm.sensitivities import RiskFactorType, SensitivityType
+from neutryx.valuations.simm.sensitivities import (
+    RiskFactorSensitivity,
+    RiskFactorType,
+    SensitivityType,
+)
 
 
 class TestFRTBStandardizedApproach:
@@ -180,3 +186,86 @@ class TestBaselCapitalCalculator:
         assert not result.meets_tier1_requirement
         assert not result.meets_total_requirement
         assert result.meets_leverage_requirement
+
+
+class TestRegulatoryCapitalEngine:
+    """Integration tests for the regulatory capital engine."""
+
+    def test_engine_combines_regulatory_measures(self):
+        frtb_sensitivities = [
+            FRTBSensitivity(
+                risk_factor_type=RiskFactorType.IR,
+                sensitivity_type=SensitivityType.DELTA,
+                bucket="USD",
+                risk_factor="USD-5Y",
+                amount=1.0,
+                tenor="5Y",
+            )
+        ]
+
+        saccr_trades = [
+            SACCRTrade(
+                asset_class=AssetClass.INTEREST_RATE,
+                notional=50.0,
+                supervisory_duration=1.0,
+                hedging_set="USD",
+            )
+        ]
+
+        simm_sensitivities = [
+            RiskFactorSensitivity(
+                RiskFactorType.IR,
+                SensitivityType.DELTA,
+                "USD",
+                "USD-LIBOR-5Y",
+                10000.0,
+                "5Y",
+            )
+        ]
+
+        basel_exposures = [BaselExposure(amount=80_000_000.0, risk_weight=0.5)]
+        basel_inputs = BaselCapitalInputs(
+            cet1=5_000_000.0,
+            additional_tier1=1_500_000.0,
+            tier2=1_000_000.0,
+            leverage_exposure=120_000_000.0,
+        )
+
+        engine = RegulatoryCapitalEngine(simm_calculator=SIMMCalculator())
+        summary = engine.run(
+            frtb_sensitivities=frtb_sensitivities,
+            saccr_trades=saccr_trades,
+            saccr_mark_to_market=4.0,
+            saccr_collateral=1.0,
+            saccr_risk_weight=0.5,
+            simm_sensitivities=simm_sensitivities,
+            basel_exposures=basel_exposures,
+            basel_capital_inputs=basel_inputs,
+        )
+
+        standalone_frtb = FRTBStandardizedApproach().calculate(frtb_sensitivities)
+        assert summary.frtb is not None
+        assert summary.frtb.total_capital == pytest.approx(standalone_frtb.total_capital)
+
+        standalone_saccr = SACCRCalculator().calculate(
+            saccr_trades,
+            mark_to_market=4.0,
+            collateral=1.0,
+        )
+        assert summary.saccr is not None
+        assert summary.saccr.ead == pytest.approx(standalone_saccr.ead)
+
+        expected_saccr_charge = standalone_saccr.capital_requirement(0.5)
+        assert summary.saccr_capital_requirement == pytest.approx(expected_saccr_charge)
+
+        standalone_basel = BaselCapitalCalculator().assess_capital(
+            basel_inputs,
+            BaselCapitalCalculator.calculate_rwa(basel_exposures),
+        )
+        assert summary.basel is not None
+        assert summary.total_capital_requirement == pytest.approx(
+            standalone_basel.required_total_capital
+        )
+
+        assert summary.simm is not None
+        assert summary.initial_margin == pytest.approx(summary.simm.total_im)
