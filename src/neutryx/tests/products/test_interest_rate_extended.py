@@ -6,10 +6,14 @@ import jax.numpy as jnp
 import pytest
 
 from neutryx.products.interest_rate import (
+    InterestRateCapFloor,
+    CMSCapFloor,
+    CMSSpreadOptionInstrument,
     sofr_caplet_price,
     sofr_floorlet_price,
     price_sofr_cap,
     price_sofr_floor,
+    price_cap,
     cms_caplet_price,
     cms_floorlet_price,
     cms_convexity_adjustment,
@@ -210,6 +214,103 @@ class TestCMSProducts:
 
         assert price > 0
         assert price < 100_000
+
+
+class TestInterestRateProductClasses:
+    """Tests for newly exposed payoff helpers."""
+
+    def test_interest_rate_cap_floor_payoff(self):
+        """Cap/floor path payoff aggregates caplets."""
+        cap = InterestRateCapFloor(T=1.0, strike=0.03, payment_frequency=4, notional=1_000_000.0)
+        path = jnp.array([0.035, 0.025, 0.031, 0.04])
+        payoff = cap.payoff_path(path)
+        expected = (
+            jnp.maximum(path - cap.strike, 0.0) * (cap.notional / cap.payment_frequency)
+        ).sum()
+        assert jnp.isclose(payoff, expected)
+
+        floor = InterestRateCapFloor(
+            T=1.0,
+            strike=0.03,
+            payment_frequency=4,
+            notional=1_000_000.0,
+            is_cap=False,
+        )
+        payoff_floor = floor.payoff_path(path)
+        expected_floor = (
+            jnp.maximum(cap.strike - path, 0.0) * (floor.notional / floor.payment_frequency)
+        ).sum()
+        assert jnp.isclose(payoff_floor, expected_floor)
+
+    def test_interest_rate_cap_price_helper_matches_function(self):
+        """Pricing helper delegates to portfolio functions."""
+        cap = InterestRateCapFloor(T=1.0, strike=0.03, payment_frequency=4, notional=1_000_000.0)
+        forward_rates = jnp.array([0.03, 0.031, 0.032, 0.033])
+        times = jnp.array([0.25, 0.5, 0.75, 1.0])
+        vols = jnp.array([0.2, 0.21, 0.215, 0.22])
+        dfs = jnp.array([0.99, 0.985, 0.98, 0.975])
+
+        helper_price = cap.price_from_forwards(forward_rates, times, vols, dfs)
+        direct_price = price_cap(
+            forward_rates,
+            cap.strike,
+            times,
+            vols,
+            dfs,
+            jnp.full_like(times, 1.0 / cap.payment_frequency),
+            cap.notional,
+        )
+        assert jnp.isclose(helper_price, direct_price)
+
+    def test_cms_cap_floor_payoff_and_price(self):
+        """CMS cap/floor helper mirrors function implementation."""
+        cms_cap = CMSCapFloor(T=2.0, strike=0.03, annuity=4.5, notional=1_000_000.0)
+        payoff = cms_cap.payoff_terminal(0.04)
+        assert jnp.isclose(payoff, (0.04 - 0.03) * cms_cap.annuity * cms_cap.notional)
+
+        price = cms_cap.price_black(
+            cms_forward=0.04,
+            volatility=0.2,
+            time_to_expiry=1.0,
+            discount_factor=0.95,
+            convexity_adjustment=0.0005,
+        )
+        assert price > 0
+
+    def test_cms_spread_option_paths(self):
+        """CMS spread option handles different path layouts."""
+        option = CMSSpreadOptionInstrument(
+            T=1.0,
+            strike=0.01,
+            annuity=4.0,
+            notional=1_000_000.0,
+            is_call=True,
+        )
+
+        # Vector of two terminal rates
+        payoff_vec = option.payoff_path(jnp.array([0.05, 0.037]))
+        expected = (0.05 - 0.037 - option.strike) * option.annuity * option.notional
+        assert jnp.isclose(payoff_vec, expected)
+
+        # Matrix with shape (n_steps, 2)
+        path_matrix = jnp.array(
+            [
+                [0.04, 0.03],
+                [0.045, 0.032],
+                [0.05, 0.037],
+            ]
+        )
+        payoff_matrix = option.payoff_path(path_matrix)
+        assert jnp.isclose(payoff_matrix, expected)
+
+        price = option.price_black(
+            cms1_forward=0.05,
+            cms2_forward=0.037,
+            time_to_expiry=1.0,
+            spread_volatility=0.25,
+            discount_factor=0.96,
+        )
+        assert price > 0
 
     def test_cms_floorlet_price(self):
         """Test CMS floorlet pricing."""

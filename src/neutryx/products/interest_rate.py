@@ -15,6 +15,8 @@ import jax.numpy as jnp
 from jax import Array, jit
 from jax.scipy.stats import norm
 
+from .base import PathProduct, Product
+
 
 @dataclass
 class CapFloorSpecs:
@@ -25,6 +27,237 @@ class CapFloorSpecs:
     payment_frequency: int = 4  # Quarterly
     is_cap: bool = True  # True for cap, False for floor
     reference_rate: str = "LIBOR"  # "LIBOR" or "SOFR"
+
+
+@dataclass
+class InterestRateCapFloor(PathProduct):
+    """Simplified path-dependent cap/floor payoff.
+
+    The path is expected to contain the forward / realised reference rates at
+    each fixing period in chronological order.
+    """
+
+    T: float
+    strike: float
+    notional: float = 1_000_000.0
+    payment_frequency: int = 4
+    is_cap: bool = True
+
+    def _intrinsic(self, fixings: Array) -> Array:
+        """Return intrinsic payoff per fixing."""
+
+        diff = (
+            jnp.asarray(fixings, dtype=jnp.float32) - self.strike
+            if self.is_cap
+            else self.strike - jnp.asarray(fixings, dtype=jnp.float32)
+        )
+        return jnp.maximum(diff, 0.0)
+
+    def caplet_payoffs(self, fixings: Array) -> Array:
+        """Return undiscounted caplet/floorlet payoffs for supplied fixings."""
+
+        accrual = 1.0 / self.payment_frequency
+        intrinsic = self._intrinsic(fixings)
+        return self.notional * accrual * intrinsic
+
+    def payoff_path(self, path: Array) -> Array:
+        """Aggregate caplet/floorlet payoffs along a rate path."""
+
+        fixings = jnp.asarray(path, dtype=jnp.float32)
+        n_periods = int(round(self.T * self.payment_frequency))
+        if n_periods <= 0:
+            return 0.0
+        if fixings.ndim == 0:
+            fixings = fixings[None]
+        if fixings.shape[0] < n_periods:
+            raise ValueError(
+                "Rate path shorter than required number of fixing periods."
+            )
+        return jnp.sum(self.caplet_payoffs(fixings[:n_periods]))
+
+    def price_from_forwards(
+        self,
+        forward_rates: Array,
+        times_to_expiry: Array,
+        volatilities: Array,
+        discount_factors: Array,
+        year_fractions: Array | None = None,
+    ) -> float:
+        """Price the cap/floor using Black caplets."""
+
+        forward_rates = jnp.asarray(forward_rates, dtype=jnp.float32)
+        times_to_expiry = jnp.asarray(times_to_expiry, dtype=jnp.float32)
+        volatilities = jnp.asarray(volatilities, dtype=jnp.float32)
+        discount_factors = jnp.asarray(discount_factors, dtype=jnp.float32)
+        if year_fractions is None:
+            year_fractions = jnp.full_like(forward_rates, 1.0 / self.payment_frequency)
+        else:
+            year_fractions = jnp.asarray(year_fractions, dtype=jnp.float32)
+
+        if not (
+            forward_rates.shape
+            == times_to_expiry.shape
+            == volatilities.shape
+            == discount_factors.shape
+            == year_fractions.shape
+        ):
+            raise ValueError("Input arrays must all share the same shape.")
+
+        if self.is_cap:
+            return price_cap(
+                forward_rates,
+                self.strike,
+                times_to_expiry,
+                volatilities,
+                discount_factors,
+                year_fractions,
+                self.notional,
+            )
+
+        return price_floor(
+            forward_rates,
+            self.strike,
+            times_to_expiry,
+            volatilities,
+            discount_factors,
+            year_fractions,
+            self.notional,
+        )
+
+
+@dataclass
+class CMSCapFloor(Product):
+    """CMS cap/floor payoff evaluated on terminal CMS rate."""
+
+    T: float
+    strike: float
+    annuity: float
+    notional: float = 1_000_000.0
+    is_cap: bool = True
+
+    def payoff_terminal(self, cms_rate: Array) -> Array:
+        cms_rate = jnp.asarray(cms_rate, dtype=jnp.float32)
+        intrinsic = (
+            cms_rate - self.strike
+            if self.is_cap
+            else self.strike - cms_rate
+        )
+        intrinsic = jnp.maximum(intrinsic, 0.0)
+        return self.notional * self.annuity * intrinsic
+
+    def price_black(
+        self,
+        cms_forward: float,
+        volatility: float,
+        time_to_expiry: float,
+        discount_factor: float,
+        convexity_adjustment: float = 0.0,
+    ) -> float:
+        """Black-style pricing for CMS caplets/floorlets."""
+
+        pricing_fn = cms_caplet_price if self.is_cap else cms_floorlet_price
+        return float(
+            pricing_fn(
+                cms_forward,
+                self.strike,
+                time_to_expiry,
+                volatility,
+                discount_factor,
+                self.annuity,
+                self.notional,
+                convexity_adjustment,
+            )
+        )
+
+
+@dataclass
+class CMSSpreadOptionInstrument(Product):
+    """Payoff helper for CMS spread options."""
+
+    T: float
+    strike: float
+    annuity: float
+    notional: float = 1_000_000.0
+    is_call: bool = True
+
+    def payoff_terminal(self, spread: Array) -> Array:
+        spread = jnp.asarray(spread, dtype=jnp.float32)
+        intrinsic = (
+            spread - self.strike
+            if self.is_call
+            else self.strike - spread
+        )
+        intrinsic = jnp.maximum(intrinsic, 0.0)
+        return self.notional * self.annuity * intrinsic
+
+    def payoff_path(self, path: Array) -> Array:
+        """Support paths containing both CMS legs."""
+
+        arr = jnp.asarray(path, dtype=jnp.float32)
+        if arr.ndim == 0:
+            spread = arr
+        elif arr.ndim == 1:
+            if arr.size == 2:
+                spread = arr[0] - arr[1]
+            else:
+                spread = arr[-1]
+        elif arr.ndim == 2:
+            if arr.shape[0] == 2:
+                spread = arr[0, -1] - arr[1, -1]
+            elif arr.shape[1] == 2:
+                spread = arr[-1, 0] - arr[-1, 1]
+            else:
+                raise ValueError(
+                    "CMS spread path must contain exactly two rate legs."
+                )
+        else:
+            raise ValueError("Unsupported path shape for CMS spread option.")
+
+        return self.payoff_terminal(spread)
+
+    def price_black(
+        self,
+        cms1_forward: float,
+        cms2_forward: float,
+        time_to_expiry: float,
+        spread_volatility: float,
+        discount_factor: float,
+    ) -> float:
+        """Black-style pricing using analytic approximation."""
+
+        return float(
+            price_cms_spread_option(
+                cms1_forward,
+                cms2_forward,
+                self.strike,
+                time_to_expiry,
+                spread_volatility,
+                discount_factor,
+                self.annuity,
+                self.notional,
+                is_call=self.is_call,
+            )
+        )
+
+    def price_mc(
+        self,
+        cms1_paths: Array,
+        cms2_paths: Array,
+        discount_factor: float,
+    ) -> float:
+        """Monte Carlo pricing helper."""
+
+        return float(
+            price_cms_spread_option_mc(
+                cms1_paths,
+                cms2_paths,
+                self.strike,
+                discount_factor,
+                self.annuity,
+                self.notional,
+                is_call=self.is_call,
+            )
+        )
 
 
 @jit
@@ -1149,6 +1382,7 @@ def price_cms_floor(
 
 __all__ = [
     # Cap/Floor
+    "InterestRateCapFloor",
     "CapFloorSpecs",
     "black_caplet_price",
     "black_floorlet_price",
@@ -1171,6 +1405,7 @@ __all__ = [
     "price_cms_spread_option",
     "price_cms_spread_option_mc",
     # CMS caplets/floorlets
+    "CMSCapFloor",
     "cms_caplet_price",
     "cms_floorlet_price",
     "cms_convexity_adjustment",
@@ -1178,4 +1413,6 @@ __all__ = [
     "price_cms_floor",
     # LMM utilities
     "lmm_simulate_forward_rates",
+    # CMS spread options
+    "CMSSpreadOptionInstrument",
 ]

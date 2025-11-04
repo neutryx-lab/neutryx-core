@@ -18,6 +18,8 @@ import jax.numpy as jnp
 from jax import jit
 from jax.scipy.stats import norm
 
+from .base import Product
+
 
 class SwaptionType(Enum):
     """Swaption type enum."""
@@ -36,6 +38,108 @@ class SwaptionSpecs:
     notional: float = 1_000_000.0
     payment_frequency: int = 2  # Payments per year (2 = semiannual)
     swaption_type: SwaptionType = SwaptionType.PAYER
+
+
+@dataclass
+class EuropeanSwaption(Product):
+    """European swaption payoff helper.
+
+    Parameters
+    ----------
+    T : float
+        Time to option expiry in years.
+    strike : float
+        Strike (fixed) rate of the underlying swap.
+    annuity : float
+        Present value of one unit payment per period (swap annuity).
+    notional : float, default 1_000_000.0
+        Notional of the swaption.
+    swaption_type : SwaptionType, default PAYER
+        Select payer (pay fixed) or receiver (receive fixed) swaption.
+    """
+
+    T: float
+    strike: float
+    annuity: float
+    notional: float = 1_000_000.0
+    swaption_type: SwaptionType = SwaptionType.PAYER
+
+    def payoff_terminal(self, forward_swap_rate: jnp.ndarray) -> jnp.ndarray:
+        """Return intrinsic value for a terminal forward swap rate."""
+
+        rate = jnp.asarray(forward_swap_rate, dtype=jnp.float32)
+        intrinsic = (
+            rate - self.strike
+            if self.swaption_type == SwaptionType.PAYER
+            else self.strike - rate
+        )
+        intrinsic = jnp.maximum(intrinsic, 0.0)
+        return self.notional * self.annuity * intrinsic
+
+    def price_black(
+        self,
+        forward_swap_rate: float,
+        volatility: float,
+        *,
+        option_maturity: float | None = None,
+    ) -> float:
+        """Price the swaption via Black's formula given a forward rate."""
+
+        maturity = float(self.T if option_maturity is None else option_maturity)
+        return float(
+            black_swaption_price(
+                forward_swap_rate,
+                self.strike,
+                maturity,
+                volatility,
+                self.annuity,
+                self.notional,
+                is_payer=self.swaption_type == SwaptionType.PAYER,
+            )
+        )
+
+    def delta(
+        self,
+        forward_swap_rate: float,
+        volatility: float,
+        *,
+        option_maturity: float | None = None,
+    ) -> float:
+        """Return Black delta with respect to the forward swap rate."""
+
+        maturity = float(self.T if option_maturity is None else option_maturity)
+        return float(
+            swaption_delta(
+                forward_swap_rate,
+                self.strike,
+                maturity,
+                volatility,
+                self.annuity,
+                self.notional,
+                is_payer=self.swaption_type == SwaptionType.PAYER,
+            )
+        )
+
+    def vega(
+        self,
+        forward_swap_rate: float,
+        volatility: float,
+        *,
+        option_maturity: float | None = None,
+    ) -> float:
+        """Return Black vega for the swaption."""
+
+        maturity = float(self.T if option_maturity is None else option_maturity)
+        return float(
+            swaption_vega(
+                forward_swap_rate,
+                self.strike,
+                maturity,
+                volatility,
+                self.annuity,
+                self.notional,
+            )
+        )
 
 
 @jit
@@ -72,6 +176,7 @@ def forward_swap_rate(
     swap_maturity: float,
     discount_factors: jnp.ndarray,
     year_fractions: jnp.ndarray,
+    df_option_maturity: float | None = None,
 ) -> float:
     """Calculate the forward swap rate.
 
@@ -85,6 +190,8 @@ def forward_swap_rate(
         Discount factors for swap payment dates
     year_fractions : Array
         Year fractions for each period
+    df_option_maturity : float, optional
+        Discount factor to the swaption expiry.
 
     Returns
     -------
@@ -101,11 +208,24 @@ def forward_swap_rate(
     - DF(T+M) is discount factor to end of swap
     - A is the annuity factor
     """
-    df_start = jnp.exp(-0.03 * option_maturity)  # Placeholder
+    discount_factors = jnp.asarray(discount_factors, dtype=jnp.float32)
+    year_fractions = jnp.asarray(year_fractions, dtype=jnp.float32)
+
+    if discount_factors.shape != year_fractions.shape:
+        raise ValueError("Discount factors and year fractions must share shape.")
+
+    if df_option_maturity is None:
+        # Bootstrap DF(T) from first payment assuming flat forward over first accrual
+        first_payment = option_maturity + year_fractions[0]
+        implied_rate = -jnp.log(discount_factors[0]) / first_payment
+        df_option_maturity = jnp.exp(-implied_rate * option_maturity)
+    else:
+        df_option_maturity = jnp.asarray(df_option_maturity, dtype=jnp.float32)
+
     df_end = discount_factors[-1]
     annuity = swap_annuity(discount_factors, year_fractions)
 
-    return (df_start - df_end) / annuity
+    return (df_option_maturity - df_end) / jnp.maximum(annuity, 1e-12)
 
 
 @jit
@@ -639,7 +759,7 @@ def american_swaption_lsm(
 
         payment_times = jnp.arange(1, n_payments + 1) * year_fraction
         discount_factors_swap = jnp.exp(-rate * payment_times)
-        annuity = float(jnp.sum(discount_factors_swap * year_fraction))
+        annuity = jnp.sum(discount_factors_swap * year_fraction)
 
         df_start = 1.0
         df_end = jnp.exp(-rate * swap_maturity)
@@ -654,7 +774,6 @@ def american_swaption_lsm(
 
     # Initialize cashflows
     cashflows = jnp.zeros(n_paths)
-    exercise_times = jnp.zeros(n_paths)
 
     # Start from second-to-last time step
     for t in range(n_steps - 1, 0, -1):
@@ -679,7 +798,6 @@ def american_swaption_lsm(
             # Exercise if intrinsic > continuation
             exercise_now = (intrinsic > continuation_value) & itm_mask
             cashflows = jnp.where(exercise_now, intrinsic, cashflows)
-            exercise_times = jnp.where(exercise_now, float(t), exercise_times)
 
     # Terminal value for paths not yet exercised
     terminal_rates = rate_paths[:, -1]
@@ -696,6 +814,7 @@ def american_swaption_lsm(
 __all__ = [
     "SwaptionSpecs",
     "SwaptionType",
+    "EuropeanSwaption",
     "black_swaption_price",
     "european_swaption_black",
     "forward_swap_rate",

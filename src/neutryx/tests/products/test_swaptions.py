@@ -4,6 +4,7 @@ import jax.numpy as jnp
 import pytest
 
 from neutryx.products.swaptions import (
+    EuropeanSwaption,
     SwaptionType,
     black_swaption_price,
     european_swaption_black,
@@ -11,6 +12,7 @@ from neutryx.products.swaptions import (
     swap_annuity,
     swaption_delta,
     swaption_vega,
+    forward_swap_rate,
 )
 
 
@@ -30,6 +32,33 @@ def test_swap_annuity():
 
     # For a 5-year swap at 5%, annuity should be around 4.3-4.5
     assert 4.0 < annuity < 5.0
+
+
+def test_forward_swap_rate_flat_curve():
+    """Forward swap rate reduces to par rate under flat curve."""
+    option_maturity = 1.0
+    swap_maturity = 5.0
+    payment_frequency = 2
+    n_payments = int(swap_maturity * payment_frequency)
+    year_fractions = jnp.full(n_payments, 1.0 / payment_frequency)
+
+    discount_rate = 0.03
+    payment_times = option_maturity + jnp.arange(1, n_payments + 1) / payment_frequency
+    discount_factors = jnp.exp(-discount_rate * payment_times)
+    df_option = jnp.exp(-discount_rate * option_maturity)
+
+    fwd = forward_swap_rate(
+        option_maturity,
+        swap_maturity,
+        discount_factors,
+        year_fractions,
+        df_option_maturity=float(df_option),
+    )
+
+    annuity = swap_annuity(discount_factors, year_fractions)
+    expected = (df_option - jnp.exp(-discount_rate * (option_maturity + swap_maturity))) / annuity
+
+    assert jnp.isclose(fwd, expected)
 
 
 def test_black_swaption_atm():
@@ -153,6 +182,34 @@ def test_black_swaption_maturity_impact():
 
     # Longer maturity => higher price (more time value)
     assert price_long > price_short
+
+
+def test_european_swaption_payoff_and_greeks():
+    """EuropeanSwaption helper exposes payoff/greeks."""
+    annuity = 4.5
+    swaption = EuropeanSwaption(
+        T=1.0,
+        strike=0.05,
+        annuity=annuity,
+        notional=1_000_000.0,
+        swaption_type=SwaptionType.PAYER,
+    )
+
+    # Payoff uses terminal forward rate
+    payoff = swaption.payoff_terminal(0.06)
+    expected_payoff = (0.06 - 0.05) * annuity * 1_000_000.0
+    assert jnp.isclose(payoff, expected_payoff)
+
+    # Black price/greeks reuse existing helpers
+    forward_rate = 0.055
+    volatility = 0.20
+    price = swaption.price_black(forward_rate, volatility)
+    delta = swaption.delta(forward_rate, volatility)
+    vega = swaption.vega(forward_rate, volatility)
+
+    assert price > 0.0
+    assert delta > 0.0
+    assert vega > 0.0
 
 
 def test_european_swaption_black():
