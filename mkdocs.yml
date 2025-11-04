@@ -1,8 +1,8 @@
 site_name: Neutryx Lab
 site_description: Compact JAX-first quantitative finance toolkit
-site_url: https://neutryx-lab.github.io/
-repo_url: https://github.com/neutryx-lab/neutryx-lab
-repo_name: neutryx-lab
+site_url: https://www.neutryx.tech/neutryx-core/
+repo_url: https://github.com/neutryx-lab/neutryx-core
+repo_name: neutryx-core
 nav:
   - Home: index.md
   - Overview:
