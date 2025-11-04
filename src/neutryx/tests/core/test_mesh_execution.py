@@ -2,7 +2,7 @@ import jax
 import jax.numpy as jnp
 
 from neutryx.core.execution import MeshConfig, mesh_pjit, mesh_xmap
-from neutryx.core.infrastructure.cluster import ClusterConfig
+from neutryx.infrastructure.cluster import ClusterConfig
 
 
 def _single_axis_mesh() -> MeshConfig:

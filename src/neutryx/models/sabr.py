@@ -14,7 +14,7 @@ import jax.numpy as jnp
 import optax
 
 from neutryx.core.utils.precision import apply_loss_scaling, get_loss_scale, undo_loss_scaling
-from neutryx.core.infrastructure.tracking import (
+from neutryx.infrastructure.tracking import (
     BaseTracker,
     TrackingConfig,
     calibration_metric_template,

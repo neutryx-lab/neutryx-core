@@ -15,7 +15,7 @@ from .heston import HestonParams
 from .sabr import SABRParams
 from .dupire import DupireParams
 # Workflow utilities moved to core.infrastructure.workflows
-from neutryx.core.infrastructure.workflows import CheckpointManager, ModelWorkflow
+from neutryx.infrastructure.workflows import CheckpointManager, ModelWorkflow
 
 __all__ = [
     "bs",

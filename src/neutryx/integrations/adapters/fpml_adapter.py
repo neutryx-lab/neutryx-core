@@ -11,7 +11,7 @@ from typing import Any, Optional
 import jax
 import jax.numpy as jnp
 
-from neutryx.bridge import fpml
+from neutryx.integrations import fpml
 from neutryx.core.engine import MCConfig, price_vanilla_mc
 
 

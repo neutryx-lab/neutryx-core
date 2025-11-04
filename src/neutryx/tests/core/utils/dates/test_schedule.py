@@ -3,14 +3,14 @@
 import datetime
 import pytest
 
-from neutryx.core.utils.dates.schedule import (
+from neutryx.core.dates.schedule import (
     Frequency,
     generate_schedule,
     DateGeneration,
 )
-from neutryx.core.utils.dates.calendar import NullCalendar, TargetCalendar
-from neutryx.core.utils.dates.business_day import ModifiedFollowing, Following
-from neutryx.core.utils.dates.day_count import Actual360, Thirty360, Actual365Fixed
+from neutryx.core.dates.calendar import NullCalendar, TargetCalendar
+from neutryx.core.dates.business_day import ModifiedFollowing, Following
+from neutryx.core.dates.day_count import Actual360, Thirty360, Actual365Fixed
 
 
 class TestFrequency:

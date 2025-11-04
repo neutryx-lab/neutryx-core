@@ -10,7 +10,7 @@ from typing import Any, Optional
 
 import defusedxml.ElementTree as ET
 
-from neutryx.bridge.fpml import schemas
+from neutryx.integrations.fpml import schemas
 
 
 class FpMLParseError(Exception):

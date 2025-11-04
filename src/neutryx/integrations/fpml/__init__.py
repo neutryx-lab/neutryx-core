@@ -46,15 +46,15 @@ Module Structure:
 """
 from __future__ import annotations
 
-from neutryx.bridge.fpml.mappings import (
+from neutryx.integrations.fpml.mappings import (
     FpMLMappingError,
     FpMLToNeutryxMapper,
     NeutryxToFpMLMapper,
     fpml_to_neutryx,
     neutryx_to_fpml,
 )
-from neutryx.bridge.fpml.parser import FpMLParseError, FpMLParser, parse_fpml
-from neutryx.bridge.fpml.schemas import (
+from neutryx.integrations.fpml.parser import FpMLParseError, FpMLParser, parse_fpml
+from neutryx.integrations.fpml.schemas import (
     CurrencyCode,
     EquityExercise,
     EquityOption,
@@ -74,7 +74,7 @@ from neutryx.bridge.fpml.schemas import (
     Trade,
     TradeHeader,
 )
-from neutryx.bridge.fpml.serializer import FpMLSerializer, serialize_fpml
+from neutryx.integrations.fpml.serializer import FpMLSerializer, serialize_fpml
 
 __version__ = "0.1.0"
 

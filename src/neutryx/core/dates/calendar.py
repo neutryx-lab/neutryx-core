@@ -8,7 +8,7 @@ import datetime
 from abc import ABC, abstractmethod
 from typing import Set, List, Union
 
-from neutryx.core.utils.dates.date_utils import (
+from neutryx.core.dates.date_utils import (
     is_weekend,
     easter_date,
     DateLike,

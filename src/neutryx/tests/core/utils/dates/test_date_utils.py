@@ -3,7 +3,7 @@
 import datetime
 import pytest
 
-from neutryx.core.utils.dates.date_utils import (
+from neutryx.core.dates.date_utils import (
     is_weekend,
     is_leap_year,
     days_in_month,

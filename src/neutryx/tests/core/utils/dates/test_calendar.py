@@ -3,7 +3,7 @@
 import datetime
 import pytest
 
-from neutryx.core.utils.dates.calendar import (
+from neutryx.core.dates.calendar import (
     NullCalendar,
     TargetCalendar,
     USCalendar,

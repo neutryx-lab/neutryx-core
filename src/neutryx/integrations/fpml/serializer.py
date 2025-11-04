@@ -11,7 +11,7 @@ import defusedxml.minidom as minidom
 from xml.etree import ElementTree as ET
 from xml.etree.ElementTree import Element, SubElement
 
-from neutryx.bridge.fpml import schemas
+from neutryx.integrations.fpml import schemas
 
 
 class FpMLSerializer:
@@ -276,7 +276,7 @@ def serialize_fpml(fpml_doc: schemas.FpMLDocument, pretty_print: bool = True) ->
         XML string
 
     Example:
-        >>> from neutryx.bridge.fpml import neutryx_to_fpml, serialize_fpml
+        >>> from neutryx.integrations.fpml import neutryx_to_fpml, serialize_fpml
         >>> fpml_doc = neutryx_to_fpml(request, "US0378331005")
         >>> xml_string = serialize_fpml(fpml_doc)
         >>> print(xml_string)

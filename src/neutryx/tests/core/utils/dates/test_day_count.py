@@ -3,7 +3,7 @@
 import datetime
 import pytest
 
-from neutryx.core.utils.dates.day_count import (
+from neutryx.core.dates.day_count import (
     Actual360,
     Actual365Fixed,
     ActualActual,

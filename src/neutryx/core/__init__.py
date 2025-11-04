@@ -1,10 +1,10 @@
 """Core computational infrastructure for Neutryx.
 
 This module provides Monte Carlo simulation, automatic differentiation,
-configuration management, infrastructure, and utility functions.
+configuration management, and utility functions.
 """
 
-from . import autodiff, infrastructure, utils
+from . import autodiff, utils
 from .engine import (
     Array,
     MCConfig,
@@ -44,7 +44,6 @@ __all__ = [
     "autodiff",
     "discount_factor",
     "grid_time_grid",
-    "infrastructure",
     "log_uniform",
     "mc_expectation",
     "merge_grids",

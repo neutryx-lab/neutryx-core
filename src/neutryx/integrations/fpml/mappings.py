@@ -10,7 +10,7 @@ from decimal import Decimal
 from typing import Any, Optional
 
 from neutryx.api.rest import VanillaOptionRequest
-from neutryx.bridge.fpml import schemas
+from neutryx.integrations.fpml import schemas
 from neutryx.products.swap import (
     DayCountConvention,
     PaymentFrequency,
@@ -383,7 +383,7 @@ def fpml_to_neutryx(
         Neutryx pricing request for the primary trade
 
     Example:
-        >>> from neutryx.bridge.fpml import parse_fpml, fpml_to_neutryx
+        >>> from neutryx.integrations.fpml import parse_fpml, fpml_to_neutryx
         >>> fpml_doc = parse_fpml(xml_string)
         >>> market_data = {"spot": 100.0, "volatility": 0.25, "rate": 0.05}
         >>> request = fpml_to_neutryx(fpml_doc, market_data)
@@ -410,7 +410,7 @@ def neutryx_to_fpml(
 
     Example:
         >>> from neutryx.api.rest import VanillaOptionRequest
-        >>> from neutryx.bridge.fpml import neutryx_to_fpml
+        >>> from neutryx.integrations.fpml import neutryx_to_fpml
         >>> request = VanillaOptionRequest(
         ...     spot=100, strike=105, maturity=1.0, volatility=0.2, call=True
         ... )

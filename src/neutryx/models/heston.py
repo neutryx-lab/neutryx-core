@@ -13,7 +13,7 @@ import jax.numpy as jnp
 import optax
 from jax.scipy.stats import norm
 
-from neutryx.core.infrastructure.tracking import (
+from neutryx.infrastructure.tracking import (
     BaseTracker,
     TrackingConfig,
     calibration_metric_template,

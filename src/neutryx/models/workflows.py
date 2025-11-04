@@ -7,6 +7,6 @@ for downstream projects and the internal test-suite.
 
 from __future__ import annotations
 
-from neutryx.core.infrastructure.workflows import CheckpointManager, ModelWorkflow
+from neutryx.infrastructure.workflows import CheckpointManager, ModelWorkflow
 
 __all__ = ["CheckpointManager", "ModelWorkflow"]
