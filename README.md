@@ -61,6 +61,7 @@ Every component — from yield curves to Greeks — is **JIT-compiled**, **vecto
 - **High Performance:** Optimized numerical algorithms with 10-100x speedup for repeated calculations
 - **Reproducible:** Unified configuration via YAML, consistent PRNG seeding
 - **Production-Ready:** FastAPI/gRPC APIs, comprehensive test suite (100+ tests), quality tooling (ruff, bandit)
+- **Governance Built-In:** Multi-tenancy controls, RBAC, audit logging, compliance reporting, SLA monitoring, and cost allocation services
 - **Extensible:** FFI bridges to QuantLib/Eigen, plugin architecture for custom models
 
 ---
