@@ -4,6 +4,10 @@ import pytest
 
 from neutryx.products.equity import (
     dividend_swap_value,
+    dividend_futures_price,
+    dividend_futures_value,
+    dividend_index_points_to_yield,
+    dividend_yield_to_index_points,
     equity_forward_price,
     equity_forward_value,
     equity_linked_note_price,
@@ -166,3 +170,141 @@ def test_equity_linked_note_with_cap():
     # Discounted: 125,000 * exp(-0.05) ≈ 118,940
     assert value < 120_000
     assert value > 115_000
+
+
+def test_dividend_futures_price():
+    """Test dividend futures price calculation."""
+    expected_dividends = 15.0
+    spot = 100.0
+    forward = 103.0
+    risk_free_rate = 0.05
+    maturity = 1.0
+
+    futures_price = dividend_futures_price(
+        expected_dividends, spot, forward, risk_free_rate, maturity
+    )
+
+    # Futures price should equal expected dividends
+    assert jnp.isclose(futures_price, expected_dividends)
+
+
+def test_dividend_futures_value_long():
+    """Test dividend futures mark-to-market for long position."""
+    futures_price = 15.0
+    realized_dividends = 5.0
+    expected_remaining_dividends = 10.5
+    contract_size = 100.0
+
+    value = dividend_futures_value(
+        futures_price,
+        realized_dividends,
+        expected_remaining_dividends,
+        contract_size,
+        position="long",
+    )
+
+    # Total expected = 5 + 10.5 = 15.5
+    # Payoff = 15.5 - 15.0 = 0.5
+    # Value = 100 * 0.5 = 50
+    expected_value = 50.0
+    assert jnp.isclose(value, expected_value)
+
+
+def test_dividend_futures_value_short():
+    """Test dividend futures mark-to-market for short position."""
+    futures_price = 15.0
+    realized_dividends = 5.0
+    expected_remaining_dividends = 10.5
+    contract_size = 100.0
+
+    value_long = dividend_futures_value(
+        futures_price,
+        realized_dividends,
+        expected_remaining_dividends,
+        contract_size,
+        position="long",
+    )
+    value_short = dividend_futures_value(
+        futures_price,
+        realized_dividends,
+        expected_remaining_dividends,
+        contract_size,
+        position="short",
+    )
+
+    # Long and short should be opposites
+    assert jnp.isclose(value_long + value_short, 0.0)
+
+
+def test_dividend_futures_value_at_market():
+    """Test dividend futures when expectations match market."""
+    futures_price = 15.0
+    realized_dividends = 5.0
+    expected_remaining_dividends = 10.0
+    contract_size = 100.0
+
+    value = dividend_futures_value(
+        futures_price,
+        realized_dividends,
+        expected_remaining_dividends,
+        contract_size,
+        position="long",
+    )
+
+    # Total = 15.0, futures = 15.0, value = 0
+    assert jnp.isclose(value, 0.0)
+
+
+def test_dividend_index_points_to_yield():
+    """Test conversion from dividend points to yield."""
+    dividend_points = 150.0
+    index_level = 4000.0
+    period_years = 1.0
+
+    yield_rate = dividend_index_points_to_yield(
+        dividend_points, index_level, period_years
+    )
+
+    # Yield = (150 / 4000) / 1 = 0.0375 = 3.75%
+    expected_yield = 0.0375
+    assert jnp.isclose(yield_rate, expected_yield)
+
+
+def test_dividend_yield_to_index_points():
+    """Test conversion from yield to dividend points."""
+    dividend_yield = 0.0375
+    index_level = 4000.0
+    period_years = 1.0
+
+    points = dividend_yield_to_index_points(dividend_yield, index_level, period_years)
+
+    # Points = 0.0375 * 4000 * 1 = 150
+    expected_points = 150.0
+    assert jnp.isclose(points, expected_points)
+
+
+def test_dividend_yield_points_roundtrip():
+    """Test roundtrip conversion between yield and points."""
+    original_yield = 0.03
+    index_level = 5000.0
+    period_years = 1.0
+
+    # Convert yield -> points -> yield
+    points = dividend_yield_to_index_points(original_yield, index_level, period_years)
+    converted_yield = dividend_index_points_to_yield(points, index_level, period_years)
+
+    assert jnp.isclose(converted_yield, original_yield)
+
+
+def test_dividend_futures_different_periods():
+    """Test dividend yield conversion for different periods."""
+    dividend_yield = 0.04
+    index_level = 3000.0
+
+    # 6 months
+    points_6m = dividend_yield_to_index_points(dividend_yield, index_level, 0.5)
+    # 1 year
+    points_1y = dividend_yield_to_index_points(dividend_yield, index_level, 1.0)
+
+    # 1 year should have 2x the points
+    assert jnp.isclose(points_1y, 2.0 * points_6m)

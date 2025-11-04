@@ -235,14 +235,8 @@ def dividend_futures_price(
     >>> dividend_futures_price(15.0, 100.0, 103.0, 0.05, 1.0)
     15.0
     """
-    # For simplicity, if forward and spot are known, implied dividend yield:
-    # q = (1/T) * ln(S/F) + r
-    if maturity > 0:
-        implied_q = (1.0 / maturity) * jnp.log(spot / forward) + risk_free_rate
-        implied_dividends = spot * (1.0 - jnp.exp(-implied_q * maturity))
-    else:
-        implied_dividends = expected_total_dividends
-
+    # Dividend futures price is simply the expected total dividends
+    # (In practice, derived from forward-spot relationship)
     return expected_total_dividends
 
 

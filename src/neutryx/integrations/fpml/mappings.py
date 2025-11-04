@@ -9,7 +9,7 @@ from datetime import date, timedelta
 from decimal import Decimal
 from typing import Any, Optional
 
-from neutryx.api.rest import VanillaOptionRequest
+from neutryx.api.schemas import VanillaOptionRequest
 from neutryx.integrations.fpml import schemas
 from neutryx.products.swap import (
     DayCountConvention,

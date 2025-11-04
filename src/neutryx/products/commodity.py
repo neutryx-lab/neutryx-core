@@ -640,7 +640,6 @@ class CommodityAsianOption:
                 self.convenience_yield = defaults["convenience_yield"]
 
 
-@jit
 def price_commodity_asian_arithmetic(
     spot: float,
     strike: float,
@@ -654,7 +653,7 @@ def price_commodity_asian_arithmetic(
 ) -> float:
     """Price arithmetic-average Asian option on commodity.
 
-    Uses Turnbull-Wakeman approximation for arithmetic Asian options.
+    Uses simplified Curran approximation for arithmetic Asian options.
 
     Parameters
     ----------
@@ -684,61 +683,41 @@ def price_commodity_asian_arithmetic(
 
     Notes
     -----
-    The arithmetic average Asian option uses an adjusted volatility:
-        σ_adj = σ * sqrt((2n+1)/(6(n+1)))
+    Uses a simplified approximation with adjusted volatility:
+        σ_adj ≈ σ * sqrt((n+1)*(2*n+1) / (6*n^2))
     where n is the number of fixings.
+
+    This function is not JIT-compiled due to Python control flow.
     """
     # Net cost of carry
     cost_of_carry = risk_free_rate + storage_cost - convenience_yield
 
-    # Adjusted volatility for arithmetic averaging (Turnbull-Wakeman)
+    # Adjusted volatility for arithmetic averaging
     n = float(num_fixings)
-    vol_adjustment = jnp.sqrt((2.0 * n + 1.0) / (6.0 * (n + 1.0)))
-    adjusted_vol = volatility * vol_adjustment
+    # Simplified Curran approximation
+    vol_factor = jnp.sqrt((n + 1.0) * (2.0 * n + 1.0) / (6.0 * n * n))
+    adjusted_vol = volatility * vol_factor
 
-    # Adjusted forward price
+    # Forward price
     forward_price = spot * jnp.exp(cost_of_carry * maturity)
 
-    # Moment matching for arithmetic average
-    # First moment
-    m1 = forward_price
+    # Adjust the forward and strike for averaging
+    # The average starts at 0 and ends at maturity, so we use half the maturity for adjustment
+    avg_maturity = maturity / 2.0
+    adjusted_forward = spot * jnp.exp(cost_of_carry * avg_maturity)
 
-    # Second moment (variance)
-    if n > 1:
-        # More accurate adjustment
-        dt = maturity / n
-        variance_sum = 0.0
-        for i in range(int(n)):
-            t = (i + 1) * dt
-            variance_sum += jnp.exp(2.0 * cost_of_carry * t + volatility**2 * t)
-        m2 = (spot**2 / n**2) * variance_sum
-    else:
-        m2 = spot**2 * jnp.exp(2.0 * cost_of_carry * maturity + volatility**2 * maturity)
-
-    # Lognormal approximation parameters
-    variance_A = jnp.log(m2 / (m1**2))
-    mean_A = jnp.log(m1) - 0.5 * variance_A
-    vol_A = jnp.sqrt(variance_A / maturity)
-
-    # Use Black-Scholes with adjusted parameters
-    d1 = (mean_A + variance_A - jnp.log(strike)) / jnp.sqrt(variance_A)
-    d2 = d1 - jnp.sqrt(variance_A)
-
-    from jax.scipy.stats import norm
-
-    if is_call:
-        price = jnp.exp(-risk_free_rate * maturity) * (
-            m1 * norm.cdf(d1) - strike * norm.cdf(d2)
-        )
-    else:
-        price = jnp.exp(-risk_free_rate * maturity) * (
-            strike * norm.cdf(-d2) - m1 * norm.cdf(-d1)
-        )
-
-    return price
+    # Use Black-Scholes formula with adjusted parameters
+    return bs_price(
+        S=adjusted_forward,
+        K=strike,
+        T=maturity,
+        r=risk_free_rate,
+        q=0.0,  # Already incorporated in adjusted_forward
+        sigma=adjusted_vol,
+        kind="call" if is_call else "put",
+    )
 
 
-@jit
 def price_commodity_asian_geometric(
     spot: float,
     strike: float,
@@ -779,6 +758,10 @@ def price_commodity_asian_geometric(
     -------
     float
         Option price
+
+    Notes
+    -----
+    This function is not JIT-compiled to allow Python control flow.
     """
     # Net cost of carry
     cost_of_carry = risk_free_rate + storage_cost - convenience_yield
@@ -957,7 +940,7 @@ class AgricultureFuture:
         return base_forward * self.seasonal_factor
 
 
-@jit
+@partial(jit, static_argnames=["position"])
 def basis_swap_value(
     quantity: float,
     price_commodity1: float,

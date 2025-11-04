@@ -1,115 +1,196 @@
 """REST API exposing pricing workflows via FastAPI."""
 from __future__ import annotations
 
-from typing import Any, List, Sequence
+from typing import Any, Sequence
 
 import jax
 import jax.numpy as jnp
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel, Field
 
+from neutryx.api.config import (
+    DEFAULT_COUNTERPARTY_PD_ANNUAL,
+    DEFAULT_IM_RATIO,
+    DEFAULT_IM_SPREAD,
+    DEFAULT_OWN_LGD,
+    DEFAULT_OWN_PD_ANNUAL,
+)
+from neutryx.api.schemas import (
+    CVARequest,
+    FpMLParseRequest,
+    FpMLPriceRequest,
+    FpMLValidateRequest,
+    FVARequest,
+    MVARequest,
+    PortfolioXVARequest,
+    VanillaOptionRequest,
+)
 from neutryx.core.engine import MCConfig, price_vanilla_mc
+from neutryx.integrations import fpml
 from neutryx.valuations.xva.cva import cva
 from neutryx.valuations.xva.fva import fva
 from neutryx.valuations.xva.mva import mva
 
 
-class VanillaOptionRequest(BaseModel):
-    spot: float = Field(..., description="Current underlying spot level")
-    strike: float = Field(..., description="Option strike price")
-    maturity: float = Field(..., description="Time to maturity in years")
-    rate: float = Field(0.0, description="Risk-free rate")
-    dividend: float = Field(0.0, description="Dividend yield")
-    volatility: float = Field(..., description="Volatility of the underlying")
-    steps: int = Field(64, gt=0, description="Number of time steps")
-    paths: int = Field(8192, gt=0, description="Number of Monte Carlo paths")
-    antithetic: bool = Field(False, description="Use antithetic sampling")
-    call: bool = Field(True, description="Price a call (False for put)")
-    seed: int | None = Field(None, description="PRNG seed for simulation determinism")
-
-
-class ProfileRequest(BaseModel):
-    values: List[float]
-
-    def to_array(self) -> jnp.ndarray:
-        if not self.values:
-            raise HTTPException(status_code=400, detail="Expected non-empty sequence")
-        return jnp.asarray(self.values, dtype=jnp.float32)
-
-
-class CVARequest(BaseModel):
-    epe: ProfileRequest
-    discount: ProfileRequest
-    default_probability: ProfileRequest
-    lgd: float = Field(0.6, description="Loss given default")
-
-
-class FVARequest(BaseModel):
-    epe: ProfileRequest
-    discount: ProfileRequest
-    funding_spread: Sequence[float] | float
-
-
-class MVARequest(BaseModel):
-    initial_margin: ProfileRequest
-    discount: ProfileRequest
-    spread: Sequence[float] | float
-
-
-class PortfolioXVARequest(BaseModel):
-    """Request to compute XVA for a portfolio or netting set."""
-
-    portfolio_id: str = Field(..., description="Portfolio identifier")
-    netting_set_id: str | None = Field(
-        None, description="Netting set ID (if None, compute for entire portfolio)"
-    )
-    valuation_date: str = Field(..., description="Valuation date (ISO format)")
-    compute_cva: bool = Field(True, description="Compute CVA")
-    compute_dva: bool = Field(False, description="Compute DVA")
-    compute_fva: bool = Field(False, description="Compute FVA")
-    compute_mva: bool = Field(False, description="Compute MVA")
-    lgd: float = Field(0.6, description="Loss given default (if not in counterparty data)")
-    funding_spread_bps: float = Field(50.0, description="Funding spread in bps for FVA")
-
-
-class PortfolioSummaryRequest(BaseModel):
-    """Request to get portfolio summary statistics."""
-
-    portfolio_id: str = Field(..., description="Portfolio identifier")
-    valuation_date: str | None = Field(None, description="Valuation date (ISO format)")
-
-
-class FpMLPriceRequest(BaseModel):
-    """Request to price an FpML document."""
-
-    fpml_xml: str = Field(..., description="FpML XML document")
-    market_data: dict[str, Any] = Field(
-        ..., description="Market data: spot, volatility, rate, dividend, etc."
-    )
-    steps: int = Field(252, gt=0, description="Number of time steps")
-    paths: int = Field(100_000, gt=0, description="Number of Monte Carlo paths")
-    seed: int = Field(42, description="Random seed")
-
-
-class FpMLParseRequest(BaseModel):
-    """Request to parse an FpML document."""
-
-    fpml_xml: str = Field(..., description="FpML XML document")
-
-
-class FpMLValidateRequest(BaseModel):
-    """Request to validate an FpML document."""
-
-    fpml_xml: str = Field(..., description="FpML XML document")
-
-
 def _to_array(values: Sequence[float] | float, *, match: int) -> jnp.ndarray:
+    """Convert scalar or sequence to JAX array with length checking."""
     if isinstance(values, (int, float)):
         return jnp.full((match,), float(values), dtype=jnp.float32)
     seq = list(values)
     if len(seq) != match:
         raise HTTPException(status_code=400, detail="Sequence length mismatch")
     return jnp.asarray(seq, dtype=jnp.float32)
+
+
+def _prepare_market_data(
+    base_market_data: dict[str, Any], steps: int, paths: int
+) -> dict[str, Any]:
+    """Prepare market data by adding Monte Carlo configuration."""
+    market_data = base_market_data.copy()
+    market_data.setdefault("steps", steps)
+    market_data.setdefault("paths", paths)
+    return market_data
+
+
+def _extract_swap_trade_info(trade: Any, request: dict[str, Any]) -> dict[str, Any]:
+    """Extract trade information from a swap."""
+    return {
+        "product_type": "InterestRateSwap",
+        "notional": request["notional"],
+        "fixed_rate": request["fixed_rate"],
+        "floating_rate": request["floating_rate"],
+        "maturity": request["maturity"],
+        "payment_frequency": request["payment_frequency"],
+    }
+
+
+def _extract_option_trade_info(trade: Any) -> dict[str, Any]:
+    """Extract trade information from an option."""
+    if trade.equityOption:
+        return {
+            "product_type": "EquityOption",
+            "option_type": trade.equityOption.optionType.value,
+            "strike": float(trade.equityOption.strike.strikePrice),
+            "underlyer": trade.equityOption.underlyer.instrumentId,
+        }
+    elif trade.fxOption:
+        return {
+            "product_type": "FxOption",
+            "strike": float(trade.fxOption.strike.rate),
+        }
+    return {}
+
+
+def _price_option(request: Any, seed: int, steps: int, paths: int) -> float:
+    """Price an option using Monte Carlo simulation."""
+    key = jax.random.PRNGKey(seed)
+    mc_cfg = MCConfig(steps=steps, paths=paths)
+    price = price_vanilla_mc(
+        key,
+        request.spot,
+        request.strike,
+        request.maturity,
+        request.rate,
+        request.dividend,
+        request.volatility,
+        mc_cfg,
+        is_call=request.call,
+    )
+    return float(price)
+
+
+def _get_portfolio_trades(
+    portfolio: Any, netting_set_id: str | None
+) -> tuple[list[Any], Any | None, str]:
+    """Get trades for a portfolio or netting set.
+
+    Returns:
+        (trades, netting_set, scope)
+    """
+    if netting_set_id:
+        netting_set = portfolio.get_netting_set(netting_set_id)
+        if not netting_set:
+            raise HTTPException(
+                status_code=404, detail=f"Netting set '{netting_set_id}' not found"
+            )
+        trades = portfolio.get_trades_by_netting_set(netting_set_id)
+        scope = f"netting_set:{netting_set_id}"
+    else:
+        trades = list(portfolio.trades.values())
+        netting_set = None
+        scope = "portfolio"
+    return trades, netting_set, scope
+
+
+def _compute_exposures(trades: list[Any]) -> tuple[float, float, float]:
+    """Compute net MTM and exposures from trades.
+
+    Returns:
+        (net_mtm, positive_exposure, negative_exposure)
+    """
+    net_mtm = sum(t.get_mtm(default=0.0) for t in trades)
+    positive_exposure = max(net_mtm, 0.0)
+    negative_exposure = max(-net_mtm, 0.0)
+    return net_mtm, positive_exposure, negative_exposure
+
+
+def _get_credit_parameters(
+    portfolio: Any, netting_set: Any | None, default_lgd: float
+) -> tuple[float, bool]:
+    """Get credit parameters (LGD and CSA status).
+
+    Returns:
+        (lgd, has_csa)
+    """
+    if netting_set:
+        counterparty = portfolio.get_counterparty(netting_set.counterparty_id)
+        lgd = counterparty.get_lgd() if counterparty else default_lgd
+        has_csa = netting_set.has_csa()
+    else:
+        lgd = default_lgd
+        has_csa = False
+    return lgd, has_csa
+
+
+def _calculate_cva(lgd: float, positive_exposure: float) -> float:
+    """Calculate Credit Valuation Adjustment (simplified)."""
+    return lgd * positive_exposure * DEFAULT_COUNTERPARTY_PD_ANNUAL
+
+
+def _calculate_dva(negative_exposure: float) -> float:
+    """Calculate Debit Valuation Adjustment (simplified)."""
+    return DEFAULT_OWN_LGD * negative_exposure * DEFAULT_OWN_PD_ANNUAL
+
+
+def _calculate_fva(
+    positive_exposure: float, has_csa: bool, funding_spread_bps: float
+) -> float:
+    """Calculate Funding Valuation Adjustment (simplified)."""
+    uncollateralized_exposure = 0.0 if has_csa else positive_exposure
+    funding_spread = funding_spread_bps / 10000.0
+    return funding_spread * uncollateralized_exposure
+
+
+def _calculate_mva(trades: list[Any], has_csa: bool) -> float:
+    """Calculate Margin Valuation Adjustment (simplified)."""
+    if not has_csa:
+        return 0.0
+    gross_notional = sum(abs(t.notional or 0) for t in trades)
+    im_estimate = DEFAULT_IM_RATIO * gross_notional
+    return DEFAULT_IM_SPREAD * im_estimate
+
+
+def _calculate_total_xva(result: dict[str, Any]) -> float:
+    """Calculate total XVA from individual components."""
+    total = 0.0
+    if result["cva"] is not None:
+        total += result["cva"]
+    if result["dva"] is not None:
+        total -= result["dva"]  # DVA is a benefit
+    if result["fva"] is not None:
+        total += result["fva"]
+    if result["mva"] is not None:
+        total += result["mva"]
+    return total
 
 
 def create_app() -> FastAPI:
@@ -141,10 +222,10 @@ def create_app() -> FastAPI:
     def compute_cva(payload: CVARequest) -> dict[str, float]:
         epe = payload.epe.to_array()
         discount = payload.discount.to_array()
-        pd = payload.default_probability.to_array()
-        if epe.shape[0] != discount.shape[0] or epe.shape[0] != pd.shape[0]:
+        default_probability = payload.default_probability.to_array()
+        if epe.shape[0] != discount.shape[0] or epe.shape[0] != default_probability.shape[0]:
             raise HTTPException(status_code=400, detail="Profiles must share the same length")
-        value = cva(epe, discount, pd, lgd=float(payload.lgd))
+        value = cva(epe, discount, default_probability, lgd=float(payload.lgd))
         return {"cva": float(value)}
 
     @app.post("/xva/fva")
@@ -172,81 +253,32 @@ def create_app() -> FastAPI:
         converts it to Neutryx format, and returns the computed price.
         """
         try:
-            from neutryx.integrations import fpml
-
-            # Parse FpML
             fpml_doc = fpml.parse_fpml(payload.fpml_xml)
-
-            # Add MC config to market data
-            market_data = payload.market_data.copy()
-            market_data.setdefault("steps", payload.steps)
-            market_data.setdefault("paths", payload.paths)
-
-            # Convert to Neutryx request
+            market_data = _prepare_market_data(payload.market_data, payload.steps, payload.paths)
             request = fpml.fpml_to_neutryx(fpml_doc, market_data)
-
-            # Extract trade info
             trade = fpml_doc.primary_trade
-            trade_info = {}
 
-            # Handle different product types
-            if trade.swap:
-                # Swap pricing - request is already a dict with the value
-                if isinstance(request, dict):
-                    swap_value = request["value"]
-                    trade_info = {
-                        "product_type": "InterestRateSwap",
-                        "notional": request["notional"],
-                        "fixed_rate": request["fixed_rate"],
-                        "floating_rate": request["floating_rate"],
-                        "maturity": request["maturity"],
-                        "payment_frequency": request["payment_frequency"],
-                    }
-                    return {
-                        "price": swap_value,
-                        "trade_date": trade.tradeHeader.tradeDate.isoformat(),
-                        "trade_info": trade_info,
-                    }
-
-            # Options pricing - use Monte Carlo
-            key = jax.random.PRNGKey(payload.seed)
-            mc_cfg = MCConfig(steps=payload.steps, paths=payload.paths)
-            price = price_vanilla_mc(
-                key,
-                request.spot,
-                request.strike,
-                request.maturity,
-                request.rate,
-                request.dividend,
-                request.volatility,
-                mc_cfg,
-                is_call=request.call,
-            )
-
-            if trade.equityOption:
-                trade_info = {
-                    "product_type": "EquityOption",
-                    "option_type": trade.equityOption.optionType.value,
-                    "strike": float(trade.equityOption.strike.strikePrice),
-                    "underlyer": trade.equityOption.underlyer.instrumentId,
-                }
-            elif trade.fxOption:
-                trade_info = {
-                    "product_type": "FxOption",
-                    "strike": float(trade.fxOption.strike.rate),
+            # Handle swap pricing (returns dict directly with value)
+            if trade.swap and isinstance(request, dict):
+                return {
+                    "price": request["value"],
+                    "trade_date": trade.tradeHeader.tradeDate.isoformat(),
+                    "trade_info": _extract_swap_trade_info(trade, request),
                 }
 
+            # Handle option pricing (requires Monte Carlo)
+            price = _price_option(request, payload.seed, payload.steps, payload.paths)
             return {
-                "price": float(price),
+                "price": price,
                 "trade_date": trade.tradeHeader.tradeDate.isoformat(),
-                "trade_info": trade_info,
+                "trade_info": _extract_option_trade_info(trade),
             }
         except fpml.FpMLParseError as e:
-            raise HTTPException(status_code=400, detail=f"FpML parse error: {e}")
+            raise HTTPException(status_code=400, detail=f"FpML parse error: {e}") from e
         except fpml.FpMLMappingError as e:
-            raise HTTPException(status_code=400, detail=f"FpML mapping error: {e}")
+            raise HTTPException(status_code=400, detail=f"FpML mapping error: {e}") from e
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Pricing error: {e}")
+            raise HTTPException(status_code=500, detail=f"Pricing error: {e}") from e
 
     @app.post("/fpml/parse")
     def parse_fpml_doc(payload: FpMLParseRequest) -> dict[str, Any]:
@@ -255,8 +287,6 @@ def create_app() -> FastAPI:
         Useful for validating FpML documents and inspecting trade details.
         """
         try:
-            from neutryx.integrations import fpml
-
             fpml_doc = fpml.parse_fpml(payload.fpml_xml)
             trade = fpml_doc.primary_trade
 
@@ -266,27 +296,29 @@ def create_app() -> FastAPI:
             }
 
             if trade.equityOption:
-                opt = trade.equityOption
+                equity_option = trade.equityOption
                 result["product"] = {
                     "type": "EquityOption",
-                    "option_type": opt.optionType.value,
-                    "exercise_type": opt.equityExercise.optionType.value,
-                    "strike": float(opt.strike.strikePrice),
-                    "underlyer": opt.underlyer.instrumentId,
-                    "expiration": opt.equityExercise.expirationDate.unadjustedDate.isoformat(),
-                    "number_of_options": float(opt.numberOfOptions),
+                    "option_type": equity_option.optionType.value,
+                    "exercise_type": equity_option.equityExercise.optionType.value,
+                    "strike": float(equity_option.strike.strikePrice),
+                    "underlyer": equity_option.underlyer.instrumentId,
+                    "expiration": (
+                        equity_option.equityExercise.expirationDate.unadjustedDate.isoformat()
+                    ),
+                    "number_of_options": float(equity_option.numberOfOptions),
                 }
             elif trade.fxOption:
-                opt = trade.fxOption
+                fx_option = trade.fxOption
                 result["product"] = {
                     "type": "FxOption",
-                    "exercise_type": opt.fxExercise.optionType.value,
-                    "strike": float(opt.strike.rate),
-                    "put_currency": opt.putCurrencyAmount.currency.value,
-                    "put_amount": float(opt.putCurrencyAmount.amount),
-                    "call_currency": opt.callCurrencyAmount.currency.value,
-                    "call_amount": float(opt.callCurrencyAmount.amount),
-                    "expiry": opt.fxExercise.expiryDate.isoformat(),
+                    "exercise_type": fx_option.fxExercise.optionType.value,
+                    "strike": float(fx_option.strike.rate),
+                    "put_currency": fx_option.putCurrencyAmount.currency.value,
+                    "put_amount": float(fx_option.putCurrencyAmount.amount),
+                    "call_currency": fx_option.callCurrencyAmount.currency.value,
+                    "call_amount": float(fx_option.callCurrencyAmount.amount),
+                    "expiry": fx_option.fxExercise.expiryDate.isoformat(),
                 }
             elif trade.swap:
                 result["product"] = {
@@ -296,9 +328,9 @@ def create_app() -> FastAPI:
 
             return result
         except fpml.FpMLParseError as e:
-            raise HTTPException(status_code=400, detail=f"FpML parse error: {e}")
+            raise HTTPException(status_code=400, detail=f"FpML parse error: {e}") from e
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Parse error: {e}")
+            raise HTTPException(status_code=500, detail=f"Parse error: {e}") from e
 
     @app.post("/fpml/validate")
     def validate_fpml_doc(payload: FpMLValidateRequest) -> dict[str, Any]:
@@ -307,8 +339,6 @@ def create_app() -> FastAPI:
         Returns validation status and any errors found.
         """
         try:
-            from neutryx.integrations import fpml
-
             fpml.parse_fpml(payload.fpml_xml)
             return {"valid": True, "message": "FpML document is valid"}
         except fpml.FpMLParseError as e:
@@ -335,7 +365,9 @@ def create_app() -> FastAPI:
                 "summary": portfolio.summary(),
             }
         except Exception as e:
-            raise HTTPException(status_code=400, detail=f"Portfolio registration error: {e}")
+            raise HTTPException(
+                status_code=400, detail=f"Portfolio registration error: {e}"
+            ) from e
 
     @app.get("/portfolio/{portfolio_id}/summary")
     def get_portfolio_summary(portfolio_id: str) -> dict[str, Any]:
@@ -355,15 +387,15 @@ def create_app() -> FastAPI:
 
         # Counterparty breakdown
         counterparty_summary = []
-        for cp_id, cp in portfolio.counterparties.items():
-            cp_trades = portfolio.get_trades_by_counterparty(cp_id)
+        for counterparty_id, counterparty in portfolio.counterparties.items():
+            counterparty_trades = portfolio.get_trades_by_counterparty(counterparty_id)
             counterparty_summary.append(
                 {
-                    "counterparty_id": cp_id,
-                    "name": cp.name,
-                    "entity_type": cp.entity_type.value,
-                    "num_trades": len(cp_trades),
-                    "net_mtm": portfolio.calculate_net_mtm_by_counterparty(cp_id),
+                    "counterparty_id": counterparty_id,
+                    "name": counterparty.name,
+                    "entity_type": counterparty.entity_type.value,
+                    "num_trades": len(counterparty_trades),
+                    "net_mtm": portfolio.calculate_net_mtm_by_counterparty(counterparty_id),
                 }
             )
 
@@ -386,22 +418,9 @@ def create_app() -> FastAPI:
             )
 
         portfolio = _portfolios[payload.portfolio_id]
+        trades, netting_set, scope = _get_portfolio_trades(portfolio, payload.netting_set_id)
 
-        # Get trades to analyze
-        if payload.netting_set_id:
-            netting_set = portfolio.get_netting_set(payload.netting_set_id)
-            if not netting_set:
-                raise HTTPException(
-                    status_code=404,
-                    detail=f"Netting set '{payload.netting_set_id}' not found",
-                )
-            trades = portfolio.get_trades_by_netting_set(payload.netting_set_id)
-            scope = f"netting_set:{payload.netting_set_id}"
-        else:
-            trades = list(portfolio.trades.values())
-            netting_set = None
-            scope = "portfolio"
-
+        # Handle empty portfolio case
         if not trades:
             return {
                 "scope": scope,
@@ -413,11 +432,11 @@ def create_app() -> FastAPI:
                 "total_xva": 0.0,
             }
 
-        # Compute net MTM as simplified exposure
-        net_mtm = sum(t.get_mtm(default=0.0) for t in trades)
-        positive_exposure = max(net_mtm, 0.0)
-        negative_exposure = max(-net_mtm, 0.0)
+        # Compute exposures and credit parameters
+        net_mtm, positive_exposure, negative_exposure = _compute_exposures(trades)
+        lgd, has_csa = _get_credit_parameters(portfolio, netting_set, payload.lgd)
 
+        # Build result with basic metrics
         result = {
             "scope": scope,
             "num_trades": len(trades),
@@ -426,76 +445,20 @@ def create_app() -> FastAPI:
             "negative_exposure": negative_exposure,
         }
 
-        # Get counterparty for credit info
-        if netting_set:
-            cp = portfolio.get_counterparty(netting_set.counterparty_id)
-            lgd = cp.get_lgd() if cp else payload.lgd
-            has_csa = netting_set.has_csa()
-        else:
-            lgd = payload.lgd
-            has_csa = False
+        # Calculate XVA components
+        result["cva"] = (
+            _calculate_cva(lgd, positive_exposure) if payload.compute_cva else None
+        )
+        result["dva"] = _calculate_dva(negative_exposure) if payload.compute_dva else None
+        result["fva"] = (
+            _calculate_fva(positive_exposure, has_csa, payload.funding_spread_bps)
+            if payload.compute_fva
+            else None
+        )
+        result["mva"] = _calculate_mva(trades, has_csa) if payload.compute_mva else None
 
-        # Simplified XVA calculations
-        # In production, these would use proper exposure profiles and term structures
-
-        if payload.compute_cva:
-            # CVA = LGD * EPE * PD (simplified)
-            # Using a simplified default probability of 1% per year
-            pd_annual = 0.01
-            cva_value = lgd * positive_exposure * pd_annual
-            result["cva"] = cva_value
-        else:
-            result["cva"] = None
-
-        if payload.compute_dva:
-            # DVA = Our LGD * ENE * Our PD (simplified)
-            # Assuming our own default probability of 0.5% per year
-            our_pd_annual = 0.005
-            dva_value = 0.6 * negative_exposure * our_pd_annual
-            result["dva"] = dva_value
-        else:
-            result["dva"] = None
-
-        if payload.compute_fva:
-            # FVA = Funding spread * Average uncollateralized exposure
-            # If CSA exists, FVA is reduced/eliminated
-            if has_csa:
-                uncollateralized_exposure = 0.0
-            else:
-                uncollateralized_exposure = positive_exposure
-
-            funding_spread = payload.funding_spread_bps / 10000.0
-            fva_value = funding_spread * uncollateralized_exposure
-            result["fva"] = fva_value
-        else:
-            result["fva"] = None
-
-        if payload.compute_mva:
-            # MVA simplified calculation
-            # In production, this requires initial margin simulation
-            if has_csa:
-                # Rough estimate: 6% of gross notional
-                gross_notional = sum(abs(t.notional or 0) for t in trades)
-                im_estimate = 0.06 * gross_notional
-                mva_value = 0.015 * im_estimate  # 150bps spread on IM
-            else:
-                mva_value = 0.0
-            result["mva"] = mva_value
-        else:
-            result["mva"] = None
-
-        # Total XVA
-        total_xva = 0.0
-        if result["cva"] is not None:
-            total_xva += result["cva"]
-        if result["dva"] is not None:
-            total_xva -= result["dva"]  # DVA is a benefit
-        if result["fva"] is not None:
-            total_xva += result["fva"]
-        if result["mva"] is not None:
-            total_xva += result["mva"]
-
-        result["total_xva"] = total_xva
+        # Calculate total XVA
+        result["total_xva"] = _calculate_total_xva(result)
         result["valuation_date"] = payload.valuation_date
 
         return result
@@ -509,16 +472,16 @@ def create_app() -> FastAPI:
         portfolio = _portfolios[portfolio_id]
 
         netting_sets_info = []
-        for ns_id, ns in portfolio.netting_sets.items():
-            trades = portfolio.get_trades_by_netting_set(ns_id)
-            cp = portfolio.get_counterparty(ns.counterparty_id)
+        for netting_set_id, netting_set in portfolio.netting_sets.items():
+            trades = portfolio.get_trades_by_netting_set(netting_set_id)
+            counterparty = portfolio.get_counterparty(netting_set.counterparty_id)
 
             netting_sets_info.append(
                 {
-                    "netting_set_id": ns_id,
-                    "counterparty_id": ns.counterparty_id,
-                    "counterparty_name": cp.name if cp else None,
-                    "has_csa": ns.has_csa(),
+                    "netting_set_id": netting_set_id,
+                    "counterparty_id": netting_set.counterparty_id,
+                    "counterparty_name": counterparty.name if counterparty else None,
+                    "has_csa": netting_set.has_csa(),
                     "num_trades": len(trades),
                     "net_mtm": sum(t.get_mtm(default=0.0) for t in trades),
                 }
