@@ -37,6 +37,7 @@ demos/outputs/
 # Profiling dumps
 dev/profiling/flamegraphs/
 dev/profiling/xla_hlo_dumps/
+dev/profiles/
 
 # Documentation build
 site/

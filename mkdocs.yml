@@ -61,6 +61,7 @@ nav:
   - Engineering Operations:
       - Deployment Guide: deployment.md
       - Orchestration Patterns: orchestration.md
+      - Observability Stack: observability.md
       - Tracking and Observability: tracking.md
       - CI Pipeline: ci_pipeline.md
       - Security Audit: security_audit.md

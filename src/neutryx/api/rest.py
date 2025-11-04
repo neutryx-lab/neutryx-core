@@ -29,6 +29,7 @@ from neutryx.integrations import fpml
 from neutryx.valuations.xva.cva import cva
 from neutryx.valuations.xva.fva import fva
 from neutryx.valuations.xva.mva import mva
+from neutryx.infrastructure.observability import setup_observability
 
 
 def _to_array(values: Sequence[float] | float, *, match: int) -> jnp.ndarray:
@@ -195,6 +196,8 @@ def _calculate_total_xva(result: dict[str, Any]) -> float:
 
 def create_app() -> FastAPI:
     app = FastAPI(title="Neutryx Pricing API", version="0.1.0")
+    observability = setup_observability(app)
+    metrics = observability.metrics
 
     # In-memory portfolio storage (for demo purposes)
     # In production, this would be a database or cache
@@ -202,46 +205,62 @@ def create_app() -> FastAPI:
 
     @app.post("/price/vanilla")
     def price_vanilla(payload: VanillaOptionRequest) -> dict[str, float]:
-        mc_cfg = MCConfig(steps=payload.steps, paths=payload.paths, antithetic=payload.antithetic)
-        seed = payload.seed if payload.seed is not None else 0
-        key = jax.random.PRNGKey(int(seed))
-        price = price_vanilla_mc(
-            key,
-            payload.spot,
-            payload.strike,
-            payload.maturity,
-            payload.rate,
-            payload.dividend,
-            payload.volatility,
-            mc_cfg,
-            is_call=payload.call,
-        )
+        with metrics.time(
+            "pricing.vanilla",
+            labels={"channel": "http", "product": "vanilla_option"},
+        ):
+            mc_cfg = MCConfig(steps=payload.steps, paths=payload.paths, antithetic=payload.antithetic)
+            seed = payload.seed if payload.seed is not None else 0
+            key = jax.random.PRNGKey(int(seed))
+            price = price_vanilla_mc(
+                key,
+                payload.spot,
+                payload.strike,
+                payload.maturity,
+                payload.rate,
+                payload.dividend,
+                payload.volatility,
+                mc_cfg,
+                is_call=payload.call,
+            )
         return {"price": float(price)}
 
     @app.post("/xva/cva")
     def compute_cva(payload: CVARequest) -> dict[str, float]:
-        epe = payload.epe.to_array()
-        discount = payload.discount.to_array()
-        default_probability = payload.default_probability.to_array()
-        if epe.shape[0] != discount.shape[0] or epe.shape[0] != default_probability.shape[0]:
-            raise HTTPException(status_code=400, detail="Profiles must share the same length")
-        value = cva(epe, discount, default_probability, lgd=float(payload.lgd))
+        with metrics.time(
+            "xva.cva",
+            labels={"channel": "http", "product": "cva"},
+        ):
+            epe = payload.epe.to_array()
+            discount = payload.discount.to_array()
+            default_probability = payload.default_probability.to_array()
+            if epe.shape[0] != discount.shape[0] or epe.shape[0] != default_probability.shape[0]:
+                raise HTTPException(status_code=400, detail="Profiles must share the same length")
+            value = cva(epe, discount, default_probability, lgd=float(payload.lgd))
         return {"cva": float(value)}
 
     @app.post("/xva/fva")
     def compute_fva(payload: FVARequest) -> dict[str, float]:
-        epe = payload.epe.to_array()
-        discount = payload.discount.to_array()
-        spread = _to_array(payload.funding_spread, match=epe.shape[0])
-        value = fva(epe, spread, discount)
+        with metrics.time(
+            "xva.fva",
+            labels={"channel": "http", "product": "fva"},
+        ):
+            epe = payload.epe.to_array()
+            discount = payload.discount.to_array()
+            spread = _to_array(payload.funding_spread, match=epe.shape[0])
+            value = fva(epe, spread, discount)
         return {"fva": float(value)}
 
     @app.post("/xva/mva")
     def compute_mva(payload: MVARequest) -> dict[str, float]:
-        margin = payload.initial_margin.to_array()
-        discount = payload.discount.to_array()
-        spread = _to_array(payload.spread, match=margin.shape[0])
-        value = mva(margin, discount, spread)
+        with metrics.time(
+            "xva.mva",
+            labels={"channel": "http", "product": "mva"},
+        ):
+            margin = payload.initial_margin.to_array()
+            discount = payload.discount.to_array()
+            spread = _to_array(payload.spread, match=margin.shape[0])
+            value = mva(margin, discount, spread)
         return {"mva": float(value)}
 
     # FpML endpoints
@@ -252,33 +271,35 @@ def create_app() -> FastAPI:
         Accepts an FpML XML document and market data, parses the trade,
         converts it to Neutryx format, and returns the computed price.
         """
-        try:
-            fpml_doc = fpml.parse_fpml(payload.fpml_xml)
-            market_data = _prepare_market_data(payload.market_data, payload.steps, payload.paths)
-            request = fpml.fpml_to_neutryx(fpml_doc, market_data)
-            trade = fpml_doc.primary_trade
+        with metrics.time(
+            "pricing.fpml",
+            labels={"channel": "http", "product": "fpml"},
+        ):
+            try:
+                fpml_doc = fpml.parse_fpml(payload.fpml_xml)
+                market_data = _prepare_market_data(payload.market_data, payload.steps, payload.paths)
+                request = fpml.fpml_to_neutryx(fpml_doc, market_data)
+                trade = fpml_doc.primary_trade
 
-            # Handle swap pricing (returns dict directly with value)
-            if trade.swap and isinstance(request, dict):
+                if trade.swap and isinstance(request, dict):
+                    return {
+                        "price": request["value"],
+                        "trade_date": trade.tradeHeader.tradeDate.isoformat(),
+                        "trade_info": _extract_swap_trade_info(trade, request),
+                    }
+
+                price = _price_option(request, payload.seed, payload.steps, payload.paths)
                 return {
-                    "price": request["value"],
+                    "price": price,
                     "trade_date": trade.tradeHeader.tradeDate.isoformat(),
-                    "trade_info": _extract_swap_trade_info(trade, request),
+                    "trade_info": _extract_option_trade_info(trade),
                 }
-
-            # Handle option pricing (requires Monte Carlo)
-            price = _price_option(request, payload.seed, payload.steps, payload.paths)
-            return {
-                "price": price,
-                "trade_date": trade.tradeHeader.tradeDate.isoformat(),
-                "trade_info": _extract_option_trade_info(trade),
-            }
-        except fpml.FpMLParseError as e:
-            raise HTTPException(status_code=400, detail=f"FpML parse error: {e}") from e
-        except fpml.FpMLMappingError as e:
-            raise HTTPException(status_code=400, detail=f"FpML mapping error: {e}") from e
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Pricing error: {e}") from e
+            except fpml.FpMLParseError as e:
+                raise HTTPException(status_code=400, detail=f"FpML parse error: {e}") from e
+            except fpml.FpMLMappingError as e:
+                raise HTTPException(status_code=400, detail=f"FpML mapping error: {e}") from e
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=f"Pricing error: {e}") from e
 
     @app.post("/fpml/parse")
     def parse_fpml_doc(payload: FpMLParseRequest) -> dict[str, Any]:
@@ -286,51 +307,55 @@ def create_app() -> FastAPI:
 
         Useful for validating FpML documents and inspecting trade details.
         """
-        try:
-            fpml_doc = fpml.parse_fpml(payload.fpml_xml)
-            trade = fpml_doc.primary_trade
+        with metrics.time(
+            "fpml.parse",
+            labels={"channel": "http", "product": "fpml"},
+        ):
+            try:
+                fpml_doc = fpml.parse_fpml(payload.fpml_xml)
+                trade = fpml_doc.primary_trade
 
-            result = {
-                "trade_date": trade.tradeHeader.tradeDate.isoformat(),
-                "parties": [{"id": p.id, "name": p.name} for p in fpml_doc.party],
-            }
-
-            if trade.equityOption:
-                equity_option = trade.equityOption
-                result["product"] = {
-                    "type": "EquityOption",
-                    "option_type": equity_option.optionType.value,
-                    "exercise_type": equity_option.equityExercise.optionType.value,
-                    "strike": float(equity_option.strike.strikePrice),
-                    "underlyer": equity_option.underlyer.instrumentId,
-                    "expiration": (
-                        equity_option.equityExercise.expirationDate.unadjustedDate.isoformat()
-                    ),
-                    "number_of_options": float(equity_option.numberOfOptions),
-                }
-            elif trade.fxOption:
-                fx_option = trade.fxOption
-                result["product"] = {
-                    "type": "FxOption",
-                    "exercise_type": fx_option.fxExercise.optionType.value,
-                    "strike": float(fx_option.strike.rate),
-                    "put_currency": fx_option.putCurrencyAmount.currency.value,
-                    "put_amount": float(fx_option.putCurrencyAmount.amount),
-                    "call_currency": fx_option.callCurrencyAmount.currency.value,
-                    "call_amount": float(fx_option.callCurrencyAmount.amount),
-                    "expiry": fx_option.fxExercise.expiryDate.isoformat(),
-                }
-            elif trade.swap:
-                result["product"] = {
-                    "type": "InterestRateSwap",
-                    "streams": len(trade.swap.swapStream),
+                result = {
+                    "trade_date": trade.tradeHeader.tradeDate.isoformat(),
+                    "parties": [{"id": p.id, "name": p.name} for p in fpml_doc.party],
                 }
 
-            return result
-        except fpml.FpMLParseError as e:
-            raise HTTPException(status_code=400, detail=f"FpML parse error: {e}") from e
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Parse error: {e}") from e
+                if trade.equityOption:
+                    equity_option = trade.equityOption
+                    result["product"] = {
+                        "type": "EquityOption",
+                        "option_type": equity_option.optionType.value,
+                        "exercise_type": equity_option.equityExercise.optionType.value,
+                        "strike": float(equity_option.strike.strikePrice),
+                        "underlyer": equity_option.underlyer.instrumentId,
+                        "expiration": (
+                            equity_option.equityExercise.expirationDate.unadjustedDate.isoformat()
+                        ),
+                        "number_of_options": float(equity_option.numberOfOptions),
+                    }
+                elif trade.fxOption:
+                    fx_option = trade.fxOption
+                    result["product"] = {
+                        "type": "FxOption",
+                        "exercise_type": fx_option.fxExercise.optionType.value,
+                        "strike": float(fx_option.strike.rate),
+                        "put_currency": fx_option.putCurrencyAmount.currency.value,
+                        "put_amount": float(fx_option.putCurrencyAmount.amount),
+                        "call_currency": fx_option.callCurrencyAmount.currency.value,
+                        "call_amount": float(fx_option.callCurrencyAmount.amount),
+                        "expiry": fx_option.fxExercise.expiryDate.isoformat(),
+                    }
+                elif trade.swap:
+                    result["product"] = {
+                        "type": "InterestRateSwap",
+                        "streams": len(trade.swap.swapStream),
+                    }
+
+                return result
+            except fpml.FpMLParseError as e:
+                raise HTTPException(status_code=400, detail=f"FpML parse error: {e}") from e
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=f"Parse error: {e}") from e
 
     @app.post("/fpml/validate")
     def validate_fpml_doc(payload: FpMLValidateRequest) -> dict[str, Any]:
@@ -338,13 +363,17 @@ def create_app() -> FastAPI:
 
         Returns validation status and any errors found.
         """
-        try:
-            fpml.parse_fpml(payload.fpml_xml)
-            return {"valid": True, "message": "FpML document is valid"}
-        except fpml.FpMLParseError as e:
-            return {"valid": False, "message": f"Parse error: {e}"}
-        except Exception as e:
-            return {"valid": False, "message": f"Validation error: {e}"}
+        with metrics.time(
+            "fpml.validate",
+            labels={"channel": "http", "product": "fpml"},
+        ):
+            try:
+                fpml.parse_fpml(payload.fpml_xml)
+                return {"valid": True, "message": "FpML document is valid"}
+            except fpml.FpMLParseError as e:
+                return {"valid": False, "message": f"Parse error: {e}"}
+            except Exception as e:
+                return {"valid": False, "message": f"Validation error: {e}"}
 
     # Portfolio management endpoints
     @app.post("/portfolio/register")
@@ -353,21 +382,25 @@ def create_app() -> FastAPI:
 
         Accepts a portfolio serialized as JSON (from Portfolio.model_dump()).
         """
-        try:
-            from neutryx.portfolio.portfolio import Portfolio
+        with metrics.time(
+            "portfolio.register",
+            labels={"channel": "http", "product": "portfolio"},
+        ):
+            try:
+                from neutryx.portfolio.portfolio import Portfolio
 
-            portfolio = Portfolio.model_validate(portfolio_data)
-            _portfolios[portfolio.name] = portfolio
+                portfolio = Portfolio.model_validate(portfolio_data)
+                _portfolios[portfolio.name] = portfolio
 
-            return {
-                "status": "registered",
-                "portfolio_id": portfolio.name,
-                "summary": portfolio.summary(),
-            }
-        except Exception as e:
-            raise HTTPException(
-                status_code=400, detail=f"Portfolio registration error: {e}"
-            ) from e
+                return {
+                    "status": "registered",
+                    "portfolio_id": portfolio.name,
+                    "summary": portfolio.summary(),
+                }
+            except Exception as e:
+                raise HTTPException(
+                    status_code=400, detail=f"Portfolio registration error: {e}"
+                ) from e
 
     @app.get("/portfolio/{portfolio_id}/summary")
     def get_portfolio_summary(portfolio_id: str) -> dict[str, Any]:
@@ -377,27 +410,30 @@ def create_app() -> FastAPI:
 
         portfolio = _portfolios[portfolio_id]
 
-        summary = {
-            "portfolio_id": portfolio_id,
-            "base_currency": portfolio.base_currency,
-            **portfolio.summary(),
-            "total_mtm": portfolio.calculate_total_mtm(),
-            "gross_notional": portfolio.calculate_gross_notional(),
-        }
+        with metrics.time(
+            "portfolio.summary",
+            labels={"channel": "http", "product": "portfolio"},
+        ):
+            summary = {
+                "portfolio_id": portfolio_id,
+                "base_currency": portfolio.base_currency,
+                **portfolio.summary(),
+                "total_mtm": portfolio.calculate_total_mtm(),
+                "gross_notional": portfolio.calculate_gross_notional(),
+            }
 
-        # Counterparty breakdown
-        counterparty_summary = []
-        for counterparty_id, counterparty in portfolio.counterparties.items():
-            counterparty_trades = portfolio.get_trades_by_counterparty(counterparty_id)
-            counterparty_summary.append(
-                {
-                    "counterparty_id": counterparty_id,
-                    "name": counterparty.name,
-                    "entity_type": counterparty.entity_type.value,
-                    "num_trades": len(counterparty_trades),
-                    "net_mtm": portfolio.calculate_net_mtm_by_counterparty(counterparty_id),
-                }
-            )
+            counterparty_summary = []
+            for counterparty_id, counterparty in portfolio.counterparties.items():
+                counterparty_trades = portfolio.get_trades_by_counterparty(counterparty_id)
+                counterparty_summary.append(
+                    {
+                        "counterparty_id": counterparty_id,
+                        "name": counterparty.name,
+                        "entity_type": counterparty.entity_type.value,
+                        "num_trades": len(counterparty_trades),
+                        "net_mtm": portfolio.calculate_net_mtm_by_counterparty(counterparty_id),
+                    }
+                )
 
         summary["counterparties"] = counterparty_summary
         return summary

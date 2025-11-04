@@ -24,7 +24,13 @@ dependencies = [
   "uvicorn>=0.29.0",
   "pydantic>=2.6.0",
   "grpcio>=1.62.0",
-  "protobuf>=4.25.0"
+  "protobuf>=4.25.0",
+  "prometheus-client>=0.20.0",
+  "opentelemetry-api>=1.25.0",
+  "opentelemetry-sdk>=1.25.0",
+  "opentelemetry-exporter-otlp-proto-http>=1.25.0",
+  "opentelemetry-instrumentation-fastapi>=0.46b0",
+  "opentelemetry-instrumentation-grpc>=0.46b0"
 ]
 
 [project.optional-dependencies]

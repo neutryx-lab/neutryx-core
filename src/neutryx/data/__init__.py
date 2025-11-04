@@ -59,6 +59,15 @@ from neutryx.data.indices import (
 )
 from neutryx.data.market_grid import MarketDataGrid
 from neutryx.data.portfolio_batch import PortfolioBatch, TradeArrays
+from neutryx.data.validation import (
+    DataValidator,
+    RangeRule,
+    RequiredFieldRule,
+    Severity,
+    StalenessRule,
+    ValidationIssue,
+    ValidationResult,
+)
 
 __all__ = [
     # Index mappings
@@ -98,4 +107,12 @@ __all__ = [
     "load_chunked_simulation",
     "price_option_chunked",
     "estimate_optimal_chunk_size",
+    # Validation
+    "DataValidator",
+    "RangeRule",
+    "RequiredFieldRule",
+    "Severity",
+    "StalenessRule",
+    "ValidationIssue",
+    "ValidationResult",
 ]

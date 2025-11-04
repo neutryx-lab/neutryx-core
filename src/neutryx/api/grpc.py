@@ -14,6 +14,7 @@ from neutryx.core.engine import MCConfig, price_vanilla_mc
 from neutryx.valuations.xva.cva import cva
 from neutryx.valuations.xva.fva import fva
 from neutryx.valuations.xva.mva import mva
+from neutryx.infrastructure.observability import setup_observability
 
 SERVICE_NAME = "neutryx.api.PricingService"
 
@@ -34,78 +35,102 @@ def _sequence(values: Any, *, match: int) -> jnp.ndarray:
 class PricingServicer:
     """Implements RPC handlers for pricing workflows."""
 
+    def __init__(self):
+        self._observability = setup_observability()
+        self._metrics = self._observability.metrics
+
     async def PriceVanilla(self, request: Struct, context: grpc.aio.ServicerContext) -> Struct:  # noqa: N802
         payload = _struct_to_dict(request)
-        try:
-            mc_cfg = payload.get("mc", {})
-            steps = int(mc_cfg.get("steps", payload.get("steps", 64)))
-            paths = int(mc_cfg.get("paths", payload.get("paths", 8192)))
-            antithetic = bool(mc_cfg.get("antithetic", payload.get("antithetic", False)))
-            mc = MCConfig(steps=steps, paths=paths, antithetic=antithetic)
-            seed = int(payload.get("seed", 0))
-            key = jax.random.PRNGKey(seed)
-            price = price_vanilla_mc(
-                key,
-                float(payload["spot"]),
-                float(payload["strike"]),
-                float(payload["maturity"]),
-                float(payload.get("rate", 0.0)),
-                float(payload.get("dividend", 0.0)),
-                float(payload["volatility"]),
-                mc,
-                is_call=bool(payload.get("call", True)),
-            )
-        except KeyError as exc:
-            await context.abort(grpc.StatusCode.INVALID_ARGUMENT, f"missing field: {exc.args[0]}")
-        except Exception as exc:  # pragma: no cover - defensive
-            await context.abort(grpc.StatusCode.INVALID_ARGUMENT, str(exc))
+        with self._metrics.time(
+            "pricing.vanilla",
+            labels={"channel": "grpc", "product": "vanilla_option"},
+            kind="grpc",
+        ):
+            try:
+                mc_cfg = payload.get("mc", {})
+                steps = int(mc_cfg.get("steps", payload.get("steps", 64)))
+                paths = int(mc_cfg.get("paths", payload.get("paths", 8192)))
+                antithetic = bool(mc_cfg.get("antithetic", payload.get("antithetic", False)))
+                mc = MCConfig(steps=steps, paths=paths, antithetic=antithetic)
+                seed = int(payload.get("seed", 0))
+                key = jax.random.PRNGKey(seed)
+                price = price_vanilla_mc(
+                    key,
+                    float(payload["spot"]),
+                    float(payload["strike"]),
+                    float(payload["maturity"]),
+                    float(payload.get("rate", 0.0)),
+                    float(payload.get("dividend", 0.0)),
+                    float(payload["volatility"]),
+                    mc,
+                    is_call=bool(payload.get("call", True)),
+                )
+            except KeyError as exc:
+                await context.abort(grpc.StatusCode.INVALID_ARGUMENT, f"missing field: {exc.args[0]}")
+            except Exception as exc:  # pragma: no cover - defensive
+                await context.abort(grpc.StatusCode.INVALID_ARGUMENT, str(exc))
         response = Struct()
         response.update({"price": float(price)})
         return response
 
     async def ComputeCVA(self, request: Struct, context: grpc.aio.ServicerContext) -> Struct:  # noqa: N802
         payload = _struct_to_dict(request)
-        try:
-            epe = jnp.asarray(payload["epe"], dtype=jnp.float32)
-            discount = jnp.asarray(payload["discount"], dtype=jnp.float32)
-            pd = jnp.asarray(payload["default_probability"], dtype=jnp.float32)
-            if epe.shape[0] != discount.shape[0] or epe.shape[0] != pd.shape[0]:
-                raise ValueError("profiles must share the same length")
-            value = cva(epe, discount, pd, lgd=float(payload.get("lgd", 0.6)))
-        except KeyError as exc:
-            await context.abort(grpc.StatusCode.INVALID_ARGUMENT, f"missing field: {exc.args[0]}")
-        except Exception as exc:  # pragma: no cover - defensive
-            await context.abort(grpc.StatusCode.INVALID_ARGUMENT, str(exc))
+        with self._metrics.time(
+            "xva.cva",
+            labels={"channel": "grpc", "product": "cva"},
+            kind="grpc",
+        ):
+            try:
+                epe = jnp.asarray(payload["epe"], dtype=jnp.float32)
+                discount = jnp.asarray(payload["discount"], dtype=jnp.float32)
+                pd = jnp.asarray(payload["default_probability"], dtype=jnp.float32)
+                if epe.shape[0] != discount.shape[0] or epe.shape[0] != pd.shape[0]:
+                    raise ValueError("profiles must share the same length")
+                value = cva(epe, discount, pd, lgd=float(payload.get("lgd", 0.6)))
+            except KeyError as exc:
+                await context.abort(grpc.StatusCode.INVALID_ARGUMENT, f"missing field: {exc.args[0]}")
+            except Exception as exc:  # pragma: no cover - defensive
+                await context.abort(grpc.StatusCode.INVALID_ARGUMENT, str(exc))
         response = Struct()
         response.update({"cva": float(value)})
         return response
 
     async def ComputeFVA(self, request: Struct, context: grpc.aio.ServicerContext) -> Struct:  # noqa: N802
         payload = _struct_to_dict(request)
-        try:
-            epe = jnp.asarray(payload["epe"], dtype=jnp.float32)
-            discount = jnp.asarray(payload["discount"], dtype=jnp.float32)
-            spread = _sequence(payload.get("funding_spread"), match=epe.shape[0])
-            value = fva(epe, spread, discount)
-        except KeyError as exc:
-            await context.abort(grpc.StatusCode.INVALID_ARGUMENT, f"missing field: {exc.args[0]}")
-        except Exception as exc:  # pragma: no cover - defensive
-            await context.abort(grpc.StatusCode.INVALID_ARGUMENT, str(exc))
+        with self._metrics.time(
+            "xva.fva",
+            labels={"channel": "grpc", "product": "fva"},
+            kind="grpc",
+        ):
+            try:
+                epe = jnp.asarray(payload["epe"], dtype=jnp.float32)
+                discount = jnp.asarray(payload["discount"], dtype=jnp.float32)
+                spread = _sequence(payload.get("funding_spread"), match=epe.shape[0])
+                value = fva(epe, spread, discount)
+            except KeyError as exc:
+                await context.abort(grpc.StatusCode.INVALID_ARGUMENT, f"missing field: {exc.args[0]}")
+            except Exception as exc:  # pragma: no cover - defensive
+                await context.abort(grpc.StatusCode.INVALID_ARGUMENT, str(exc))
         response = Struct()
         response.update({"fva": float(value)})
         return response
 
     async def ComputeMVA(self, request: Struct, context: grpc.aio.ServicerContext) -> Struct:  # noqa: N802
         payload = _struct_to_dict(request)
-        try:
-            margin = jnp.asarray(payload["initial_margin"], dtype=jnp.float32)
-            discount = jnp.asarray(payload["discount"], dtype=jnp.float32)
-            spread = _sequence(payload.get("spread"), match=margin.shape[0])
-            value = mva(margin, discount, spread)
-        except KeyError as exc:
-            await context.abort(grpc.StatusCode.INVALID_ARGUMENT, f"missing field: {exc.args[0]}")
-        except Exception as exc:  # pragma: no cover - defensive
-            await context.abort(grpc.StatusCode.INVALID_ARGUMENT, str(exc))
+        with self._metrics.time(
+            "xva.mva",
+            labels={"channel": "grpc", "product": "mva"},
+            kind="grpc",
+        ):
+            try:
+                margin = jnp.asarray(payload["initial_margin"], dtype=jnp.float32)
+                discount = jnp.asarray(payload["discount"], dtype=jnp.float32)
+                spread = _sequence(payload.get("spread"), match=margin.shape[0])
+                value = mva(margin, discount, spread)
+            except KeyError as exc:
+                await context.abort(grpc.StatusCode.INVALID_ARGUMENT, f"missing field: {exc.args[0]}")
+            except Exception as exc:  # pragma: no cover - defensive
+                await context.abort(grpc.StatusCode.INVALID_ARGUMENT, str(exc))
         response = Struct()
         response.update({"mva": float(value)})
         return response

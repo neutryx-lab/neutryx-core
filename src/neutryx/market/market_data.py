@@ -8,12 +8,33 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from datetime import datetime, date
-from typing import Dict, List, Optional
+from datetime import date, datetime, timedelta
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 import jax.numpy as jnp
 
+from neutryx.data.validation import (
+    DataValidator,
+    RangeRule,
+    RequiredFieldRule,
+    Severity,
+    StalenessRule,
+)
+from neutryx.market.adapters import SimulatedAdapter, SimulatedConfig
+from neutryx.market.adapters.bloomberg import (
+    BloombergAdapter as _BloombergAdapter,
+    BloombergConfig,
+)
+from neutryx.market.adapters.refinitiv import (
+    RefinitivAdapter as _RefinitivAdapter,
+    RefinitivConfig,
+)
+from neutryx.market.feeds import PollingMarketDataFeed
+
 from .fx import FXVolatilityQuote
+
+if TYPE_CHECKING:
+    from neutryx.integrations.databases.base import DatabaseConnector
 
 
 class MarketDataSource(ABC):
@@ -205,33 +226,45 @@ class SimulatedMarketData(MarketDataSource):
 @dataclass
 class BloombergDataAdapter(MarketDataSource):
     """
-    Bloomberg data adapter (placeholder for actual Bloomberg API integration).
+    Bloomberg-backed market data source for FX volatility and spot data.
 
-    To use this adapter, you need:
-    1. Bloomberg Terminal or Bloomberg Server API license
-    2. Python Bloomberg API (blpapi package)
-    3. Active Bloomberg session
+    This adapter wraps :class:`neutryx.market.adapters.bloomberg.BloombergAdapter`
+    and exposes the simplified :class:`MarketDataSource` interface.
 
-    Example:
-        >>> # Requires Bloomberg Terminal/API
-        >>> adapter = BloombergDataAdapter(host="localhost", port=8194)
-        >>> quote = adapter.get_fx_vol_quote("EUR", "USD", 1.0)
-
-    Note:
-        This is a template. Actual implementation requires Bloomberg API credentials.
+    The implementation requires the Bloomberg `blpapi` package at runtime and
+    a valid Bloomberg Terminal or Server API session. When the dependency is
+    missing or the connection fails, a :class:`RuntimeError` is raised with
+    a descriptive message.
     """
 
     host: str = "localhost"
     port: int = 8194
     timeout: int = 5000
+    application_name: str = "Neutryx"
+    identity: Optional[str] = None
+    use_enterprise: bool = False
 
-    def __post_init__(self):
-        """Initialize Bloomberg connection."""
-        # In production, this would establish Bloomberg API connection
-        # import blpapi
-        # self.session = blpapi.Session(...)
-        # self.session.start()
-        pass
+    def __post_init__(self) -> None:
+        self._config = BloombergConfig(
+            adapter_name="bloomberg",
+            host=self.host,
+            port=self.port,
+            timeout_ms=self.timeout,
+            application_name=self.application_name,
+            identity=self.identity,
+            use_enterprise=self.use_enterprise,
+        )
+        self._adapter = _BloombergAdapter(self._config)
+        self._connected = False
+
+    def _ensure_connection(self) -> None:
+        if not self._connected:
+            if not self._adapter.connect():
+                raise RuntimeError(
+                    "Unable to connect to Bloomberg API. "
+                    "Ensure 'blpapi' is installed and the session is authorized."
+                )
+            self._connected = True
 
     def get_fx_vol_quote(
         self,
@@ -240,35 +273,35 @@ class BloombergDataAdapter(MarketDataSource):
         expiry: float,
         as_of_date: Optional[date] = None,
     ) -> FXVolatilityQuote:
-        """
-        Fetch FX vol quote from Bloomberg.
+        self._ensure_connection()
+        spot_quote = self._adapter.get_fx_quote(from_ccy, to_ccy)
+        if spot_quote is None:
+            raise RuntimeError(f"No FX quote returned for {from_ccy}/{to_ccy}")
 
-        Bloomberg tickers for FX vol:
-        - ATM: <ccy_pair> <tenor> ATM Vol
-        - RR: <ccy_pair> <tenor> 25D RR
-        - BF: <ccy_pair> <tenor> 25D BF
+        tenor_days = max(1, int(expiry * 365))
+        expiry_date = (as_of_date or date.today()) + timedelta(days=tenor_days)
+        underlying = f"{from_ccy}{to_ccy} Curncy"
 
-        Example tickers:
-        - EURUSD Curncy 1Y ATM Vol
-        - EURUSD Curncy 1Y 25D RR
-        - EURUSD Curncy 1Y 25D BF
-        """
-        # Placeholder: In production, this would call Bloomberg API
-        # pair = f"{from_ccy}{to_ccy}"
-        # tenor_str = self._format_tenor(expiry)
-        # atm_ticker = f"{pair} Curncy {tenor_str} ATM Vol"
-        # rr_ticker = f"{pair} Curncy {tenor_str} 25D RR"
-        # bf_ticker = f"{pair} Curncy {tenor_str} 25D BF"
-        #
-        # atm_vol = self._fetch_bloomberg_field(atm_ticker, "PX_LAST")
-        # rr_25d = self._fetch_bloomberg_field(rr_ticker, "PX_LAST")
-        # bf_25d = self._fetch_bloomberg_field(bf_ticker, "PX_LAST")
-        #
-        # return FXVolatilityQuote(...)
+        vol_quote = self._adapter.get_volatility_quote(
+            underlying=underlying,
+            strike=spot_quote.spot,
+            expiry=expiry_date,
+            option_type="call",
+        )
 
-        raise NotImplementedError(
-            "Bloomberg adapter requires blpapi package and Bloomberg Terminal/API access. "
-            "Use SimulatedMarketData for testing."
+        if vol_quote is None:
+            raise RuntimeError(
+                f"No Bloomberg volatility data for {underlying} at {expiry_date}"
+            )
+
+        return FXVolatilityQuote(
+            expiry=expiry,
+            atm_vol=vol_quote.volatility,
+            rr_25d=0.0,
+            bf_25d=0.0,
+            forward=spot_quote.spot,
+            domestic_rate=0.0,
+            foreign_rate=0.0,
         )
 
     def get_fx_vol_surface(
@@ -278,7 +311,6 @@ class BloombergDataAdapter(MarketDataSource):
         tenors: List[float],
         as_of_date: Optional[date] = None,
     ) -> List[FXVolatilityQuote]:
-        """Fetch FX vol surface from Bloomberg."""
         return [
             self.get_fx_vol_quote(from_ccy, to_ccy, tenor, as_of_date)
             for tenor in tenors
@@ -290,21 +322,11 @@ class BloombergDataAdapter(MarketDataSource):
         to_ccy: str,
         as_of_date: Optional[date] = None,
     ) -> float:
-        """Fetch FX spot from Bloomberg."""
-        # pair = f"{from_ccy}{to_ccy}"
-        # ticker = f"{pair} Curncy"
-        # return self._fetch_bloomberg_field(ticker, "PX_LAST")
-        raise NotImplementedError("Bloomberg adapter not implemented")
-
-    @staticmethod
-    def _format_tenor(expiry: float) -> str:
-        """Convert expiry in years to Bloomberg tenor format (e.g., 1.0 -> "1Y")."""
-        if expiry < 1.0:
-            months = int(expiry * 12)
-            return f"{months}M"
-        else:
-            years = int(expiry)
-            return f"{years}Y"
+        self._ensure_connection()
+        quote = self._adapter.get_fx_quote(from_ccy, to_ccy)
+        if quote is None:
+            raise RuntimeError(f"No FX spot data for {from_ccy}/{to_ccy}")
+        return quote.spot
 
 
 @dataclass
@@ -327,14 +349,31 @@ class RefinitivDataAdapter(MarketDataSource):
     """
 
     app_key: str = ""
+    username: str = ""
+    password: str = ""
+    use_desktop: bool = True
     timeout: int = 5000
 
-    def __post_init__(self):
-        """Initialize Refinitiv connection."""
-        # In production, this would establish Refinitiv API connection
-        # import refinitiv.dataplatform as rdp
-        # rdp.open_platform_session(self.app_key, ...)
-        pass
+    def __post_init__(self) -> None:
+        self._config = RefinitivConfig(
+            adapter_name="refinitiv",
+            timeout_ms=self.timeout,
+            app_key=self.app_key,
+            username=self.username,
+            password=self.password,
+            use_desktop=self.use_desktop,
+        )
+        self._adapter = _RefinitivAdapter(self._config)
+        self._connected = False
+
+    def _ensure_connection(self) -> None:
+        if not self._connected:
+            if not self._adapter.connect():
+                raise RuntimeError(
+                    "Unable to connect to Refinitiv. Install the required SDK "
+                    "and provide valid credentials."
+                )
+            self._connected = True
 
     def get_fx_vol_quote(
         self,
@@ -343,23 +382,35 @@ class RefinitivDataAdapter(MarketDataSource):
         expiry: float,
         as_of_date: Optional[date] = None,
     ) -> FXVolatilityQuote:
-        """
-        Fetch FX vol quote from Refinitiv.
+        self._ensure_connection()
+        fx_quote = self._adapter.get_fx_quote(from_ccy, to_ccy)
+        if fx_quote is None:
+            raise RuntimeError(f"No Refinitiv FX quote for {from_ccy}/{to_ccy}")
 
-        Refinitiv RICs for FX vol:
-        - ATM: <ccy_pair>=IMP<tenor>
-        - RR: <ccy_pair>=RR<tenor>
-        - BF: <ccy_pair>=BF<tenor>
+        tenor_days = max(1, int(expiry * 365))
+        expiry_date = (as_of_date or date.today()) + timedelta(days=tenor_days)
+        underlying = f"{from_ccy}{to_ccy}=X"
 
-        Example RICs:
-        - EUR=IMP1Y (1Y ATM implied vol)
-        - EUR=RR1Y25 (1Y 25-delta risk reversal)
-        - EUR=BF1Y25 (1Y 25-delta butterfly)
-        """
-        # Placeholder: In production, this would call Refinitiv API
-        raise NotImplementedError(
-            "Refinitiv adapter requires refinitiv.dataplatform package and API credentials. "
-            "Use SimulatedMarketData for testing."
+        vol_quote = self._adapter.get_volatility_quote(
+            underlying=underlying,
+            strike=fx_quote.spot,
+            expiry=expiry_date,
+            option_type="call",
+        )
+
+        if vol_quote is None:
+            raise RuntimeError(
+                f"No Refinitiv volatility data for {underlying} at {expiry_date}"
+            )
+
+        return FXVolatilityQuote(
+            expiry=expiry,
+            atm_vol=vol_quote.volatility,
+            rr_25d=0.0,
+            bf_25d=0.0,
+            forward=fx_quote.spot,
+            domestic_rate=0.0,
+            foreign_rate=0.0,
         )
 
     def get_fx_vol_surface(
@@ -369,7 +420,6 @@ class RefinitivDataAdapter(MarketDataSource):
         tenors: List[float],
         as_of_date: Optional[date] = None,
     ) -> List[FXVolatilityQuote]:
-        """Fetch FX vol surface from Refinitiv."""
         return [
             self.get_fx_vol_quote(from_ccy, to_ccy, tenor, as_of_date)
             for tenor in tenors
@@ -381,8 +431,11 @@ class RefinitivDataAdapter(MarketDataSource):
         to_ccy: str,
         as_of_date: Optional[date] = None,
     ) -> float:
-        """Fetch FX spot from Refinitiv."""
-        raise NotImplementedError("Refinitiv adapter not implemented")
+        self._ensure_connection()
+        quote = self._adapter.get_fx_quote(from_ccy, to_ccy)
+        if quote is None:
+            raise RuntimeError(f"No Refinitiv FX quote for {from_ccy}/{to_ccy}")
+        return quote.spot
 
 
 # Convenience function for getting market data
@@ -416,3 +469,75 @@ def get_market_data_source(source_type: str = "simulated", **kwargs) -> MarketDa
             f"Unknown source type: {source_type}. "
             f"Choose from: simulated, bloomberg, refinitiv"
         )
+
+
+def create_market_data_feed(
+    source_type: str,
+    *,
+    validator: Optional[DataValidator] = None,
+    storage: Optional["DatabaseConnector"] = None,
+    adapter_kwargs: Optional[Dict[str, Any]] = None,
+) -> PollingMarketDataFeed:
+    """
+    Create a :class:`PollingMarketDataFeed` for the specified source type.
+
+    Args:
+        source_type: ``"simulated"``, ``"bloomberg"``, or ``"refinitiv"``
+        validator: Optional :class:`DataValidator` instance
+        storage: Optional database connector for persistence
+        adapter_kwargs: Additional keyword arguments passed to the adapter config
+    """
+    adapter_kwargs = adapter_kwargs or {}
+
+    if source_type == "simulated":
+        config = SimulatedConfig(adapter_name="simulated", **adapter_kwargs)
+        adapter = SimulatedAdapter(config)
+    elif source_type == "bloomberg":
+        config = BloombergConfig(adapter_name="bloomberg", **adapter_kwargs)
+        adapter = _BloombergAdapter(config)
+    elif source_type == "refinitiv":
+        config = RefinitivConfig(adapter_name="refinitiv", **adapter_kwargs)
+        adapter = _RefinitivAdapter(config)
+    else:
+        raise ValueError(
+            f"Unknown source type: {source_type}. "
+            "Supported values: simulated, bloomberg, refinitiv."
+        )
+
+    return PollingMarketDataFeed(adapter, validator=validator, storage=storage)
+
+
+def create_default_validator(max_age_seconds: int = 5) -> DataValidator:
+    """
+    Build a default validator suitable for FX and rates data.
+
+    The validator enforces presence of timestamps, non-negative spot/price,
+    and flags stale observations.
+    """
+    return DataValidator(
+        rules=[
+            RequiredFieldRule(["timestamp"], severity=Severity.ERROR),
+            RangeRule("spot", minimum=0.0, severity=Severity.ERROR),
+            RangeRule("price", minimum=0.0, severity=Severity.WARNING),
+            StalenessRule(
+                timedelta(seconds=max_age_seconds),
+                severity=Severity.WARNING,
+            ),
+        ]
+    )
+
+
+def get_market_data_feed(
+    source_type: str,
+    *,
+    validator: Optional[DataValidator] = None,
+    storage: Optional["DatabaseConnector"] = None,
+    adapter_kwargs: Optional[Dict[str, Any]] = None,
+) -> PollingMarketDataFeed:
+    """Alias for ``create_market_data_feed`` to match legacy naming."""
+    return create_market_data_feed(
+        source_type,
+        validator=validator,
+        storage=storage,
+        adapter_kwargs=adapter_kwargs,
+    )
