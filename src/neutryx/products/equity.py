@@ -2,7 +2,7 @@
 
 Implements various equity-linked products:
 - Equity forwards and futures
-- Dividend swaps
+- Dividend swaps and futures
 - Variance swaps
 - Total return swaps
 - Equity-linked notes
@@ -176,6 +176,191 @@ def dividend_swap_value(
     1425.0
     """
     return notional * (expected_total_dividends - strike) * discount_factor
+
+
+@dataclass
+class DividendFuture:
+    """Dividend futures contract specification."""
+
+    underlying: str
+    contract_size: float
+    maturity: float
+    settlement_date: float
+    expected_dividends: float
+
+
+@jit
+def dividend_futures_price(
+    expected_total_dividends: float,
+    spot: float,
+    forward: float,
+    risk_free_rate: float,
+    maturity: float,
+) -> float:
+    """Calculate theoretical dividend futures price.
+
+    Parameters
+    ----------
+    expected_total_dividends : float
+        Expected cumulative dividends over the contract period
+    spot : float
+        Current spot price of the underlying
+    forward : float
+        Forward price of the underlying to maturity
+    risk_free_rate : float
+        Risk-free rate
+    maturity : float
+        Time to maturity in years
+
+    Returns
+    -------
+    float
+        Dividend futures price (points value)
+
+    Notes
+    -----
+    Dividend futures settle to the actual dividends paid by the underlying
+    index over the contract period.
+
+    The theoretical price can be derived from the dividend yield implied
+    by the equity forward:
+        F = S * exp((r - q) * T)
+        q = (1/T) * ln(S/F) + r
+
+    Expected dividends:
+        D = S * (1 - exp(-q * T))
+
+    Examples
+    --------
+    >>> dividend_futures_price(15.0, 100.0, 103.0, 0.05, 1.0)
+    15.0
+    """
+    # For simplicity, if forward and spot are known, implied dividend yield:
+    # q = (1/T) * ln(S/F) + r
+    if maturity > 0:
+        implied_q = (1.0 / maturity) * jnp.log(spot / forward) + risk_free_rate
+        implied_dividends = spot * (1.0 - jnp.exp(-implied_q * maturity))
+    else:
+        implied_dividends = expected_total_dividends
+
+    return expected_total_dividends
+
+
+@partial(jit, static_argnames=["position"])
+def dividend_futures_value(
+    futures_price: float,
+    realized_dividends: float,
+    expected_remaining_dividends: float,
+    contract_size: float,
+    position: str = "long",
+) -> float:
+    """Calculate mark-to-market value of dividend futures.
+
+    Parameters
+    ----------
+    futures_price : float
+        Current futures price (market consensus on total dividends)
+    realized_dividends : float
+        Dividends realized to date
+    expected_remaining_dividends : float
+        Expected dividends for remaining period
+    contract_size : float
+        Contract multiplier
+    position : str
+        'long' or 'short' position
+
+    Returns
+    -------
+    float
+        Mark-to-market value of the position
+
+    Notes
+    -----
+    Dividend futures are marked-to-market daily based on:
+    - Realized dividends to date
+    - Expected remaining dividends
+    - Current futures price
+
+    Value = Contract_Size * (Realized + Expected_Remaining - Futures_Price)
+
+    Examples
+    --------
+    >>> dividend_futures_value(15.0, 5.0, 10.5, 100.0, "long")
+    50.0
+    """
+    total_expected = realized_dividends + expected_remaining_dividends
+    payoff = total_expected - futures_price
+    value = contract_size * payoff
+
+    return jnp.where(position == "long", value, -value)
+
+
+@jit
+def dividend_index_points_to_yield(
+    dividend_points: float,
+    index_level: float,
+    period_years: float,
+) -> float:
+    """Convert dividend index points to annualized dividend yield.
+
+    Parameters
+    ----------
+    dividend_points : float
+        Total dividend points expected over the period
+    index_level : float
+        Current index level
+    period_years : float
+        Period in years
+
+    Returns
+    -------
+    float
+        Annualized dividend yield
+
+    Notes
+    -----
+    Yield = (Dividend Points / Index Level) / Period
+
+    Examples
+    --------
+    >>> dividend_index_points_to_yield(150.0, 4000.0, 1.0)
+    0.0375
+    """
+    return (dividend_points / index_level) / period_years
+
+
+@jit
+def dividend_yield_to_index_points(
+    dividend_yield: float,
+    index_level: float,
+    period_years: float,
+) -> float:
+    """Convert annualized dividend yield to dividend index points.
+
+    Parameters
+    ----------
+    dividend_yield : float
+        Annualized dividend yield
+    index_level : float
+        Current index level
+    period_years : float
+        Period in years
+
+    Returns
+    -------
+    float
+        Expected dividend points over the period
+
+    Notes
+    -----
+    Dividend Points = Yield * Index Level * Period
+
+    Examples
+    --------
+    >>> dividend_yield_to_index_points(0.0375, 4000.0, 1.0)
+    150.0
+    """
+    return dividend_yield * index_level * period_years
 
 
 @dataclass
@@ -494,15 +679,26 @@ def equity_linked_note_price(
 
 
 __all__ = [
+    # Dataclasses
     "DividendSwap",
+    "DividendFuture",
     "EquityForward",
     "TotalReturnSwap",
     "VarianceSwap",
+    # Dividend derivatives
     "dividend_swap_value",
+    "dividend_futures_price",
+    "dividend_futures_value",
+    "dividend_index_points_to_yield",
+    "dividend_yield_to_index_points",
+    # Equity forwards
     "equity_forward_price",
     "equity_forward_value",
+    # Equity linked notes
     "equity_linked_note_price",
+    # Total return swaps
     "total_return_swap_value",
+    # Variance swaps
     "variance_swap_strike_from_options",
     "variance_swap_value",
     "volatility_swap_convexity_adjustment",

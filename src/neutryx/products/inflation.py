@@ -462,6 +462,324 @@ def breakeven_inflation(
     return float(breakeven)
 
 
+# Inflation Swap Variants
+def inflation_swap_pv01(
+    notional: float,
+    maturity: float,
+    payment_frequency: int = 1,
+) -> float:
+    """Calculate PV01 (present value of 1bp) for inflation swap.
+
+    Parameters
+    ----------
+    notional : float
+        Notional amount
+    maturity : float
+        Swap maturity in years
+    payment_frequency : int
+        Payment frequency per year
+
+    Returns
+    -------
+    float
+        PV01
+
+    Notes
+    -----
+    PV01 measures the sensitivity to a 1bp change in the inflation rate.
+    """
+    n_periods = int(maturity * payment_frequency)
+    dt = 1.0 / payment_frequency
+
+    # Simplified: assumes constant discount factor
+    discount_rate = 0.03  # Placeholder
+    pv01 = 0.0
+
+    for i in range(1, n_periods + 1):
+        t = i * dt
+        df = jnp.exp(-discount_rate * t)
+        pv01 += df * dt
+
+    return float(notional * pv01 * 0.0001)  # 1bp = 0.0001
+
+
+def asset_swap_spread_inflation(
+    bond_price: float,
+    par_value: float,
+    real_coupon_rate: float,
+    swap_rate: float,
+    maturity: float,
+) -> float:
+    """Calculate asset swap spread for inflation-linked bond.
+
+    Parameters
+    ----------
+    bond_price : float
+        Current market price of the inflation-linked bond
+    par_value : float
+        Par value of the bond
+    real_coupon_rate : float
+        Real coupon rate
+    swap_rate : float
+        Current swap rate
+    maturity : float
+        Time to maturity
+
+    Returns
+    -------
+    float
+        Asset swap spread
+
+    Notes
+    -----
+    Asset swap spread = (Par - Price) / (Duration * Price) + Real_Coupon - Swap_Rate
+    """
+    # Simplified duration calculation
+    duration = maturity / 2.0  # Approximation
+
+    spread = ((par_value - bond_price) / (duration * bond_price)) + real_coupon_rate - swap_rate
+
+    return float(spread)
+
+
+# Advanced Inflation Products
+@jit
+def inflation_swaption_price(
+    strike_inflation: float,
+    forward_inflation: float,
+    time_to_expiry: float,
+    volatility: float,
+    discount_factor: float,
+    notional: float = 1_000_000.0,
+    is_payer: bool = True,
+) -> float:
+    """Price an inflation swaption (option on inflation swap).
+
+    Parameters
+    ----------
+    strike_inflation : float
+        Strike inflation rate
+    forward_inflation : float
+        Forward inflation rate
+    time_to_expiry : float
+        Time to expiry
+    volatility : float
+        Inflation volatility
+    discount_factor : float
+        Discount factor
+    notional : float
+        Notional amount
+    is_payer : bool
+        True for payer, False for receiver
+
+    Returns
+    -------
+    float
+        Inflation swaption price
+
+    Notes
+    -----
+    Uses Black's model for inflation swaptions.
+    """
+    sqrt_T = jnp.sqrt(time_to_expiry)
+    d1 = (jnp.log(forward_inflation / strike_inflation) + 0.5 * volatility**2 * time_to_expiry) / (
+        volatility * sqrt_T
+    )
+    d2 = d1 - volatility * sqrt_T
+
+    from jax.scipy.stats import norm
+
+    if is_payer:
+        value = forward_inflation * norm.cdf(d1) - strike_inflation * norm.cdf(d2)
+    else:
+        value = strike_inflation * norm.cdf(-d2) - forward_inflation * norm.cdf(-d1)
+
+    return notional * discount_factor * value
+
+
+def limited_price_indexation_bond(
+    face_value: float,
+    real_coupon_rate: float,
+    real_yield: float,
+    maturity: float,
+    index_ratio: float,
+    inflation_cap: float,
+    inflation_floor: float,
+    frequency: int = 2,
+) -> float:
+    """Price an inflation-linked bond with limited price indexation (LPI).
+
+    Parameters
+    ----------
+    face_value : float
+        Nominal face value
+    real_coupon_rate : float
+        Real coupon rate
+    real_yield : float
+        Real yield to maturity
+    maturity : float
+        Time to maturity
+    index_ratio : float
+        Current CPI / Base CPI
+    inflation_cap : float
+        Maximum inflation adjustment (e.g., 0.05 for 5%)
+    inflation_floor : float
+        Minimum inflation adjustment (e.g., 0.0)
+    frequency : int
+        Coupon frequency per year
+
+    Returns
+    -------
+    float
+        LPI bond price
+
+    Notes
+    -----
+    LPI bonds have caps and floors on inflation adjustments.
+    Common in UK pension schemes.
+    """
+    # Capped and floored index ratio
+    inflation_rate = index_ratio - 1.0
+    capped_inflation = float(jnp.minimum(jnp.maximum(inflation_rate, inflation_floor), inflation_cap))
+    adjusted_index_ratio = 1.0 + capped_inflation
+
+    # Price like a regular inflation bond with adjusted index ratio
+    price = float(
+        inflation_linked_bond_price(
+            face_value, real_coupon_rate, real_yield, maturity, adjusted_index_ratio, frequency
+        )
+    )
+
+    return price
+
+
+def inflation_risk_premium(
+    nominal_yield: float,
+    real_yield: float,
+    expected_inflation: float,
+) -> float:
+    """Calculate implied inflation risk premium.
+
+    Parameters
+    ----------
+    nominal_yield : float
+        Yield on nominal bond
+    real_yield : float
+        Yield on real (inflation-linked) bond
+    expected_inflation : float
+        Expected inflation rate
+
+    Returns
+    -------
+    float
+        Inflation risk premium
+
+    Notes
+    -----
+    Fisher equation with risk premium:
+        (1 + nominal) = (1 + real) * (1 + inflation) * (1 + risk_premium)
+
+    Solving for risk premium:
+        risk_premium = (1 + nominal) / [(1 + real) * (1 + inflation)] - 1
+    """
+    risk_premium = (1.0 + nominal_yield) / ((1.0 + real_yield) * (1.0 + expected_inflation)) - 1.0
+
+    return float(risk_premium)
+
+
+@dataclass
+class InflationLinkedSwap:
+    """Inflation-linked interest rate swap with both legs inflation-indexed.
+
+    Args:
+        notional: Notional amount
+        maturity: Swap maturity in years
+        fixed_real_rate: Fixed real rate on one leg
+        payment_frequency: Payment frequency per year
+    """
+
+    notional: float
+    maturity: float
+    fixed_real_rate: float
+    payment_frequency: int = 1
+
+    def price(
+        self,
+        cpi_path: jnp.ndarray,
+        discount_factors: jnp.ndarray,
+    ) -> float:
+        """Price the inflation-linked swap.
+
+        Parameters
+        ----------
+        cpi_path : Array
+            CPI levels at each payment date
+        discount_factors : Array
+            Discount factors for each payment
+
+        Returns
+        -------
+        float
+            Swap value
+        """
+        n_periods = int(self.maturity * self.payment_frequency)
+        dt = 1.0 / self.payment_frequency
+
+        # Fixed leg (real)
+        fixed_leg = 0.0
+        for i in range(n_periods):
+            # Real payment adjusted for inflation
+            real_payment = self.notional * self.fixed_real_rate * dt
+            inflation_adjustment = cpi_path[i] / cpi_path[0]
+            nominal_payment = real_payment * inflation_adjustment
+            fixed_leg += nominal_payment * discount_factors[i]
+
+        # Floating leg (inflation-linked)
+        # Pays realized inflation
+        floating_leg = 0.0
+        for i in range(1, n_periods + 1):
+            inflation_rate = (cpi_path[i] / cpi_path[i - 1]) - 1.0
+            payment = self.notional * inflation_rate * dt
+            floating_leg += payment * discount_factors[i]
+
+        return float(floating_leg - fixed_leg)
+
+
+@dataclass
+class InflationFloorCertificate:
+    """Certificate with guaranteed minimum inflation-linked return.
+
+    Args:
+        notional: Notional amount
+        maturity: Maturity in years
+        participation_rate: Participation in inflation (e.g., 1.0 = 100%)
+        guaranteed_floor: Minimum guaranteed return
+    """
+
+    notional: float
+    maturity: float
+    participation_rate: float = 1.0
+    guaranteed_floor: float = 0.0
+
+    def payoff(self, realized_inflation: float) -> float:
+        """Calculate payoff at maturity.
+
+        Parameters
+        ----------
+        realized_inflation : float
+            Total realized inflation over the period
+
+        Returns
+        -------
+        float
+            Payoff amount
+        """
+        inflation_return = self.participation_rate * realized_inflation
+        total_return = jnp.maximum(inflation_return, self.guaranteed_floor)
+
+        return float(self.notional * (1.0 + total_return))
+
+
 __all__ = [
     "InflationIndex",
     "breakeven_inflation",
@@ -473,4 +791,12 @@ __all__ = [
     "year_on_year_inflation_swap_value",
     "zero_coupon_inflation_swap_rate",
     "zero_coupon_inflation_swap_value",
+    # Advanced inflation products
+    "inflation_swap_pv01",
+    "asset_swap_spread_inflation",
+    "inflation_swaption_price",
+    "limited_price_indexation_bond",
+    "inflation_risk_premium",
+    "InflationLinkedSwap",
+    "InflationFloorCertificate",
 ]

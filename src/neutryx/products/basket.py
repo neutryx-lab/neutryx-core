@@ -2,10 +2,17 @@
 
 Basket options depend on a portfolio or basket of underlying assets.
 Common types include worst-of, best-of, average, and rainbow options.
+
+This module provides both:
+1. Product classes for integration with pricing engines
+2. Standalone payoff functions for custom implementations
 """
+from dataclasses import dataclass
+
 import jax.numpy as jnp
 
 from neutryx.core.engine import Array
+from .base import Product
 
 
 def worst_of_call_payoff(ST_basket: Array, K: float) -> Array:
@@ -309,7 +316,312 @@ def simulate_correlated_gbm(key, S0_basket, mu_basket, sigma_basket, correlation
     return jnp.exp(log_paths)
 
 
+# ============================================================================
+# Product Classes for Multi-Asset Options
+# ============================================================================
+
+
+@dataclass
+class WorstOfCall(Product):
+    """Worst-of call option on a basket of assets.
+
+    Parameters
+    ----------
+    K : float
+        Strike price
+    T : float
+        Time to maturity
+    n_assets : int
+        Number of assets in the basket
+
+    Notes
+    -----
+    Payoff = max(min(S1_T, S2_T, ..., Sn_T) - K, 0)
+
+    For multi-asset products, the path should be the terminal prices
+    of all assets, shape: [n_assets]
+    """
+
+    K: float
+    T: float
+    n_assets: int
+
+    def payoff_terminal(self, spots: Array) -> Array:
+        """Compute payoff from terminal spot prices.
+
+        Parameters
+        ----------
+        spots : Array
+            Terminal prices for each asset, shape [n_assets]
+
+        Returns
+        -------
+        Array
+            Payoff value
+        """
+        spots = jnp.asarray(spots)
+        worst = jnp.min(spots)
+        return jnp.maximum(worst - self.K, 0.0)
+
+
+@dataclass
+class WorstOfPut(Product):
+    """Worst-of put option on a basket of assets.
+
+    Parameters
+    ----------
+    K : float
+        Strike price
+    T : float
+        Time to maturity
+    n_assets : int
+        Number of assets in the basket
+
+    Notes
+    -----
+    Payoff = max(K - min(S1_T, S2_T, ..., Sn_T), 0)
+    """
+
+    K: float
+    T: float
+    n_assets: int
+
+    def payoff_terminal(self, spots: Array) -> Array:
+        spots = jnp.asarray(spots)
+        worst = jnp.min(spots)
+        return jnp.maximum(self.K - worst, 0.0)
+
+
+@dataclass
+class BestOfCall(Product):
+    """Best-of call option on a basket of assets.
+
+    Parameters
+    ----------
+    K : float
+        Strike price
+    T : float
+        Time to maturity
+    n_assets : int
+        Number of assets in the basket
+
+    Notes
+    -----
+    Payoff = max(max(S1_T, S2_T, ..., Sn_T) - K, 0)
+    """
+
+    K: float
+    T: float
+    n_assets: int
+
+    def payoff_terminal(self, spots: Array) -> Array:
+        spots = jnp.asarray(spots)
+        best = jnp.max(spots)
+        return jnp.maximum(best - self.K, 0.0)
+
+
+@dataclass
+class BestOfPut(Product):
+    """Best-of put option on a basket of assets.
+
+    Parameters
+    ----------
+    K : float
+        Strike price
+    T : float
+        Time to maturity
+    n_assets : int
+        Number of assets in the basket
+
+    Notes
+    -----
+    Payoff = max(K - max(S1_T, S2_T, ..., Sn_T), 0)
+    """
+
+    K: float
+    T: float
+    n_assets: int
+
+    def payoff_terminal(self, spots: Array) -> Array:
+        spots = jnp.asarray(spots)
+        best = jnp.max(spots)
+        return jnp.maximum(self.K - best, 0.0)
+
+
+@dataclass
+class AverageBasketCall(Product):
+    """Call option on weighted average of basket assets.
+
+    Parameters
+    ----------
+    K : float
+        Strike price
+    T : float
+        Time to maturity
+    weights : Array or None
+        Weight for each asset. If None, equal weights are used.
+    n_assets : int
+        Number of assets in the basket
+
+    Notes
+    -----
+    Payoff = max(weighted_avg(S1_T, S2_T, ...) - K, 0)
+    """
+
+    K: float
+    T: float
+    n_assets: int
+    weights: Array = None
+
+    def payoff_terminal(self, spots: Array) -> Array:
+        spots = jnp.asarray(spots)
+        if self.weights is None:
+            weights = jnp.ones(self.n_assets) / self.n_assets
+        else:
+            weights = jnp.asarray(self.weights)
+            weights = weights / weights.sum()  # Normalize
+
+        avg = jnp.dot(spots, weights)
+        return jnp.maximum(avg - self.K, 0.0)
+
+
+@dataclass
+class AverageBasketPut(Product):
+    """Put option on weighted average of basket assets.
+
+    Parameters
+    ----------
+    K : float
+        Strike price
+    T : float
+        Time to maturity
+    weights : Array or None
+        Weight for each asset
+    n_assets : int
+        Number of assets in the basket
+
+    Notes
+    -----
+    Payoff = max(K - weighted_avg(S1_T, S2_T, ...), 0)
+    """
+
+    K: float
+    T: float
+    n_assets: int
+    weights: Array = None
+
+    def payoff_terminal(self, spots: Array) -> Array:
+        spots = jnp.asarray(spots)
+        if self.weights is None:
+            weights = jnp.ones(self.n_assets) / self.n_assets
+        else:
+            weights = jnp.asarray(self.weights)
+            weights = weights / weights.sum()
+
+        avg = jnp.dot(spots, weights)
+        return jnp.maximum(self.K - avg, 0.0)
+
+
+@dataclass
+class SpreadOption(Product):
+    """Spread option between two assets.
+
+    Parameters
+    ----------
+    K : float
+        Strike price
+    T : float
+        Time to maturity
+    is_call : bool
+        True for call, False for put
+
+    Notes
+    -----
+    Payoff = max(S1_T - S2_T - K, 0) for call
+    Payoff = max(K - (S1_T - S2_T), 0) for put
+
+    Common in commodity markets (crack spreads, spark spreads).
+    """
+
+    K: float
+    T: float
+    is_call: bool = True
+
+    def payoff_terminal(self, spots: Array) -> Array:
+        """Compute payoff from two asset prices.
+
+        Parameters
+        ----------
+        spots : Array
+            Terminal prices [S1_T, S2_T]
+        """
+        spots = jnp.asarray(spots)
+        spread = spots[0] - spots[1]
+        if self.is_call:
+            return jnp.maximum(spread - self.K, 0.0)
+        else:
+            return jnp.maximum(self.K - spread, 0.0)
+
+
+@dataclass
+class RainbowOption(Product):
+    """Rainbow option (best/worst of N assets with individual strikes).
+
+    Parameters
+    ----------
+    strikes : Array
+        Strike for each asset
+    T : float
+        Time to maturity
+    option_type : str
+        'best_of' or 'worst_of'
+    is_call : bool
+        True for call, False for put
+    n_assets : int
+        Number of assets
+
+    Notes
+    -----
+    Rainbow options provide exposure to the best or worst performing
+    asset in a basket.
+
+    For best_of call: Payoff = max(max_i(S_i - K_i), 0)
+    For worst_of call: Payoff = max(min_i(S_i - K_i), 0)
+    """
+
+    strikes: Array
+    T: float
+    option_type: str = "best_of"  # 'best_of' or 'worst_of'
+    is_call: bool = True
+    n_assets: int = 2
+
+    def payoff_terminal(self, spots: Array) -> Array:
+        spots = jnp.asarray(spots)
+        strikes = jnp.asarray(self.strikes)
+
+        if self.is_call:
+            individual_payoffs = spots - strikes
+        else:
+            individual_payoffs = strikes - spots
+
+        if self.option_type == "best_of":
+            payoff = jnp.max(individual_payoffs)
+        else:  # worst_of
+            payoff = jnp.min(individual_payoffs)
+
+        return jnp.maximum(payoff, 0.0)
+
+
 __all__ = [
+    # Product classes
+    "WorstOfCall",
+    "WorstOfPut",
+    "BestOfCall",
+    "BestOfPut",
+    "AverageBasketCall",
+    "AverageBasketPut",
+    "SpreadOption",
+    "RainbowOption",
     # Payoff functions
     "worst_of_call_payoff",
     "best_of_call_payoff",
