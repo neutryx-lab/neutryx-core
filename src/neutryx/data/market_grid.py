@@ -115,39 +115,43 @@ class MarketDataGrid:
         n_strikes = self.strike_grid.shape[0]
         n_fx_pairs = len(self.fx_pair_mapping)
 
-        # Validate time grid
-        if n_times == 0:
-            raise ValueError("Time grid cannot be empty")
-        if jnp.any(self.time_grid[1:] <= self.time_grid[:-1]):
-            raise ValueError("Time grid must be strictly increasing")
+        # Validate time grid (skip validation if inside JAX transformation)
+        try:
+            if n_times == 0:
+                raise ValueError("Time grid cannot be empty")
+            if jnp.any(self.time_grid[1:] <= self.time_grid[:-1]):
+                raise ValueError("Time grid must be strictly increasing")
 
-        # Validate shapes
-        expected_df_shape = (n_currencies, n_times)
-        if self.discount_factors.shape != expected_df_shape:
-            raise ValueError(
-                f"discount_factors shape {self.discount_factors.shape} != {expected_df_shape}"
-            )
+            # Validate shapes
+            expected_df_shape = (n_currencies, n_times)
+            if self.discount_factors.shape != expected_df_shape:
+                raise ValueError(
+                    f"discount_factors shape {self.discount_factors.shape} != {expected_df_shape}"
+                )
 
-        if self.zero_rates.shape != expected_df_shape:
-            raise ValueError(f"zero_rates shape {self.zero_rates.shape} != {expected_df_shape}")
+            if self.zero_rates.shape != expected_df_shape:
+                raise ValueError(f"zero_rates shape {self.zero_rates.shape} != {expected_df_shape}")
 
-        if self.forward_rates.shape != expected_df_shape:
-            raise ValueError(f"forward_rates shape {self.forward_rates.shape} != {expected_df_shape}")
+            if self.forward_rates.shape != expected_df_shape:
+                raise ValueError(f"forward_rates shape {self.forward_rates.shape} != {expected_df_shape}")
 
-        expected_vol_shape = (n_assets, n_times, n_strikes)
-        if self.implied_vols.shape != expected_vol_shape:
-            raise ValueError(f"implied_vols shape {self.implied_vols.shape} != {expected_vol_shape}")
+            expected_vol_shape = (n_assets, n_times, n_strikes)
+            if self.implied_vols.shape != expected_vol_shape:
+                raise ValueError(f"implied_vols shape {self.implied_vols.shape} != {expected_vol_shape}")
 
-        expected_fx_shape = (n_fx_pairs,)
-        if self.fx_spots.shape != expected_fx_shape:
-            raise ValueError(f"fx_spots shape {self.fx_spots.shape} != {expected_fx_shape}")
+            expected_fx_shape = (n_fx_pairs,)
+            if self.fx_spots.shape != expected_fx_shape:
+                raise ValueError(f"fx_spots shape {self.fx_spots.shape} != {expected_fx_shape}")
 
-        # Validate values
-        if jnp.any(self.discount_factors <= 0) or jnp.any(self.discount_factors > 1):
-            raise ValueError("Discount factors must be in (0, 1]")
+            # Validate values
+            if jnp.any(self.discount_factors <= 0) or jnp.any(self.discount_factors > 1):
+                raise ValueError("Discount factors must be in (0, 1]")
 
-        if jnp.any(self.fx_spots <= 0):
-            raise ValueError("FX spots must be positive")
+            if jnp.any(self.fx_spots <= 0):
+                raise ValueError("FX spots must be positive")
+        except jax.errors.TracerBoolConversionError:
+            # Skip validation inside JAX transformations
+            pass
 
         # Initialize metadata
         if self.metadata is None:

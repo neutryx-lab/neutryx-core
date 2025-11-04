@@ -30,6 +30,8 @@ class IndexMapping:
     Examples
     --------
     >>> mapping = IndexMapping.from_values(["USD", "EUR", "GBP"])
+    >>> mapping.encode("USD")
+    0
     >>> mapping.encode("EUR")
     1
     >>> mapping.decode(jnp.array([0, 2, 1]))
@@ -59,7 +61,7 @@ class IndexMapping:
         Parameters
         ----------
         values : Sequence[Hashable]
-            Sequence of categorical values (will be deduplicated and sorted)
+            Sequence of categorical values (will be deduplicated in order of first appearance)
 
         Returns
         -------
@@ -71,10 +73,21 @@ class IndexMapping:
         >>> mapping = IndexMapping.from_values(["EUR", "USD", "EUR", "GBP"])
         >>> len(mapping)
         3
-        >>> mapping.encode("GBP")
+        >>> mapping.encode("EUR")
         0
+        >>> mapping.encode("USD")
+        1
+        >>> mapping.encode("GBP")
+        2
         """
-        unique_values = sorted(set(values))
+        # Preserve insertion order while deduplicating
+        seen = set()
+        unique_values = []
+        for val in values:
+            if val not in seen:
+                seen.add(val)
+                unique_values.append(val)
+
         value_to_idx = {val: idx for idx, val in enumerate(unique_values)}
         idx_to_value = tuple(unique_values)
         return cls(value_to_idx=value_to_idx, idx_to_value=idx_to_value)
@@ -116,7 +129,7 @@ class IndexMapping:
         --------
         >>> mapping = IndexMapping.from_values(["A", "B", "C"])
         >>> mapping.encode_batch(["B", "A", "C", "B"])
-        Array([1, 0, 2, 1], dtype=int32)
+        Array([1, 0, 2, 1], dtype=int32)  # B=1, A=0, C=2
         """
         indices = [self.value_to_idx[val] for val in values]
         return jnp.array(indices, dtype=jnp.int32)
@@ -138,7 +151,7 @@ class IndexMapping:
         --------
         >>> mapping = IndexMapping.from_values(["X", "Y", "Z"])
         >>> mapping.decode([2, 0, 1])
-        ['Z', 'X', 'Y']
+        ['Z', 'X', 'Y']  # 0=X, 1=Y, 2=Z
         """
         if isinstance(indices, Array):
             indices = indices.tolist()

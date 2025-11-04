@@ -51,10 +51,21 @@ class SABRParams:
     rho: float
     nu: float
 
-    # Note: Validation removed to support JAX JIT compilation.
-    # When using this class inside JIT-compiled functions, parameters become tracers
-    # and Python control flow (if statements) is not allowed.
-    # Users should ensure parameters are valid before passing to JIT-compiled code.
+    def __post_init__(self) -> None:
+        """Validate parameters (only when not inside JAX transformation)."""
+        try:
+            # Only validate concrete values, not tracers
+            if self.alpha <= 0:
+                raise ValueError(f"alpha must be positive, got {self.alpha}")
+            if not (0 <= self.beta <= 1):
+                raise ValueError(f"beta must be in [0, 1], got {self.beta}")
+            if not (-1 <= self.rho <= 1):
+                raise ValueError(f"rho must be in [-1, 1], got {self.rho}")
+            if self.nu < 0:
+                raise ValueError(f"nu must be non-negative, got {self.nu}")
+        except (jax.errors.TracerBoolConversionError, jax.errors.ConcretizationTypeError):
+            # Skip validation inside JAX transformations
+            pass
 
 
 def sabr_implied_volatility_hagan(
@@ -99,16 +110,10 @@ def sabr_implied_volatility_hagan(
     eps = 1e-7
     is_atm = jnp.abs(F - K) < eps
 
-    # ATM formula
+    # Pre-compute powers
     FK_mid = (F + K) / 2.0
-    FK_mid_beta = jnp.power(FK_mid, beta)
-
-    z = (nu / alpha) * FK_mid_beta * jnp.log(F / K)
-    x_z = jnp.log((jnp.sqrt(1.0 - 2.0 * rho * z + z * z) + z - rho) / (1.0 - rho))
-
-    # Avoid division by zero
-    x_z = jnp.where(jnp.abs(z) < eps, 1.0, x_z)
-    z = jnp.where(jnp.abs(z) < eps, eps, z)
+    F_beta = jnp.power(F, 1.0 - beta)
+    F_2beta = jnp.power(F, 2.0 * (1.0 - beta))
 
     # First term
     log_FK = jnp.log(F / K)
@@ -124,22 +129,28 @@ def sabr_implied_volatility_hagan(
     term1 = term1_numerator / term1_denominator
 
     # Second term (z / x(z))
+    z = (nu / alpha) * FK_beta * jnp.log(F / K)
+    x_z = jnp.log((jnp.sqrt(1.0 - 2.0 * rho * z + z * z) + z - rho) / (1.0 - rho))
+
+    # Avoid division by zero
+    x_z = jnp.where(jnp.abs(z) < eps, 1.0, x_z)
+    z = jnp.where(jnp.abs(z) < eps, eps, z)
+
     term2 = z / x_z
 
     # Third term (time-dependent correction)
-    FK_2beta = jnp.power(FK_mid, 2.0 * beta)
     term3 = (
         1.0
         + (
-            ((1.0 - beta) ** 2 / 24.0) * (alpha ** 2 / FK_2beta)
-            + (rho * beta * nu * alpha / (4.0 * FK_mid_beta))
+            ((1.0 - beta) ** 2 / 24.0) * (alpha ** 2 / F_2beta)
+            + (rho * beta * nu * alpha / (4.0 * F_beta))
             + ((2.0 - 3.0 * rho ** 2) / 24.0) * (nu ** 2)
         )
         * T
     )
 
     # ATM implied vol
-    atm_vol = (alpha / jnp.power(FK_mid, 1.0 - beta)) * term3
+    atm_vol = (alpha / F_beta) * term3
 
     # Full formula
     sigma_impl = term1 * term2 * term3

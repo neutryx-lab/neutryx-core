@@ -54,8 +54,10 @@ def test_price_vanilla_options_batch_basic():
     )
 
     assert prices.shape == (2,)
-    # ATM call and put should have similar prices (put-call parity)
-    assert jnp.abs(prices[0] - prices[1]) < 1.0  # Within $1
+    # Check put-call parity: C - P = S*e^(-qT) - K*e^(-rT)
+    # For S=K=100, r=0.05, q=0, T=1: C - P ≈ 4.88
+    expected_diff = 100.0 * jnp.exp(-0.0 * 1.0) - 100.0 * jnp.exp(-0.05 * 1.0)
+    assert jnp.abs((prices[0] - prices[1]) - expected_diff) < 0.5  # Within $0.50
 
 
 def test_batch_pricing_multiple_currencies():

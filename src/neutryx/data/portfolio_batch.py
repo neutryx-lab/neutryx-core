@@ -169,13 +169,17 @@ class PortfolioBatch:
         if self.product_type_idx.shape != (n_trades,):
             raise ValueError(f"product_type_idx shape {self.product_type_idx.shape} != ({n_trades},)")
 
-        # Validate index ranges
-        if jnp.any(self.currency_idx < 0) or jnp.any(self.currency_idx >= len(self.currency_mapping)):
-            raise ValueError("currency_idx contains out-of-range indices")
-        if jnp.any(self.counterparty_idx < 0) or jnp.any(self.counterparty_idx >= len(self.counterparty_mapping)):
-            raise ValueError("counterparty_idx contains out-of-range indices")
-        if jnp.any(self.product_type_idx < 0) or jnp.any(self.product_type_idx >= len(self.product_type_mapping)):
-            raise ValueError("product_type_idx contains out-of-range indices")
+        # Validate index ranges (skip if inside JAX transformation)
+        try:
+            if jnp.any(self.currency_idx < 0) or jnp.any(self.currency_idx >= len(self.currency_mapping)):
+                raise ValueError("currency_idx contains out-of-range indices")
+            if jnp.any(self.counterparty_idx < 0) or jnp.any(self.counterparty_idx >= len(self.counterparty_mapping)):
+                raise ValueError("counterparty_idx contains out-of-range indices")
+            if jnp.any(self.product_type_idx < 0) or jnp.any(self.product_type_idx >= len(self.product_type_mapping)):
+                raise ValueError("product_type_idx contains out-of-range indices")
+        except jax.errors.TracerBoolConversionError:
+            # Skip validation inside JAX transformations (e.g., jit, vmap)
+            pass
 
         # Initialize metadata if None
         if self.metadata is None:
@@ -337,13 +341,18 @@ class PortfolioBatch:
             option_types=self.trade_arrays.option_types[mask],
         )
 
+        # Create new mapping with only the filtered counterparty
+        new_cp_mapping = IndexMapping.from_values([cp_id])
+        # Remap indices to the new mapping (all will be 0 since only one counterparty)
+        new_cp_idx = jnp.zeros_like(self.counterparty_idx[mask])
+
         return PortfolioBatch(
             trade_arrays=trade_arrays,
             currency_idx=self.currency_idx[mask],
-            counterparty_idx=self.counterparty_idx[mask],
+            counterparty_idx=new_cp_idx,
             product_type_idx=self.product_type_idx[mask],
             currency_mapping=self.currency_mapping,
-            counterparty_mapping=self.counterparty_mapping,
+            counterparty_mapping=new_cp_mapping,
             product_type_mapping=self.product_type_mapping,
             metadata={**self.metadata, "filter_cp": cp_id},
         )

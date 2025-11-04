@@ -42,8 +42,10 @@ def test_sabr_implied_vol_atm():
         nu=0.4,
     )
 
-    # ATM vol should be close to alpha adjusted for beta
-    assert 0.1 < vol < 0.5
+    # ATM vol should be close to alpha / F^(1-beta)
+    # For beta=0.5, F=100, alpha=0.3: vol ≈ 0.3 / sqrt(100) = 0.03
+    expected_atm = 0.3 / (100.0 ** 0.5)  # ≈ 0.03
+    assert 0.5 * expected_atm < vol < 2.0 * expected_atm  # Within 2x of expected
 
 
 def test_sabr_implied_vol_otm():
@@ -224,7 +226,7 @@ def test_sabr_density():
 
     # Density should integrate to approximately 1 (within numerical tolerance)
     # Note: This is approximate due to discretization
-    integral = jnp.trapz(density, S)
+    integral = jnp.trapezoid(density, S)
     assert 0.5 < integral < 2.0  # Loose bounds due to approximation
 
 

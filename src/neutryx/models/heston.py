@@ -283,7 +283,7 @@ def heston_call_price_cf(
     # Interpolate to strike
     call_price = jnp.interp(log_K, k_values, call_values)
 
-    return float(call_price)
+    return call_price
 
 
 def heston_call_price_semi_analytical(

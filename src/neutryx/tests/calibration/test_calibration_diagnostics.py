@@ -46,7 +46,7 @@ def test_generate_calibration_diagnostics_heston():
         r=r,
         q=q,
         n_iterations=25,
-        learning_rate=5e-3,
+        lr=5e-3,
     )
 
     diagnostics = generate_calibration_diagnostics(
