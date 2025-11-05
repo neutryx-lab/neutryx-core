@@ -392,446 +392,206 @@ Interactive pricing, Greeks, and scenario analysis at `http://localhost:8050`
 
 ## 🗺️ Development Roadmap
 
-### ✅ Completed Features (v0.1.0)
+> **Building the complete enterprise derivatives platform: From core pricing to AI-driven trading**
 
-#### Core Infrastructure
-- ✅ **Numerical Engines:** PDE solvers (Crank-Nicolson), GPU optimization (pmap/pjit)
-- ✅ **Differentiation:** AAD with Hessian-vector products, second-order Greeks
-- ✅ **Performance:** JIT compilation (10-100x speedup), mixed-precision support
-- ✅ **Configuration:** YAML-based runtime, reproducible PRNG seeding
+### 📅 Roadmap Timeline
 
-#### Advanced Pricing & Models
-- ✅ **Monte Carlo:** Adjoint MC, QMC/MLMC, pathwise Greeks
-- ✅ **Models:** Black-Scholes, Heston, SABR, jump diffusion, rough volatility
-- ✅ **Methods:** FFT/COS pricing, tree methods (binomial/trinomial)
-- ✅ **Exotics:** American, Asian, Barrier, Lookback options
+```
+v0.1.0 (Released) ────────────────────────────────────────────┐
+                                                               │
+    ✅ Foundation: Multi-asset derivatives, risk, XVA         │
+    ✅ 370+ tests, Bloomberg/Refinitiv, Observability         │
+                                                               │
+v0.2.0 (Q2-Q3 2025) ──────────────────────────────────────────┤
+                                                               │
+    🎯 Advanced calibration & model enhancements              │
+    🎯 Joint calibration, regularization, credit models       │
+                                                               │
+v0.3.0 (Q4 2025) ─────────────────────────────────────────────┤
+                                                               │
+    🏗️ Trading platform infrastructure                        │
+    🏗️ Lifecycle management, CCP integration, FpML           │
+                                                               │
+v0.4.0 (Q1 2026) ─────────────────────────────────────────────┤
+                                                               │
+    📋 Regulatory compliance enhancement                      │
+    📋 FRTB, SA-CCR, ISDA SIMM 3.0+, IFRS 9/13              │
+                                                               │
+v1.0.0 (Q2 2026) ─────────────────────────────────────────────┤
+                                                               │
+    🚀 Production enterprise platform                         │
+    🚀 Security, multi-tenancy, distributed computing        │
+                                                               │
+v1.x (2026-2027) ─────────────────────────────────────────────┤
+                                                               │
+    📊 Advanced analytics & AI integration                    │
+    📊 ML pricing, portfolio optimization, backtesting        │
+                                                               │
+v2.0+ (2027+) ────────────────────────────────────────────────┘
 
-#### Multi-Asset Class Products
-- ✅ **Interest Rate Derivatives:**
-  - ✅ Linear Products: IRS (multi-curve), OIS (SOFR/ESTR/SONIA), CCS with FX reset, basis swaps, FRAs, caps/floors/collars (39 tests)
-  - ✅ Swaptions & Exotic IR: European/American/Bermudan swaptions, CMS products, range accruals, TARN, snowball/autocallable notes
-  - ✅ Volatility Products: Swaption straddles/strangles, caplet variance swaps
-- ✅ **FX Derivatives:**
-  - ✅ Vanilla & Exotic: Forwards, NDFs, vanilla options (European/American), digitals, barriers (single/double), Asians, lookbacks
-  - ✅ Complex Structures: TARFs, accumulators, FX variance swaps, quanto products, composites
-- ✅ **Equity Derivatives:**
-  - ✅ Listed & OTC Options: European/American, Asians, barriers, lookbacks, ladders
-  - ✅ Structured Products: Autocallables (Phoenix), reverse convertibles, basket options (worst-of, best-of, rainbow), cliquets
-  - ✅ Dispersion & Correlation: Index/single-name variance swaps, correlation swaps, dispersion strategies
-- ✅ **Credit Derivatives:**
-  - ✅ Single-Name: CDS (ISDA model), CDS options, CLNs, recovery locks/swaps
-  - ✅ Index & Portfolio: CDX/iTraxx, index tranches, bespoke CDOs, nth-to-default baskets
-- ✅ **Commodity Derivatives:**
-  - ✅ Energy: Oil (WTI/Brent), natural gas, power derivatives, spark/dark spreads
-  - ✅ Metals & Agriculture: Precious metals (gold/silver/platinum/palladium), base metals, agricultural commodities, weather derivatives
-- ✅ **Fixed Income:** Bonds, FRN, duration/convexity
-- ✅ **Inflation:** TIPS, inflation swaps/caps/floors
-- ✅ **Volatility:** VIX futures/options, variance swaps, VVIX
-- ✅ **Convertibles:** Convertible bonds, analytics
+    🔮 Next-generation computing
+    🔮 Quantum, blockchain, autonomous trading
+```
 
-#### Market Data Infrastructure (v0.1.0)
-- ✅ **Bloomberg Integration:** Terminal/API connectivity, real-time feeds
-- ✅ **Refinitiv Integration:** RDP and Eikon Desktop support
-- ✅ **Database Connectors:**
-  - ✅ PostgreSQL: Time-series optimization, bulk operations
-  - ✅ MongoDB: Flexible document storage, aggregation pipelines
-  - ✅ TimescaleDB: Hypertables, compression (90%), continuous aggregates
-- ✅ **Data Validation:** Price/spread/volume validators, quality scoring
-- ✅ **Feed Management:** Real-time orchestration, automatic failover
+### 🎯 Key Milestones
 
-#### Observability & Monitoring (v0.1.0)
-- ✅ **Prometheus:** Custom metrics for pricing/risk/XVA operations
-- ✅ **Grafana:** Pre-built dashboards (overview, performance)
-- ✅ **Distributed Tracing:** OpenTelemetry + Jaeger integration
-- ✅ **Profiling:** Automatic request profiling with cProfile
-- ✅ **Alerting:** Error rate, latency, quality score monitoring
+| Version | Focus | Timeline | Status |
+|---------|-------|----------|--------|
+| **v0.1.0** | Foundation & Core Pricing | Jan 2025 | ✅ **Released** |
+| **v0.2.0** | Advanced Calibration | Q2-Q3 2025 | 🔄 In Planning |
+| **v0.3.0** | Trading Infrastructure | Q4 2025 | 📅 Planned |
+| **v0.4.0** | Regulatory Compliance | Q1 2026 | 📅 Planned |
+| **v1.0.0** | Enterprise Platform | Q2 2026 | 📅 Planned |
+| **v1.x** | AI & Analytics | 2026-2027 | 🔮 Future |
+| **v2.0+** | Next-Gen Computing | 2027+ | 🔮 Vision |
 
-#### Advanced Models & Calibration (v0.1.0)
-- ✅ **Interest Rate Models:** Hull-White (1F/2F), Black-Karasinski, Cheyette, LGM, LMM/BGM, HJM, CIR, Vasicek
+---
+
+### ✅ **v0.1.0 — Foundation Release** (Current - Released)
+
+**Status:** Complete and production-ready with 370+ tests
+
+#### Core Capabilities Delivered
+
+**Multi-Asset Class Product Coverage:**
+- ✅ **Interest Rate Derivatives** (87 tests)
+  - Linear: IRS, OIS (SOFR/ESTR/SONIA), cross-currency swaps, basis swaps, FRAs, caps/floors/collars
+  - Swaptions: European, American, Bermudan with LSM Monte Carlo
+  - CMS: Products, spread options, caplets/floorlets with convexity adjustments
+  - Exotic IR: Range accruals, TARN, snowball notes, autocallable notes, ratchet caps/floors
+- ✅ **FX Derivatives** (Complete)
+  - Vanilla: Forwards, NDFs, European/American options, digitals
+  - Exotic: Barriers (single/double/window), Asians, lookbacks
+  - Structured: TARFs, accumulators, FX variance swaps, quanto products
+- ✅ **Equity Derivatives** (Complete)
+  - Options: European, American, Asian, barrier, lookback, ladder
+  - Structured: Autocallables (Phoenix), reverse convertibles, basket options, cliquets
+  - Volatility: Variance swaps (index/single-name), correlation swaps, dispersion strategies
+- ✅ **Credit Derivatives** (Complete)
+  - Single-name: CDS (ISDA model), CDS options, CLNs, recovery locks/swaps
+  - Portfolio: CDX/iTraxx indices, index tranches, bespoke CDOs, nth-to-default baskets
+- ✅ **Commodity Derivatives** (Complete)
+  - Energy: Oil, natural gas, power, spark/dark spreads
+  - Metals & Agriculture: Precious/base metals, agricultural commodities, weather derivatives
+- ✅ **Fixed Income, Inflation, Volatility, Convertibles**
+
+**Advanced Models & Calibration:**
+- ✅ **IR Models:** Hull-White (1F/2F), Black-Karasinski, Cheyette, LGM, LMM/BGM, HJM, CIR, Vasicek
 - ✅ **Equity Models:** Local vol (Dupire), Heston, rough vol, jump-diffusion (Merton, Kou, Variance Gamma)
-- ✅ **FX Models:** Garman-Kohlhagen, FX Heston, FX SABR, FX Bates (Heston+jumps), two-factor FX
-- ✅ **Credit Models:** Gaussian copula, hazard rate models (Jarrow-Turnbull, Duffie-Singleton)
-- ✅ **Calibration Framework:** Differentiable calibration with diagnostics and identifiability checks
-- ✅ **Model Selection:** Information criteria (AIC/BIC/AICc/HQIC), k-fold and time-series cross-validation
-- ✅ **Sensitivity Analysis:** Local sensitivity (finite differences), global Sobol indices with Saltelli sampling
+- ✅ **FX Models:** Garman-Kohlhagen, FX Heston, FX SABR, FX Bates, two-factor FX
+- ✅ **Credit Models:** Gaussian copula, hazard rate (Jarrow-Turnbull, Duffie-Singleton)
+- ✅ **Calibration:** Differentiable framework with diagnostics, model selection (AIC/BIC/AICc/HQIC)
+- ✅ **Sensitivity Analysis:** Local finite differences, global Sobol indices
 
-#### Risk Management & P&L (v0.1.0)
-- ✅ **VaR Methodologies:** Historical, Monte Carlo, parametric VaR, ES/CVaR, incremental VaR, component VaR
-- ✅ **Stress Testing:** Historical scenarios (25+ events), hypothetical scenarios, reverse stress testing, concentration risk (Herfindahl, Gini, Top-N, Entropy)
-- ✅ **Sensitivity Analysis (Greeks):** DV01, CS01, vega by tenor/strike, FX delta/gamma, higher-order Greeks (vanna, volga, charm, veta, speed, zomma, color)
-- ✅ **P&L Attribution:** Daily P&L explain (carry, delta, gamma, vega, theta, rho), unexplained P&L tracking, risk factor attribution, model risk quantification, FRTB attribution test
-- ✅ **CCR & Exposure:** EE/PFE/EPE/ENE profiles, effective EPE for Basel, time-averaged EPE, peak exposure
-- ✅ **XVA Enhancements:** KVA (capital cost), multi-netting set aggregation, collateral optimization, wrong-way risk (WWR) modeling
-- ✅ **Position Limits:** Notional, VaR, concentration, issuer exposure limits with hierarchical thresholds
-- ✅ **Pre-Trade Controls:** Real-time limit checking, what-if scenario analysis, approval workflows
-- ✅ **Regulatory Reporting:** EMIR/Dodd-Frank trade reporting, MiFID II/MiFIR transaction reporting, Basel III/IV capital reporting (70 tests)
+**Risk Management & P&L Attribution:**
+- ✅ **VaR:** Historical, Monte Carlo, parametric, ES/CVaR, incremental/component VaR
+- ✅ **Stress Testing:** 25+ historical scenarios, hypothetical scenarios, reverse stress testing
+- ✅ **Greeks:** DV01, CS01, vega bucketing, FX delta/gamma, higher-order Greeks (vanna, volga, charm, veta, speed, zomma, color)
+- ✅ **P&L Attribution:** Daily explain (carry, delta, gamma, vega, theta, rho), risk factor attribution, FRTB test
+- ✅ **CCR & XVA:** EE/PFE/EPE profiles, CVA/DVA/FVA/MVA/KVA, collateral optimization, WWR modeling
+- ✅ **Position Limits & Pre-Trade Controls:** Hierarchical limits, real-time checking, what-if analysis
 
-#### APIs & Infrastructure
-- ✅ **APIs:** REST/gRPC endpoints
-- ✅ **Dashboards:** Interactive Dash applications
-- ✅ **CI/CD:** Automation, security scanning (pip-audit, bandit)
-- ✅ **Quality:** 370+ tests, code quality enforcement
+**Infrastructure & Operations:**
+- ✅ **Market Data:** Bloomberg/Refinitiv integration, PostgreSQL/MongoDB/TimescaleDB storage, validation pipeline
+- ✅ **Observability:** Prometheus metrics, Grafana dashboards, Jaeger tracing, automatic profiling
+- ✅ **Regulatory Reporting:** EMIR/Dodd-Frank, MiFID II/MiFIR, Basel III/IV (70 tests)
+- ✅ **APIs:** REST/gRPC endpoints, interactive dashboards
+- ✅ **Performance:** JIT compilation (10-100x speedup), GPU/TPU support, mixed-precision
 
 ---
 
-### 🚀 Enterprise Derivatives Platform Roadmap
+### 🎯 **v0.2.0 — Advanced Calibration & Model Enhancements** (Q2-Q3 2025)
 
-> **Complete coverage of investment bank derivatives operations from front office to regulatory reporting**
+**Focus:** Enhanced calibration techniques, joint calibration, and model stability improvements
 
-#### 📊 **Phase 1: Front Office Trading Platform** (Q2 2025)
-
-##### Interest Rate Derivatives
-- ✅ **Linear Products** (v0.1.0)
-  - ✅ Interest rate swaps (IRS) with multi-curve framework
-  - ✅ Overnight index swaps (OIS) with daily compounding (SOFR, ESTR, SONIA)
-  - ✅ Cross-currency swaps with FX reset and currency exchange
-  - ✅ Basis swaps (tenor basis 3M vs 6M, currency basis)
-  - ✅ Forward rate agreements (FRA) with advance/arrears settlement
-  - ✅ Caps, floors, and collars with Black model pricing
-
-- ✅ **Swaptions & Exotic IR** (v0.1.0)
-  - ✅ European swaptions (physical/cash settlement) with Black pricing and full Greeks
-  - ✅ American swaptions with trinomial tree pricing
-  - ✅ Bermudan swaptions with Longstaff-Schwartz Monte Carlo
-  - ✅ CMS (Constant Maturity Swap) products with convexity adjustments
-  - ✅ CMS spread options (Black formula and Monte Carlo)
-  - ✅ Range accruals (standard and CMS spread variants)
-  - ✅ Target redemption notes (TARN) with early redemption
-  - ✅ Callable/puttable bonds with multiple exercise dates
-  - ✅ Snowball notes with memory coupon feature
-  - ✅ Autocallable notes with barrier triggers
-  - ✅ Ratchet caps/floors with dynamic strikes
-  - ✅ Digital caplets/floorlets
-  - ✅ SOFR caps/floors (post-LIBOR transition ready)
-
-- ✅ **Volatility Products** (v0.1.0)
-  - ✅ Interest rate volatility trading (straddles, strangles)
-  - ✅ Swaption volatility dispersion swaps
-  - ✅ Caplet variance swaps
-
-##### FX Derivatives
-- ✅ **Vanilla & Exotic FX** (v0.1.0)
-  - ✅ FX forwards and non-deliverable forwards (NDF)
-  - ✅ FX vanilla options (European, American) with Garman-Kohlhagen model
-  - ✅ Digital options (cash-or-nothing, asset-or-nothing)
-  - ✅ Barrier options (knock-in, knock-out, double barrier, window barriers)
-  - ✅ Asian options (arithmetic, geometric averages)
-  - ✅ Lookback options (fixed strike, floating strike)
-
-- ✅ **Complex FX Structures** (v0.1.0)
-  - ✅ Target redemption forwards (TARF) with knockout provisions
-  - ✅ Accumulators and decumulators
-  - ✅ FX variance swaps
-  - ✅ Quanto products (fixed and floating)
-  - ✅ Composite options
-
-##### Equity Derivatives
-- ✅ **Listed & OTC Options** (v0.1.0)
-  - ✅ European/American equity options
-  - ✅ Asian options (arithmetic and geometric averages)
-  - ✅ Barrier options (up-and-out, down-and-in, all variants)
-  - ✅ Lookback and ladder options
-
-- ✅ **Structured Products** (v0.1.0)
-  - ✅ Autocallables (Phoenix/memory structures)
-  - ✅ Reverse convertibles
-  - ✅ Worst-of/best-of basket options
-  - ✅ Rainbow options (multi-asset)
-  - ✅ Cliquet options (locally capped, ratchet)
-  - ✅ Principal-protected notes
-
-- ✅ **Dispersion & Correlation** (v0.1.0)
-  - ✅ Index variance swaps (SPX, NDX, SX5E, NKY)
-  - ✅ Single-name variance swaps
-  - ✅ Correlation swaps
-  - ✅ Dispersion trading strategies
-
-##### Credit Derivatives
-- ✅ **Single-Name Credit** (v0.1.0)
-  - ✅ Credit default swaps (CDS) with ISDA standard model
-  - ✅ CDS options (payer/receiver swaptions)
-  - ✅ Credit-linked notes (CLN)
-  - ✅ Recovery locks and swaps
-
-- ✅ **Index Products** (v0.1.0)
-  - ✅ CDX and iTraxx indices
-  - ✅ Index tranches with Gaussian copula
-  - ✅ Bespoke CDO tranches
-
-- ✅ **Exotic Credit** (v0.1.0)
-  - ✅ First-to-default baskets
-  - ✅ Nth-to-default baskets
-  - ✅ Contingent CDS
-
-##### Commodity Derivatives
-- ✅ **Energy Derivatives** (v0.1.0)
-  - ✅ Oil futures and options (WTI, Brent, Dubai, Urals)
-  - ✅ Natural gas swaps and options (Henry Hub)
-  - ✅ Power derivatives (peak/off-peak, day-ahead)
-  - ✅ Spark spreads and dark spreads
-
-- ✅ **Metals & Agriculture** (v0.1.0)
-  - ✅ Precious metals (gold, silver, platinum, palladium) futures and options
-  - ✅ Base metals futures (copper, aluminum, zinc)
-  - ✅ Agricultural commodity options (wheat, corn, soybeans)
-  - ✅ Weather derivatives (HDD/CDD)
-
----
-
-#### 📈 **Phase 2: Advanced Models & Calibration** (Q3 2025)
-
-##### Stochastic Models
-- ✅ **Interest Rate Models** (v0.1.0)
-  - ✅ Hull-White (one-factor, two-factor)
-  - ✅ Black-Karasinski (lognormal short rate)
-  - ✅ Cheyette model (three-factor)
-  - ✅ Linear Gaussian Markov (LGM) models
-  - ✅ LIBOR Market Model (LMM/BGM)
-  - ✅ Heath-Jarrow-Morton (HJM) framework
-  - ✅ CIR, Vasicek models
-
-- ✅ **Equity Models** (v0.1.0)
-  - ✅ Local volatility (Dupire PDE)
-  - ✅ Stochastic volatility (Heston)
-  - ✅ Rough volatility (rough vol framework)
-  - ✅ Jump-diffusion (Merton, Kou, Variance Gamma)
-  - [ ] Time-changed Lévy processes
-  - [ ] Stochastic local volatility (SLV)
-
-- ✅ **FX Models** (v0.1.0)
-  - ✅ Garman-Kohlhagen (FX Black-Scholes)
-  - ✅ FX Heston (stochastic volatility)
-  - ✅ FX SABR (smile dynamics)
-  - ✅ FX Bates (Heston + jumps)
-  - ✅ Two-factor FX models
-
-- ✅ **Credit Models** (v0.1.0)
-  - ✅ Gaussian copula (base correlation)
-  - ✅ Hazard rate models (Jarrow-Turnbull, Duffie-Singleton)
-  - ✅ Reduced-form credit models
-  - [ ] Student-t copula
-  - [ ] Large portfolio approximation (LPA)
-  - [ ] CreditMetrics framework
-  - [ ] Structural models (Merton, Black-Cox)
-
-##### Advanced Calibration
-- [ ] **Joint Calibration**
-  - [ ] Multi-instrument simultaneous calibration
-  - [ ] Cross-asset calibration
-  - [ ] Time-dependent parameter fitting
+#### Advanced Calibration Methods
+- [ ] **Joint Calibration Framework**
+  - [ ] Multi-instrument simultaneous calibration (e.g., cap/floor + swaption joint calibration)
+  - [ ] Cross-asset calibration (FX smile + equity correlation)
+  - [ ] Time-dependent parameter fitting with smoothness constraints
+  - [ ] Multi-objective optimization with Pareto frontiers
 
 - [ ] **Regularization & Stability**
-  - [ ] Tikhonov regularization
-  - [ ] L1/L2 penalty methods
-  - [ ] Arbitrage-free constraints
-  - [ ] Smoothness penalties for local vol
+  - [ ] Tikhonov regularization for ill-posed calibration problems
+  - [ ] L1/L2 penalty methods for parameter sparsity
+  - [ ] Arbitrage-free constraints enforcement
+  - [ ] Smoothness penalties for local volatility surfaces
 
-- ✅ **Model Selection** (v0.1.0)
-  - ✅ Information criteria (AIC, BIC, AICc, HQIC)
-  - ✅ Cross-validation frameworks (k-fold, time-series expanding/rolling)
-  - ✅ Identifiability analysis
-  - ✅ Parameter sensitivity analysis (local finite differences, global Sobol indices)
+- [ ] **Advanced Model Selection**
+  - [ ] Out-of-sample validation framework
+  - [ ] Rolling window backtesting for time-series models
+  - [ ] Model combination and averaging (Bayesian model averaging)
+  - [ ] Diagnostic suite for calibration quality
 
----
+#### Model Enhancements
+- [ ] **Equity Models**
+  - [ ] Time-changed Lévy processes (VG, NIG, CGMY)
+  - [ ] Stochastic local volatility (SLV) hybrid models
+  - [ ] Jump clustering models
 
-#### 🎯 **Phase 3: Risk Management & P&L** (Q4 2025)
+- [ ] **Credit Models**
+  - [ ] Student-t copula for tail dependence
+  - [ ] Large portfolio approximation (LPA) for CDOs
+  - [ ] CreditMetrics framework integration
+  - [ ] Structural models (Merton, Black-Cox)
 
-##### Market Risk (VaR/ES)
-- ✅ **VaR Methodologies** (v0.1.0)
-  - ✅ Historical simulation VaR
-  - ✅ Monte Carlo VaR
-  - ✅ Parametric (variance-covariance) VaR with Cornish-Fisher expansion
-  - ✅ Expected shortfall (ES/CVaR)
-  - ✅ Incremental VaR (IVaR)
-  - ✅ Component VaR
+- [ ] **Interest Rate Models**
+  - [ ] G2++ (two-factor Gaussian) model
+  - [ ] Quasi-Gaussian (QG) models
+  - [ ] Cross-currency basis modeling
 
-- ✅ **Stress Testing** (v0.1.0)
-  - ✅ Historical scenario analysis (25+ major market events: crashes, crises, sovereign defaults)
-  - ✅ Hypothetical scenario builder
-  - ✅ Reverse stress testing with optimization
-  - ✅ Concentration risk metrics (Herfindahl, Gini, Top-N, Entropy)
-
-- ✅ **Sensitivity Analysis** (v0.1.0)
-  - ✅ DV01 (dollar value of 01 bp) for interest rate products
-  - ✅ CS01 (credit spread 01) for credit products
-  - ✅ Vega by tenor/strike with bucketing
-  - ✅ FX delta and gamma for currency derivatives
-  - ✅ Higher-order Greeks (vanna, volga/vomma, charm, veta, speed, zomma, color)
-
-##### P&L Attribution
-- ✅ **Daily P&L Explain** (v0.1.0)
-  - ✅ Carry P&L (funding costs, accrued interest, dividends)
-  - ✅ Delta P&L (first-order price moves)
-  - ✅ Gamma P&L (convexity effects)
-  - ✅ Vega P&L (volatility changes)
-  - ✅ Theta decay (pure time decay)
-  - ✅ Rho P&L (interest rate sensitivity)
-  - ✅ Unexplained P&L tracking and analysis
-  - ✅ FRTB P&L attribution test (Basel regulatory compliance)
-
-- ✅ **Risk Factor Attribution** (v0.1.0)
-  - ✅ Interest rate risk attribution (DV01 decomposition)
-  - ✅ Credit spread attribution (CS01 decomposition)
-  - ✅ FX and equity attribution
-  - ✅ Basis risk attribution
-
-- ✅ **Model Risk** (v0.1.0)
-  - ✅ Mark-to-model reserves calculation
-  - ✅ Parameter uncertainty quantification
-  - ✅ Model replacement impact assessment
-
-##### Counterparty Credit Risk
-- ✅ **Exposure Metrics** (v0.1.0)
-  - ✅ Expected exposure (EE) profiles with full simulation paths
-  - ✅ Potential future exposure (PFE) at 95th, 97.5th, and 99th percentiles
-  - ✅ Expected positive exposure (EPE) and Expected negative exposure (ENE)
-  - ✅ Effective EPE for Basel capital calculation (time-weighted, non-decreasing)
-  - ✅ Time-averaged EPE and peak exposure identification
-
-- ✅ **XVA Enhancements** (v0.1.0)
-  - ✅ KVA (Capital Valuation Adjustment) with after-tax hurdle rate
-  - ✅ Multi-netting set aggregation with hierarchy support
-  - ✅ Collateral optimization (CSA threshold and independent amount)
-  - ✅ Wrong-way risk modeling (general and specific WWR, correlated defaults)
-  - ✅ CSA-adjusted exposure with threshold, MTA, and independent amount
-
-##### Limits & Controls
-- ✅ **Position Limits** (v0.1.0)
-  - ✅ Notional limits by product/desk
-  - ✅ VaR limits and utilization tracking
-  - ✅ Concentration limits (single-name, sector)
-  - ✅ Issuer exposure limits with credit rating support
-
-- ✅ **Pre-Trade Controls** (v0.1.0)
-  - ✅ Real-time limit checking with hierarchical breach levels (hard/soft/warning)
-  - ✅ What-if scenario analysis for trade planning
-  - ✅ Limit breach notifications with severity classification
-  - ✅ Approval workflows for soft breach handling
+**Target Release:** Q3 2025
+**Key Deliverables:** 50+ new tests, joint calibration framework, enhanced model selection
 
 ---
 
-#### 📋 **Phase 4: Regulatory Compliance** (Q1 2026)
+### 🏗️ **v0.3.0 — Trading Platform Infrastructure** (Q4 2025)
 
-##### FRTB (Fundamental Review of the Trading Book)
-- [ ] **Standardized Approach (SA)**
-  - [ ] Delta risk charge calculation
-  - [ ] Vega risk charge
-  - [ ] Curvature risk charge
-  - [ ] Default risk charge (DRC)
-  - [ ] Residual risk add-on (RRAO)
+**Focus:** Trade lifecycle management, reference data, and clearing/settlement integration
 
-- [ ] **Internal Models Approach (IMA)**
-  - [ ] Expected shortfall (ES) at 97.5%
-  - [ ] Profit and loss attribution test
-  - [ ] Backtesting framework
-  - [ ] Non-modellable risk factors (NMRF)
-
-##### SA-CCR (Counterparty Credit Risk)
-- [ ] **Exposure Calculation**
-  - [ ] Replacement cost (RC)
-  - [ ] Potential future exposure (PFE) add-on
-  - [ ] Asset class specific calculations
-  - [ ] Margined vs unmargined netting sets
-
-- [ ] **Trade Bucketing**
-  - [ ] Maturity buckets and supervisory durations
-  - [ ] Hedging set construction
-  - [ ] Basis risk recognition
-
-##### Initial Margin (SIMM & Schedule IM)
-- [ ] **SIMM Implementation**
-  - [ ] ISDA SIMM methodology (current version)
-  - [ ] Risk factor sensitivities
-  - [ ] Correlation matrices
-  - [ ] Concentration thresholds
-  - [ ] Product class calculations
-
-- [ ] **UMR Compliance**
-  - [ ] Uncleared margin rules (bilateral)
-  - [ ] Variation margin (VM) calculation
-  - [ ] Initial margin (IM) posting/collection
-  - [ ] Custodian integration
-
-##### Regulatory Reporting (v0.1.0)
-- ✅ **EMIR/Dodd-Frank** (v0.1.0)
-  - ✅ Trade reporting to repositories (UTI, LEI, product classification)
-  - ✅ Lifecycle event reporting (modifications, terminations, novations, corrections)
-  - ✅ Reconciliation and dispute resolution (match rate, automatic dispute detection)
-  - ✅ Valuation reporting (mark-to-market, mark-to-model)
-
-- ✅ **MiFID II/MiFIR** (v0.1.0)
-  - ✅ Transaction reporting (RTS 22) with ISO 20022 XML generation
-  - ✅ Reference data reporting (RTS 23) with ISIN and MIC validation
-  - ✅ Best execution analysis (venue concentration, execution quality metrics)
-
-- ✅ **Basel III/IV Capital** (v0.1.0)
-  - ✅ CVA capital charge (SA-CVA with counterparty risk weights)
-  - ✅ Market risk capital (FRTB Standardized Approach: delta/vega/curvature charges)
-  - ✅ Operational risk capital (standardized approach with Business Indicator)
-  - ✅ Leverage ratio reporting (Tier 1 capital / total exposure measure)
-
-##### Accounting Standards
-- [ ] **IFRS 9/13 Compliance**
-  - [ ] Fair value hierarchy (Level 1/2/3)
-  - [ ] Valuation adjustments
-  - [ ] ECL (Expected Credit Loss) for derivatives
-  - [ ] Hedge effectiveness testing
-  - [ ] Disclosure requirements
-
----
-
-#### 🏗️ **Phase 5: Trading Platform Infrastructure** (Q2 2026)
-
-##### Market Data Management
-- [ ] **Vendor Integration**
-  - [ ] Bloomberg BPIPE integration
-  - [ ] Refinitiv RTDS (Real-Time Distribution System)
-  - [ ] ICE Data Services
-  - [ ] CME Market Data
-
-- [ ] **Reference Data**
-  - [ ] Security master database
-  - [ ] Curve definitions and conventions
-  - [ ] Holiday calendars (all major markets)
-  - [ ] Day count conventions
-  - [ ] Corporate actions processing
-
-##### Trade Lifecycle Management
+#### Trade Lifecycle Management
 - [ ] **Pre-Trade**
-  - [ ] Real-time pricing engines
-  - [ ] Streaming quotes
-  - [ ] RFQ (Request for Quote) workflow
-  - [ ] Pre-trade analytics
+  - [ ] Real-time pricing engines for multi-asset classes
+  - [ ] Streaming quotes with dynamic refresh
+  - [ ] RFQ (Request for Quote) workflow and auction mechanisms
+  - [ ] Pre-trade analytics and what-if scenario analysis
 
 - [ ] **Trade Capture**
-  - [ ] FpML parsing and generation
-  - [ ] Trade booking workflow
-  - [ ] Trade amendment and cancellation
-  - [ ] Trade enrichment
+  - [ ] FpML parsing and generation for all product types
+  - [ ] Trade booking workflow with validation
+  - [ ] Trade amendment and cancellation handling
+  - [ ] Automated trade enrichment (counterparty, legal entity, booking center)
 
 - [ ] **Post-Trade**
-  - [ ] Confirmation matching
+  - [ ] Confirmation matching and affirmation
   - [ ] Settlement instruction generation
   - [ ] Payment calculation and netting
-  - [ ] Corporate action handling
-  - [ ] Novation and assignment
+  - [ ] Corporate action processing
+  - [ ] Novation and assignment workflows
 
-##### Collateral Management
-- [ ] **Margining**
-  - [ ] Initial margin calculation (SIMM)
-  - [ ] Variation margin calculation
-  - [ ] Margin call generation
-  - [ ] Dispute management
+#### Reference Data Management
+- [ ] **Security Master**
+  - [ ] Centralized security master database
+  - [ ] ISIN/CUSIP/SEDOL cross-reference
+  - [ ] Corporate actions processing and adjustments
+  - [ ] Real-time reference data updates
 
-- [ ] **Optimization**
-  - [ ] Collateral optimization engine
-  - [ ] Cheapest-to-deliver analysis
-  - [ ] Collateral transformation strategies
-  - [ ] Pledge vs rehypothecation
+- [ ] **Market Conventions**
+  - [ ] Curve definitions and construction methodologies
+  - [ ] Holiday calendars for all major markets (50+ centers)
+  - [ ] Day count conventions (ACT/360, 30/360, ACT/ACT, etc.)
+  - [ ] Business day adjustment rules
+  - [ ] Payment and settlement conventions by currency
 
-##### Clearing & Settlement
+#### Vendor Integration
+- [ ] **Market Data Vendors**
+  - [ ] Bloomberg BPIPE integration for ultra-low latency
+  - [ ] Refinitiv RTDS (Real-Time Distribution System)
+  - [ ] ICE Data Services connectivity
+  - [ ] CME Market Data direct feeds
+
 - [ ] **CCP Integration**
-  - [ ] LCH SwapClear connectivity
+  - [ ] LCH SwapClear connectivity and trade submission
   - [ ] CME Clearing integration
   - [ ] ICE Clear Credit/Europe
   - [ ] Eurex Clearing
@@ -839,161 +599,214 @@ Interactive pricing, Greeks, and scenario analysis at `http://localhost:8050`
 - [ ] **Settlement Systems**
   - [ ] CLS (Continuous Linked Settlement) for FX
   - [ ] Euroclear/Clearstream integration
-  - [ ] SWIFT messaging (MT and MX)
+  - [ ] SWIFT messaging (MT and MX formats)
+
+**Target Release:** Q4 2025
+**Key Deliverables:** 80+ new tests, FpML integration, LCH SwapClear connectivity
 
 ---
 
-#### 🧮 **Phase 6: Computation & Performance** (Q3 2026)
+### 🎯 **v0.4.0 — Regulatory Compliance Enhancement** (Q1 2026)
 
-##### Distributed Computing
-- [ ] **Grid Computing**
-  - [ ] Risk grid architecture
-  - [ ] Distributed pricing engines
-  - [ ] Load balancing and scheduling
-  - [ ] Fault tolerance and recovery
+**Focus:** FRTB, SA-CCR, SIMM implementation for full regulatory compliance
 
-- [ ] **Cloud Orchestration**
-  - [ ] Kubernetes deployment
-  - [ ] Auto-scaling based on load
-  - [ ] Multi-region deployment
-  - [ ] Disaster recovery
+#### FRTB (Fundamental Review of the Trading Book)
+- [ ] **Standardized Approach (SA)**
+  - [ ] Delta risk charge (DRC) calculation by risk class
+  - [ ] Vega risk charge with smile risk
+  - [ ] Curvature risk charge for non-linear products
+  - [ ] Default risk charge (DRC) for credit-sensitive instruments
+  - [ ] Residual risk add-on (RRAO) for exotic payoffs
 
-##### GPU/TPU Acceleration
-- [ ] **Accelerated Pricing**
-  - [ ] Monte Carlo on GPU
-  - [ ] PDE solver acceleration
-  - [ ] Batch pricing optimization
-  - [ ] Multi-GPU scaling (pmap/pjit)
+- [ ] **Internal Models Approach (IMA)**
+  - [ ] Expected shortfall (ES) at 97.5% confidence level
+  - [ ] P&L attribution test (regulatory backtesting)
+  - [ ] Backtesting framework with traffic light approach
+  - [ ] Non-modellable risk factors (NMRF) identification and treatment
 
-- [ ] **Risk Calculation**
-  - [ ] Parallel Greeks calculation
-  - [ ] VaR simulation on GPU
-  - [ ] Stress testing acceleration
+#### SA-CCR (Standardized Approach for Counterparty Credit Risk)
+- [ ] **Exposure Calculation**
+  - [ ] Replacement cost (RC) for mark-to-market exposure
+  - [ ] Potential future exposure (PFE) add-on by asset class
+  - [ ] Asset class specific calculations (IR, FX, Credit, Equity, Commodity)
+  - [ ] Margined vs unmargined netting set treatment
 
-##### Performance Optimization
-- [ ] **Algorithmic Improvements**
-  - [ ] Adjoint AAD for all products
-  - [ ] Variance reduction techniques (antithetic, control variates)
-  - [ ] Quasi-random numbers (Sobol, Halton)
-  - [ ] Multilevel Monte Carlo (MLMC)
+- [ ] **Trade Bucketing & Hedging**
+  - [ ] Maturity buckets and supervisory durations
+  - [ ] Hedging set construction with offset recognition
+  - [ ] Basis risk recognition and treatment
+  - [ ] Cross-currency basis handling
 
-- [ ] **Numerical Methods**
-  - [ ] Adaptive mesh refinement
-  - [ ] Finite element methods
-  - [ ] FFT/CONV optimization
-  - [ ] Linear algebra kernels (BLAS, LAPACK via JAX)
+#### Initial Margin (SIMM & UMR)
+- [ ] **ISDA SIMM Methodology**
+  - [ ] SIMM 3.0+ implementation (latest version)
+  - [ ] Risk factor sensitivities calculation (delta, vega, curvature)
+  - [ ] Correlation matrices by product class
+  - [ ] Concentration thresholds and risk weights
+  - [ ] Product class calculations (RatesFX, Credit, Equity, Commodity)
 
----
+- [ ] **UMR Compliance**
+  - [ ] Uncleared margin rules (bilateral OTC derivatives)
+  - [ ] Variation margin (VM) calculation and dispute resolution
+  - [ ] Initial margin (IM) posting and collection workflows
+  - [ ] Custodian integration and pledge tracking
+  - [ ] Threshold monitoring (AAD and MTA)
 
-#### 🔬 **Phase 7: Advanced Analytics & AI** (Q4 2026)
+#### Accounting Standards
+- [ ] **IFRS 9/13 Compliance**
+  - [ ] Fair value hierarchy (Level 1/2/3) classification
+  - [ ] Valuation adjustments (CVA, DVA, FVA)
+  - [ ] Expected Credit Loss (ECL) for derivatives
+  - [ ] Hedge effectiveness testing (prospective and retrospective)
+  - [ ] Disclosure requirements and financial statement impact
 
-##### Machine Learning for Finance
-- [ ] **Model-Free Pricing**
-  - [ ] Deep hedging strategies
-  - [ ] Neural network implied volatility
-  - [ ] Generative adversarial networks (GANs) for scenarios
-
-- [ ] **Risk Prediction**
-  - [ ] ML-based VaR models
-  - [ ] Credit default prediction
-  - [ ] Liquidity risk forecasting
-
-- [ ] **Market Microstructure**
-  - [ ] Optimal execution (Almgren-Chriss)
-  - [ ] Market impact modeling
-  - [ ] High-frequency trading signals
-
-##### Portfolio Optimization
-- [ ] **Mean-Variance Optimization**
-  - [ ] Markowitz framework
-  - [ ] Black-Litterman model
-  - [ ] Risk parity portfolios
-
-- [ ] **Advanced Methods**
-  - [ ] CVaR optimization
-  - [ ] Robust optimization
-  - [ ] Dynamic programming
-  - [ ] Reinforcement learning for allocation
-
-##### Research Tools
-- [ ] **Backtesting**
-  - [ ] Historical strategy simulation
-  - [ ] Walk-forward analysis
-  - [ ] Transaction cost modeling
-
-- [ ] **Factor Analysis**
-  - [ ] Principal component analysis (PCA)
-  - [ ] Factor risk models (Barra-style)
-  - [ ] Style attribution
+**Target Release:** Q1 2026
+**Key Deliverables:** FRTB SA implementation, SA-CCR calculator, ISDA SIMM 3.0+, 100+ new regulatory tests
 
 ---
 
-#### 🔐 **Phase 8: Enterprise Features** (Q1 2027)
+### 🚀 **v1.0.0 — Production Enterprise Platform** (Q2 2026)
 
-##### Security & Access Control
-- [ ] **Authentication**
-  - [ ] SSO (Single Sign-On) integration
+**Milestone:** Complete enterprise-grade derivatives platform with full regulatory compliance
+
+#### Enterprise Features
+- [ ] **Security & Access Control**
+  - [ ] SSO (Single Sign-On) with OAuth 2.0/OpenID Connect
+  - [ ] Role-based access control (RBAC) and fine-grained permissions
   - [ ] Multi-factor authentication (MFA)
-  - [ ] OAuth 2.0 / OpenID Connect
   - [ ] LDAP/Active Directory integration
 
-- [ ] **Authorization**
-  - [ ] Role-based access control (RBAC)
-  - [ ] Attribute-based access control (ABAC)
-  - [ ] Fine-grained permissions
-  - [ ] Segregation of duties (SoD)
+- [ ] **Audit & Compliance**
+  - [ ] Immutable audit trail with user action tracking
+  - [ ] Data lineage and provenance tracking
+  - [ ] Maker-checker workflow with 4-eyes principle
+  - [ ] Approval workflows and compliance attestation
 
-##### Audit & Compliance
-- [ ] **Audit Trail**
-  - [ ] Immutable audit logs
-  - [ ] User action tracking
-  - [ ] Data lineage and provenance
-  - [ ] Change management logging
+- [ ] **Multi-Tenancy**
+  - [ ] Multi-desk/legal entity isolation
+  - [ ] Geography-based segregation and data residency
+  - [ ] Compute quota management and cost allocation
+  - [ ] SLA monitoring and reporting by tenant
 
-- [ ] **Compliance Controls**
-  - [ ] 4-eyes principle enforcement
-  - [ ] Maker-checker workflow
-  - [ ] Approval workflows
-  - [ ] Compliance attestation
+#### Collateral Management
+- [ ] **Margining & Optimization**
+  - [ ] Initial margin calculation (ISDA SIMM)
+  - [ ] Variation margin calculation and dispute resolution
+  - [ ] Margin call generation with aging analysis
+  - [ ] Collateral optimization engine (cheapest-to-deliver)
+  - [ ] Collateral transformation strategies
+  - [ ] Pledge vs rehypothecation tracking
 
-##### Multi-Tenancy
-- [ ] **Organizational Structure**
-  - [ ] Multi-desk isolation
-  - [ ] Legal entity separation
-  - [ ] Geography-based segregation
-  - [ ] Client account isolation
+#### Performance & Scalability
+- [ ] **Distributed Computing**
+  - [ ] Kubernetes orchestration with auto-scaling
+  - [ ] Risk grid architecture for distributed calculations
+  - [ ] Multi-region deployment with disaster recovery
+  - [ ] Fault tolerance and automatic recovery
 
-- [ ] **Resource Management**
-  - [ ] Compute quota management
-  - [ ] Cost allocation by desk/entity
-  - [ ] SLA monitoring and reporting
+- [ ] **GPU/TPU Acceleration**
+  - [ ] Multi-GPU Monte Carlo with pmap/pjit
+  - [ ] PDE solver GPU acceleration
+  - [ ] Batch pricing optimization
+  - [ ] Parallel Greeks calculation across devices
+
+- [ ] **Algorithmic Improvements**
+  - [ ] Adjoint AAD for all product types
+  - [ ] Variance reduction (antithetic, control variates, importance sampling)
+  - [ ] Quasi-random numbers (Sobol, Halton sequences)
+  - [ ] Multilevel Monte Carlo (MLMC)
+  - [ ] Adaptive mesh refinement for PDEs
+
+**Target Release:** Q2 2026
+**Key Deliverables:** Production-ready with enterprise security, distributed computing, comprehensive test suite (500+ tests)
 
 ---
 
-### 🔮 **Long-Term Vision** (2027+)
+### 📊 **v1.x — Advanced Analytics & AI Integration** (2026-2027)
 
-#### Quantum Computing
-- [ ] Variational quantum eigensolver (VQE) for pricing
-- [ ] Quantum Monte Carlo
-- [ ] Quantum annealing for optimization
+**Focus:** Machine learning for finance, portfolio optimization, and research tools
+
+#### Machine Learning for Finance
+- [ ] **Model-Free Pricing**
+  - [ ] Deep hedging strategies with neural networks
+  - [ ] Neural network-based implied volatility surfaces
+  - [ ] GANs (Generative Adversarial Networks) for scenario generation
+  - [ ] Transformer models for time-series prediction
+
+- [ ] **Risk Prediction & Analytics**
+  - [ ] ML-based VaR models (LSTM, GRU for time-series)
+  - [ ] Credit default prediction with gradient boosting
+  - [ ] Liquidity risk forecasting
+  - [ ] Market regime detection and classification
+
+- [ ] **Market Microstructure**
+  - [ ] Optimal execution (Almgren-Chriss framework)
+  - [ ] Market impact modeling with permanent/temporary effects
+  - [ ] High-frequency trading signal generation
+  - [ ] Order flow imbalance analysis
+
+#### Portfolio Optimization
+- [ ] **Classical Methods**
+  - [ ] Mean-variance optimization (Markowitz)
+  - [ ] Black-Litterman model with views integration
+  - [ ] Risk parity portfolios
+  - [ ] Minimum variance and maximum Sharpe ratio
+
+- [ ] **Advanced Optimization**
+  - [ ] CVaR/ES optimization for tail risk
+  - [ ] Robust optimization with uncertainty sets
+  - [ ] Dynamic programming for multi-period allocation
+  - [ ] Reinforcement learning for adaptive allocation (PPO, A3C)
+
+#### Research & Backtesting Tools
+- [ ] **Strategy Backtesting**
+  - [ ] Historical strategy simulation with realistic execution
+  - [ ] Walk-forward analysis and optimization
+  - [ ] Transaction cost modeling (spread, slippage, market impact)
+  - [ ] Performance attribution and risk decomposition
+
+- [ ] **Factor Analysis**
+  - [ ] Principal component analysis (PCA) for dimension reduction
+  - [ ] Factor risk models (Barra-style)
+  - [ ] Style attribution (value, growth, momentum)
+  - [ ] Factor timing and allocation
+
+**Target Releases:** v1.1 (Q3 2026), v1.2 (Q4 2026), v1.3 (Q1 2027)
+
+---
+
+### 🔮 **v2.0+ — Next-Generation Computing** (2027+)
+
+**Vision:** Quantum computing, blockchain integration, and AI-driven autonomous trading
+
+#### Quantum Computing Integration
+- [ ] Variational quantum eigensolver (VQE) for option pricing
+- [ ] Quantum Monte Carlo for high-dimensional problems
+- [ ] Quantum annealing for portfolio optimization
+- [ ] Quantum amplitude estimation for risk calculations
+- [ ] Hybrid classical-quantum algorithms
 
 #### Blockchain & DeFi
-- [ ] Smart contract integration
-- [ ] DeFi protocol connectivity
-- [ ] Tokenized derivatives
-- [ ] Decentralized clearing
+- [ ] Smart contract integration (Ethereum, Solana)
+- [ ] DeFi protocol connectivity (Aave, Uniswap, Compound)
+- [ ] Tokenized derivatives and RWA (Real World Assets)
+- [ ] Decentralized clearing and settlement
+- [ ] On-chain risk management and margin posting
 
-#### AI-Driven Trading
-- [ ] Reinforcement learning traders
-- [ ] Natural language trade entry
-- [ ] Automated trade idea generation
-- [ ] Sentiment analysis integration
+#### AI-Driven Autonomous Trading
+- [ ] Reinforcement learning trading agents (multi-agent systems)
+- [ ] Natural language processing for trade entry ("Buy 100k AAPL calls at 50 delta")
+- [ ] Automated trade idea generation with explainability
+- [ ] Sentiment analysis from news, social media, and earnings calls
+- [ ] Multi-modal learning (text, price, volume, order book)
+
+**Target:** 2027 and beyond
 
 ---
 
 ## 🧪 Testing
 
-300+ comprehensive tests covering:
+370+ comprehensive tests covering:
 
 - **Unit tests:** Core functionality and model correctness
 - **Integration tests:** End-to-end workflows
@@ -1044,47 +857,118 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ---
 
-## 📋 Changelog
+## 📋 Version History & Changelog
 
-**v0.1.0** (Current) - Foundation Release
-- Core pricing engines and multi-asset products
-- Real-time market data infrastructure (Bloomberg, Refinitiv)
-- Database connectors (PostgreSQL, MongoDB, TimescaleDB)
-- Comprehensive observability stack (Prometheus, Grafana, Jaeger)
-- Data validation and quality framework
-- **Interest Rate Derivatives:** Linear products (IRS, OIS, CCS, basis swaps, FRAs, caps/floors/collars), swaptions, exotic IR, volatility products
-- **FX Derivatives:** Vanilla & exotic FX (forwards, NDFs, options, digitals, barriers, Asians, lookbacks), complex structures (TARFs, accumulators, FX variance swaps, quantos)
-- **Equity Derivatives:** Listed & OTC options, structured products (autocallables, reverse convertibles, basket options, cliquets), dispersion & correlation products
-- **Credit Derivatives:** Single-name CDS, CDS options, CDX/iTraxx indices, index tranches, bespoke CDOs, nth-to-default baskets
-- **Commodity Derivatives:** Energy (oil, natural gas, power, spreads), metals & agriculture (precious/base metals, agricultural commodities, weather derivatives)
-- **Advanced Models:** IR models (Hull-White, Black-Karasinski, Cheyette, LGM, LMM, HJM), equity models (local vol, Heston, rough vol, jump-diffusion), FX models (Garman-Kohlhagen, FX Heston, FX SABR, FX Bates), credit models (Gaussian copula, hazard rate)
-- **Risk Management & P&L:**
-  - VaR methodologies (historical, Monte Carlo, parametric, ES/CVaR, incremental/component)
-  - Stress testing (25+ historical scenarios, hypothetical scenarios, reverse stress testing)
-  - Concentration risk metrics (Herfindahl, Gini, Top-N, Entropy)
-  - Sensitivity analysis (DV01, CS01, vega bucketing, FX delta/gamma, higher-order Greeks: vanna, volga, charm, veta, speed, zomma, color)
-  - P&L attribution (daily P&L explain with carry/delta/gamma/vega/theta/rho, unexplained P&L, risk factor attribution, model risk, FRTB test)
-  - CCR analytics (EE/PFE/EPE/ENE, effective EPE for Basel, time-averaged EPE)
-  - XVA enhancements (KVA, multi-netting sets, collateral optimization, wrong-way risk)
-  - Position limits & pre-trade controls
-- **Calibration & Model Selection:** Information criteria (AIC/BIC/AICc/HQIC), cross-validation, sensitivity analysis
-- **Regulatory Reporting:** EMIR/Dodd-Frank trade reporting, MiFID II/MiFIR transaction reporting, Basel III/IV capital reporting (70 tests)
-- 370+ tests, production-ready APIs
+### **v0.1.0** (Current - Released January 2025)
 
-**v0.2** (Q2 2025) - Interest Rate Derivatives
-- IRS, swaptions, CMS products
-- Multi-curve framework enhancements
-- Advanced calibration methods
+**Foundation Release** - Production-ready platform with 370+ tests
 
-**v0.3** (Q3 2025) - Risk & XVA
-- VaR/ES calculation engines
-- FRTB standardized approach
-- Enhanced XVA (KVA, collateral optimization)
+**Key Achievements:**
+- ✅ Multi-asset class product coverage (IR, FX, Equity, Credit, Commodity)
+- ✅ Advanced stochastic models (Heston, SABR, Hull-White, LMM, etc.)
+- ✅ Comprehensive risk management (VaR, stress testing, P&L attribution)
+- ✅ XVA framework (CVA, DVA, FVA, MVA, KVA)
+- ✅ Market data infrastructure (Bloomberg, Refinitiv)
+- ✅ Observability stack (Prometheus, Grafana, Jaeger)
+- ✅ Regulatory reporting (EMIR, MiFID II, Basel III/IV)
 
-**v1.0** (Q1 2026) - Production Enterprise Platform
-- Complete derivatives lifecycle
-- Regulatory compliance (FRTB, SA-CCR, SIMM)
-- Enterprise-grade infrastructure
+**Product Coverage:**
+- **Interest Rate:** IRS, OIS, CCS, swaptions (European/American/Bermudan), CMS products, TARN, range accruals, snowball/autocallable notes (87 tests)
+- **FX:** Forwards, NDFs, vanilla/digital options, barriers, TARFs, accumulators, FX variance swaps, quantos
+- **Equity:** Listed/OTC options, autocallables, basket options, variance/correlation swaps, dispersion strategies
+- **Credit:** CDS, CDS options, CDX/iTraxx, index tranches, bespoke CDOs, nth-to-default baskets
+- **Commodity:** Energy (oil, gas, power, spreads), metals, agriculture, weather derivatives
+
+**Risk & Analytics:**
+- VaR methodologies: Historical, Monte Carlo, parametric, ES/CVaR, incremental/component
+- Stress testing: 25+ historical scenarios, hypothetical scenarios, reverse stress testing
+- Greeks: DV01, CS01, vega bucketing, higher-order Greeks (vanna, volga, charm, veta, speed, zomma, color)
+- P&L attribution: Daily explain (carry, delta, gamma, vega, theta, rho), risk factor attribution, FRTB test
+- CCR & XVA: EE/PFE/EPE profiles, CVA/DVA/FVA/MVA/KVA, collateral optimization, WWR modeling
+
+**Infrastructure:**
+- Market data: Bloomberg/Refinitiv integration, TimescaleDB (90% compression)
+- Observability: Prometheus, Grafana, Jaeger tracing, automatic profiling
+- Performance: JIT compilation (10-100x speedup), GPU/TPU support
+
+---
+
+### **v0.2.0** (Planned Q2-Q3 2025)
+
+**Advanced Calibration & Model Enhancements**
+
+- Joint calibration framework (multi-instrument, cross-asset)
+- Regularization techniques (Tikhonov, L1/L2, arbitrage-free constraints)
+- Enhanced credit models (Student-t copula, LPA, CreditMetrics, structural models)
+- Advanced equity models (SLV, time-changed Lévy processes)
+- IR model extensions (G2++, Quasi-Gaussian)
+
+**Expected:** 50+ new tests, joint calibration framework
+
+---
+
+### **v0.3.0** (Planned Q4 2025)
+
+**Trading Platform Infrastructure**
+
+- Trade lifecycle management (pre-trade, trade capture, post-trade)
+- Reference data management (security master, market conventions, holiday calendars)
+- CCP integration (LCH SwapClear, CME Clearing, ICE Clear, Eurex)
+- Settlement systems (CLS, Euroclear/Clearstream, SWIFT messaging)
+- FpML parsing and generation
+
+**Expected:** 80+ new tests, FpML integration, LCH connectivity
+
+---
+
+### **v0.4.0** (Planned Q1 2026)
+
+**Regulatory Compliance Enhancement**
+
+- FRTB SA (delta/vega/curvature charges, DRC, RRAO)
+- FRTB IMA (ES at 97.5%, P&L attribution test, backtesting)
+- SA-CCR (RC, PFE add-on, hedging set construction)
+- ISDA SIMM 3.0+ (full implementation with all product classes)
+- UMR compliance (VM, IM workflows, custodian integration)
+- IFRS 9/13 compliance (fair value hierarchy, ECL, hedge effectiveness)
+
+**Expected:** 100+ new regulatory tests
+
+---
+
+### **v1.0.0** (Planned Q2 2026)
+
+**Production Enterprise Platform**
+
+- Enterprise security (SSO, RBAC, MFA, audit trail)
+- Multi-tenancy (desk/entity isolation, cost allocation)
+- Collateral management (SIMM, VM, collateral optimization)
+- Distributed computing (Kubernetes, risk grid, multi-region)
+- GPU/TPU acceleration (multi-GPU Monte Carlo, parallel Greeks)
+- Algorithmic improvements (adjoint AAD, MLMC, QMC)
+
+**Expected:** 500+ comprehensive tests
+
+---
+
+### **v1.x** (2026-2027)
+
+**Advanced Analytics & AI Integration**
+
+- Machine learning for pricing (deep hedging, neural network vol surfaces, GANs)
+- Risk prediction (ML-based VaR, credit default prediction, regime detection)
+- Portfolio optimization (Markowitz, Black-Litterman, CVaR optimization, RL)
+- Backtesting framework (strategy simulation, transaction costs, performance attribution)
+
+---
+
+### **v2.0+** (2027+)
+
+**Next-Generation Computing**
+
+- Quantum computing (VQE, quantum Monte Carlo, quantum annealing)
+- Blockchain & DeFi integration (smart contracts, decentralized clearing)
+- AI-driven autonomous trading (RL agents, NLP trade entry, sentiment analysis)
 
 ---
 
