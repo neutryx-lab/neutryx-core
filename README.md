@@ -66,6 +66,10 @@ is **JIT-compiled**, **GPU-accelerated**, and **production-ready**.
 - **Calibration:** Differentiable calibration framework with diagnostics and identifiability checks
   - **Model Selection:** Information criteria (AIC, BIC, AICc, HQIC), k-fold and time-series cross-validation
   - **Sensitivity Analysis:** Local sensitivity via finite differences, global Sobol indices with Saltelli sampling
+- **Regulatory Reporting:** Enterprise-grade compliance reporting with XML generation
+  - **EMIR/Dodd-Frank:** Trade reporting to repositories, lifecycle events, reconciliation, valuation reporting
+  - **MiFID II/MiFIR:** Transaction reporting (RTS 22), reference data (RTS 23), best execution analysis
+  - **Basel III/IV:** CVA capital, FRTB market risk (SA delta/vega/curvature), operational risk, leverage ratio
 
 ### Market Data Infrastructure (NEW)
 
@@ -95,7 +99,7 @@ is **JIT-compiled**, **GPU-accelerated**, and **production-ready**.
 - **GPU/TPU Ready:** Seamless acceleration on modern hardware with `pmap`/`pjit`
 - **High Performance:** Optimized numerical algorithms with 10-100x speedup for repeated calculations
 - **Reproducible:** Unified configuration via YAML, consistent PRNG seeding
-- **Production-Ready:** FastAPI/gRPC APIs, comprehensive test suite (300+ tests), quality tooling (ruff, bandit)
+- **Production-Ready:** FastAPI/gRPC APIs, comprehensive test suite (370+ tests), quality tooling (ruff, bandit)
 - **Enterprise-Grade:**
   - Multi-tenancy controls and RBAC
   - Audit logging and compliance reporting
@@ -460,12 +464,13 @@ Interactive pricing, Greeks, and scenario analysis at `http://localhost:8050`
 - ✅ **XVA Enhancements:** KVA (capital cost), multi-netting set aggregation, collateral optimization, wrong-way risk (WWR) modeling
 - ✅ **Position Limits:** Notional, VaR, concentration, issuer exposure limits with hierarchical thresholds
 - ✅ **Pre-Trade Controls:** Real-time limit checking, what-if scenario analysis, approval workflows
+- ✅ **Regulatory Reporting:** EMIR/Dodd-Frank trade reporting, MiFID II/MiFIR transaction reporting, Basel III/IV capital reporting (70 tests)
 
 #### APIs & Infrastructure
 - ✅ **APIs:** REST/gRPC endpoints
 - ✅ **Dashboards:** Interactive Dash applications
 - ✅ **CI/CD:** Automation, security scanning (pip-audit, bandit)
-- ✅ **Quality:** 300+ tests, code quality enforcement
+- ✅ **Quality:** 370+ tests, code quality enforcement
 
 ---
 
@@ -747,23 +752,23 @@ Interactive pricing, Greeks, and scenario analysis at `http://localhost:8050`
   - [ ] Initial margin (IM) posting/collection
   - [ ] Custodian integration
 
-##### Regulatory Reporting
-- [ ] **EMIR/Dodd-Frank**
-  - [ ] Trade reporting to repositories
-  - [ ] Lifecycle event reporting
-  - [ ] Reconciliation and dispute resolution
-  - [ ] Valuation reporting
+##### Regulatory Reporting (v0.1.0)
+- ✅ **EMIR/Dodd-Frank** (v0.1.0)
+  - ✅ Trade reporting to repositories (UTI, LEI, product classification)
+  - ✅ Lifecycle event reporting (modifications, terminations, novations, corrections)
+  - ✅ Reconciliation and dispute resolution (match rate, automatic dispute detection)
+  - ✅ Valuation reporting (mark-to-market, mark-to-model)
 
-- [ ] **MiFID II/MiFIR**
-  - [ ] Transaction reporting (RTS 22)
-  - [ ] Reference data reporting (RTS 23)
-  - [ ] Best execution analysis
+- ✅ **MiFID II/MiFIR** (v0.1.0)
+  - ✅ Transaction reporting (RTS 22) with ISO 20022 XML generation
+  - ✅ Reference data reporting (RTS 23) with ISIN and MIC validation
+  - ✅ Best execution analysis (venue concentration, execution quality metrics)
 
-- [ ] **Basel III/IV Capital**
-  - [ ] CVA capital charge
-  - [ ] Market risk capital (FRTB)
-  - [ ] Operational risk capital (standardized)
-  - [ ] Leverage ratio reporting
+- ✅ **Basel III/IV Capital** (v0.1.0)
+  - ✅ CVA capital charge (SA-CVA with counterparty risk weights)
+  - ✅ Market risk capital (FRTB Standardized Approach: delta/vega/curvature charges)
+  - ✅ Operational risk capital (standardized approach with Business Indicator)
+  - ✅ Leverage ratio reporting (Tier 1 capital / total exposure measure)
 
 ##### Accounting Standards
 - [ ] **IFRS 9/13 Compliance**
@@ -1063,7 +1068,8 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
   - XVA enhancements (KVA, multi-netting sets, collateral optimization, wrong-way risk)
   - Position limits & pre-trade controls
 - **Calibration & Model Selection:** Information criteria (AIC/BIC/AICc/HQIC), cross-validation, sensitivity analysis
-- 300+ tests, production-ready APIs
+- **Regulatory Reporting:** EMIR/Dodd-Frank trade reporting, MiFID II/MiFIR transaction reporting, Basel III/IV capital reporting (70 tests)
+- 370+ tests, production-ready APIs
 
 **v0.2** (Q2 2025) - Interest Rate Derivatives
 - IRS, swaptions, CMS products
