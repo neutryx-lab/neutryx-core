@@ -6,6 +6,26 @@ Neutryx Core is a **next-generation quantitative finance platform** built to mee
 
 Our vision is to provide a **complete derivatives lifecycle platform** - from real-time market data ingestion to regulatory capital calculation - all within one continuous computational graph that is JIT-compiled, GPU-accelerated, and production-ready.
 
+## Current Status (November 2025)
+
+**Platform Maturity:** Production-ready enterprise platform with **500+ comprehensive tests**
+
+**Major Milestones Achieved:**
+- ✅ **v0.1.0** (Jan 2025): Foundation release with multi-asset derivatives platform
+- ✅ **v0.2.0** (Q2-Q3 2025): Advanced calibration with Bayesian model averaging and joint calibration
+- ✅ **v0.4.0** (Q1 2026): Complete regulatory compliance (FRTB SA/IMA, DRC/RRAO, SA-CCR, SIMM)
+- ✅ **v1.0.0** (Q2 2026): Full enterprise platform with SSO/OAuth/MFA/LDAP, Kubernetes, AMR PDE solvers
+- 🔄 **v1.x** (2026-2027): 60% complete - Core backtesting and factor analysis delivered
+
+**Recently Added Features:**
+- 🆕 FRTB Internal Models Approach (IMA) with ES 97.5%, P&L attribution test, backtesting framework
+- 🆕 Default Risk Charge (DRC) and Residual Risk Add-On (RRAO)
+- 🆕 Comprehensive backtesting framework with transaction cost modeling
+- 🆕 Factor analysis toolkit (PCA, Barra-style factor models, style attribution, factor timing)
+- 🆕 Adaptive Mesh Refinement (AMR) for PDE solvers
+- 🆕 Kubernetes orchestration with auto-scaling and multi-region deployment
+- 🆕 Enterprise authentication stack (SSO, OAuth 2.0, MFA, LDAP integration)
+
 ## Core Philosophy
 
 ### 1. JAX-First Architecture
@@ -23,9 +43,9 @@ Everything in Neutryx Core is built with JAX at its foundation, enabling:
 Neutryx Core is designed for production use from day one:
 
 - **Type Safety**: Comprehensive type hints throughout the codebase
-- **Testing**: 160+ tests covering unit, integration, and regression scenarios
+- **Testing**: 500+ tests covering unit, integration, regression, and performance scenarios
 - **Configuration**: YAML-based configuration for reproducible workflows
-- **Observability**: Built-in Prometheus metrics, Grafana dashboards, and distributed tracing
+- **Observability**: Built-in Prometheus metrics, Grafana dashboards, and distributed tracing with Jaeger
 - **APIs**: REST and gRPC interfaces for enterprise integration
 - **Documentation**: Extensive documentation with examples and tutorials
 
@@ -33,11 +53,11 @@ Neutryx Core is designed for production use from day one:
 
 Built for mission-critical financial systems:
 
-- **Security**: Static analysis with bandit, dependency scanning with Dependabot
-- **Performance**: Profiling, benchmarking, and optimization tooling
-- **Scalability**: Distributed computing support with multi-GPU/TPU capabilities
-- **Compliance**: Audit logging, RBAC, multi-tenancy controls
-- **Monitoring**: Real-time performance tracking and alerting
+- **Security**: Static analysis with bandit, dependency scanning with Dependabot, SSO/OAuth 2.0/MFA/LDAP
+- **Performance**: Profiling, benchmarking, optimization tooling, AMR for PDEs
+- **Scalability**: Distributed computing with multi-GPU/TPU, Kubernetes orchestration, auto-scaling
+- **Compliance**: Audit logging, RBAC, multi-tenancy controls, FRTB/SA-CCR/SIMM regulatory reporting
+- **Monitoring**: Real-time performance tracking, alerting, comprehensive observability stack
 
 ## Architecture
 
@@ -109,8 +129,10 @@ Comprehensive model library:
 - **SABR**: Stochastic Alpha Beta Rho model
 - **Jump Diffusion**: Merton, Kou, Variance Gamma
 - **Rough Volatility**: rBergomi and rough Heston
-- **Local Volatility**: Dupire PDE
-- **Interest Rate Models**: Hull-White, Black-Karasinski (planned)
+- **Local Volatility**: Dupire PDE, Stochastic Local Volatility (SLV)
+- **Interest Rate Models**: Hull-White (1F/2F), Black-Karasinski, Cheyette, LGM, LMM/BGM, HJM, CIR, Vasicek
+- **FX Models**: Garman-Kohlhagen, FX Heston, FX SABR, FX Bates, two-factor FX
+- **Credit Models**: Gaussian copula, Student-t copula, hazard rate (Jarrow-Turnbull, Duffie-Singleton), structural (Merton, Black-Cox)
 
 **Design Principles:**
 - Unified interface for all models
@@ -128,16 +150,18 @@ Multi-asset class product coverage:
 - Forwards, dividend swaps, variance swaps
 - Total return swaps, equity-linked notes
 
-**Fixed Income:**
-- Bonds (zero-coupon, coupon, FRN)
-- Interest rate swaps, caps, floors
-- Swaptions (European, American, Bermudan)
-- CMS products, range accruals, TARN
+**Fixed Income & Interest Rate Derivatives:**
+- Bonds (zero-coupon, coupon, FRN, inflation-linked)
+- Interest rate swaps (IRS, OIS, cross-currency, basis swaps)
+- Caps, floors, collars, FRAs
+- Swaptions (European, American, Bermudan with LSM)
+- CMS products (caplets/floorlets, spread options with convexity adjustments)
+- Exotic IR: Range accruals, TARN, snowball notes, autocallable notes, ratchet caps/floors
 
 **Credit Derivatives:**
-- CDS pricing with ISDA model
-- Hazard models, structural models
-- Index products (planned)
+- Single-name: CDS (ISDA model), CDS options, CLNs, recovery locks/swaps
+- Portfolio: CDX/iTraxx indices, index tranches, bespoke CDOs, nth-to-default baskets
+- Structural models (Merton, Black-Cox) and reduced-form models
 
 **Commodities:**
 - Forwards with storage and convenience yield
@@ -179,10 +203,16 @@ Comprehensive risk analytics:
 - Approval workflows
 
 **Stress Testing:**
-- Historical scenario analysis
+- 25+ historical scenario analysis (2008 GFC, COVID-19, etc.)
 - Hypothetical scenarios
 - Reverse stress testing
 - Concentration risk metrics
+
+**Greeks & P&L Attribution:**
+- Full Greek suite: DV01, CS01, vega bucketing, FX delta/gamma
+- Higher-order Greeks: vanna, volga, charm, veta, speed, zomma, color
+- P&L attribution: Daily explain (carry, delta, gamma, vega, theta, rho)
+- Risk factor attribution and FRTB P&L test
 
 #### 5. XVA Framework (`neutryx.valuations`)
 
@@ -196,10 +226,12 @@ Enterprise XVA calculations:
 
 **Features:**
 - Exposure profile calculation (EE, PFE, EPE)
-- Wrong-way risk modeling
-- Collateral simulation
+- Wrong-way risk (WWR) modeling
+- Collateral simulation and optimization
 - Multi-netting set aggregation
-- P&L attribution
+- P&L attribution and XVA sensitivities
+- Collateral transformation strategies
+- SA-CCR and FRTB counterparty risk calculations
 
 #### 6. Market Data (`neutryx.market`)
 
@@ -233,10 +265,11 @@ Real-time market data infrastructure:
 Advanced calibration framework:
 
 **Methods:**
-- Differentiable optimization (Adam, LBFGS)
-- Joint calibration across instruments
-- Regularization (Tikhonov, L1/L2)
-- Constraint handling (bounds, arbitrage-free)
+- Differentiable optimization (Adam, LBFGS, optax optimizers)
+- Joint calibration across instruments and asset classes
+- Regularization (Tikhonov, L1/L2, smoothness penalties)
+- Constraint handling (bounds, arbitrage-free, linear/nonlinear constraints)
+- Bayesian model averaging for robust predictions
 
 **Model Selection:**
 - Information criteria (AIC, BIC, AICc, HQIC)
@@ -261,10 +294,11 @@ Enterprise infrastructure components:
 - Profiling: Automatic performance profiling
 
 **Governance:**
-- Multi-tenancy: Desk/entity isolation
-- RBAC: Role-based access control
-- Audit logging: Immutable audit trail
-- Compliance: Regulatory reporting
+- Multi-tenancy: Desk/entity isolation with data residency
+- RBAC: Fine-grained role-based access control
+- SSO/OAuth 2.0/MFA/LDAP: Enterprise authentication
+- Audit logging: Immutable audit trail with user action tracking
+- Compliance: Comprehensive regulatory reporting (FRTB, SA-CCR, SIMM, EMIR, MiFID II, Basel III/IV)
 
 **Workflows:**
 - Task orchestration
@@ -370,10 +404,14 @@ Trade Request → Pre-Trade Check → Limit Validation → Risk Update
 
 ### 4. Regulatory Compliance
 
-- FRTB standardized approach (planned)
-- SA-CCR counterparty risk (planned)
-- SIMM initial margin calculation (planned)
-- Regulatory reporting (EMIR, Dodd-Frank) (planned)
+- FRTB Standardized Approach (SA): Delta, vega, curvature charges
+- FRTB Internal Models Approach (IMA): ES 97.5%, P&L attribution, backtesting, NMRF
+- FRTB Default Risk Charge (DRC) and Residual Risk Add-On (RRAO)
+- SA-CCR: Replacement cost, PFE add-on, hedging set optimization
+- ISDA SIMM 2.6: Initial margin calculation with concentration risk
+- UMR: Uncleared margin rules compliance
+- Regulatory reporting: EMIR, Dodd-Frank, MiFID II/MiFIR, Basel III/IV
+- Accounting standards: IFRS 9/13 compliance
 
 ### 5. Research & Development
 
@@ -490,17 +528,16 @@ spec:
 
 ## Roadmap Summary
 
-**Completed (v0.1.0)**:
-- Core pricing engines and models
-- Multi-asset class products
-- Real-time market data infrastructure
-- Observability and monitoring
-- Risk analytics and limits
+**Completed:**
+- ✅ **v0.1.0** (Jan 2025): Foundation with core pricing, multi-asset products, observability, 370+ tests
+- ✅ **v0.2.0** (Q2-Q3 2025): Advanced calibration (Bayesian averaging, joint calibration, regularization)
+- ✅ **v0.4.0** (Q1 2026): Full regulatory compliance (FRTB SA/IMA, DRC/RRAO, SA-CCR, SIMM 2.6, UMR, IFRS 9/13)
+- ✅ **v1.0.0** (Q2 2026): Production enterprise platform (SSO/OAuth/MFA/LDAP, Kubernetes, collateral management, AMR, 500+ tests)
+- ✅ **v1.0.1-v1.0.3** (Q3 2026): Backtesting framework, factor analysis, portfolio optimization (mean-variance, risk parity, CVaR)
 
-**Q2 2025 (v0.2)**: Interest rate derivatives, FX exotics
-**Q3 2025 (v0.3)**: Advanced models, enhanced calibration
-**Q4 2025 (v0.4)**: FRTB, SA-CCR compliance
-**Q1 2026 (v1.0)**: Production enterprise platform
+**In Progress:**
+- 🔄 **v0.3.0** (50% complete): Trading infrastructure (CCP integration, settlement systems)
+- 🔄 **v1.x** (60% complete): Advanced analytics (Black-Litterman, reinforcement learning for portfolio allocation)
 
 See [roadmap.md](roadmap.md) for detailed milestones.
 
