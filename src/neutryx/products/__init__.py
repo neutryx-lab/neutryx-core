@@ -37,6 +37,21 @@ from .fx_options import (
     fx_vega,
     garman_kohlhagen,
 )
+from .fx_vanilla_exotic import (
+    FXForward,
+    FXAmericanOption,
+    FXDigitalAssetOrNothing,
+    FXAsianArithmetic,
+    FXAsianGeometric,
+    FXAsianArithmeticFloatingStrike,
+    FXAsianGeometricFloatingStrike,
+    FXLookbackFloatingStrikeCall,
+    FXLookbackFloatingStrikePut,
+    FXLookbackFixedStrikeCall,
+    FXLookbackFixedStrikePut,
+    FXLookbackPartialFixedStrikeCall,
+    FXLookbackPartialFixedStrikePut,
+)
 from .lookback import (
     LookbackFloatStrikeCall,
     LookbackFloatStrikePut,
@@ -154,6 +169,20 @@ __all__ = [
     "fx_gamma",
     "fx_vega",
     "fx_theta",
+    # FX Vanilla & Exotic
+    "FXForward",
+    "FXAmericanOption",
+    "FXDigitalAssetOrNothing",
+    "FXAsianArithmetic",
+    "FXAsianGeometric",
+    "FXAsianArithmeticFloatingStrike",
+    "FXAsianGeometricFloatingStrike",
+    "FXLookbackFloatingStrikeCall",
+    "FXLookbackFloatingStrikePut",
+    "FXLookbackFixedStrikeCall",
+    "FXLookbackFixedStrikePut",
+    "FXLookbackPartialFixedStrikeCall",
+    "FXLookbackPartialFixedStrikePut",
     # Modules
     "basket",
     "bonds",

@@ -211,29 +211,21 @@ def test_athena_autocallable_no_memory():
     product = AthenaAutocallable(
         K=100.0,
         T=1.0,
-        autocall_barrier=1.0,
+        autocall_barrier=1.1,  # 110% - avoid early autocall
         coupon_barrier=0.75,
         coupon_rate=0.05,
         observation_times=jnp.array([0.25, 0.5, 0.75, 1.0]),
         put_strike=1.0,
     )
 
-    # Path: Above barrier at obs 1, below at obs 2, above at obs 3 & 4
-    # Obs 1: 105 (above 100 autocall, above 75 coupon) -> no autocall yet
-    # Obs 2: 70 (below coupon barrier) -> coupon NOT paid (no memory)
-    # Obs 3: 85 (above coupon barrier) -> coupon paid
-    # Obs 4: 90 (above coupon barrier) -> coupon paid
-    path = jnp.linspace(100.0, 90.0, 100)
-    # Manually adjust specific points for observations
-    # This is a simplified test - in practice path would be more complex
-
-    # Simplified: test that coupons are lost if barrier not hit
-    # Path stays flat at 100
+    # Simplified: test that coupons are paid when barrier is hit
+    # Path stays flat at 100 (above coupon barrier 75, below autocall 110)
     path_flat = jnp.ones(100) * 100.0
     payoff = product.payoff_path(path_flat)
 
     # Should get principal + coupons for all periods where barrier hit
-    # Since always above both barriers, should get full coupons
+    # Since always above coupon barrier, should get full coupons
+    # No autocall since below 110
     expected_min = 1.0 + 4 * 0.05  # Principal + 4 coupons
     assert payoff >= expected_min * 0.95  # Allow some tolerance
 
