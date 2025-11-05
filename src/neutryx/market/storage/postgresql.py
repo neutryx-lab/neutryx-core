@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Dict, List, Optional
@@ -10,6 +11,9 @@ from typing import Any, Dict, List, Optional
 from .base import BaseStorage, StorageConfig, StorageType
 
 logger = logging.getLogger(__name__)
+
+# Regex for validating SQL identifiers (table names, column names, etc.)
+_SQL_IDENTIFIER_RE = re.compile(r'^[A-Za-z_][A-Za-z0-9_]*$')
 
 
 @dataclass
@@ -139,9 +143,15 @@ class PostgreSQLStorage(BaseStorage):
             return False
 
         try:
+            # Validate all SQL identifiers
+            self._validate_identifier(self.config.schema)
+            self._validate_identifier(self.config.table_prefix + data_type)
+            for col in data.keys():
+                self._validate_identifier(col)
+
             table_name = f"{self.config.schema}.{self.config.table_prefix}{data_type}"
 
-            # Build insert query dynamically
+            # Build insert query dynamically - identifiers validated above
             columns = ["symbol", "timestamp"] + list(data.keys())
             values_placeholders = [f"${i+1}" for i in range(len(columns))]
             values = [symbol, timestamp] + list(data.values())
@@ -151,7 +161,7 @@ class PostgreSQLStorage(BaseStorage):
                 VALUES ({', '.join(values_placeholders)})
                 ON CONFLICT (symbol, timestamp) DO UPDATE
                 SET {', '.join([f"{col} = EXCLUDED.{col}" for col in data.keys()])}
-            """
+            """  # nosec B608
 
             async with self._pool.acquire() as conn:
                 await conn.execute(query, *values)
@@ -172,11 +182,19 @@ class PostgreSQLStorage(BaseStorage):
             return 0
 
         try:
+            # Validate all SQL identifiers
+            self._validate_identifier(self.config.schema)
+            self._validate_identifier(self.config.table_prefix + data_type)
+
             table_name = f"{self.config.schema}.{self.config.table_prefix}{data_type}"
 
             # Extract columns from first record
             first_record = records[0]
             columns = list(first_record.keys())
+
+            # Validate column names
+            for col in columns:
+                self._validate_identifier(col)
 
             # Prepare batch insert
             values = []
@@ -187,7 +205,7 @@ class PostgreSQLStorage(BaseStorage):
                 INSERT INTO {table_name} ({', '.join(columns)})
                 VALUES ({', '.join([f'${i+1}' for i in range(len(columns))])})
                 ON CONFLICT (symbol, timestamp) DO NOTHING
-            """
+            """  # nosec B608
 
             async with self._pool.acquire() as conn:
                 await conn.executemany(query, values)
@@ -208,6 +226,10 @@ class PostgreSQLStorage(BaseStorage):
             return None
 
         try:
+            # Validate SQL identifiers
+            self._validate_identifier(self.config.schema)
+            self._validate_identifier(self.config.table_prefix + data_type)
+
             table_name = f"{self.config.schema}.{self.config.table_prefix}{data_type}"
 
             query = f"""
@@ -216,7 +238,7 @@ class PostgreSQLStorage(BaseStorage):
                 WHERE symbol = $1
                 ORDER BY timestamp DESC
                 LIMIT 1
-            """
+            """  # nosec B608
 
             async with self._pool.acquire() as conn:
                 row = await conn.fetchrow(query, symbol)
@@ -241,6 +263,10 @@ class PostgreSQLStorage(BaseStorage):
             return []
 
         try:
+            # Validate SQL identifiers
+            self._validate_identifier(self.config.schema)
+            self._validate_identifier(self.config.table_prefix + data_type)
+
             table_name = f"{self.config.schema}.{self.config.table_prefix}{data_type}"
 
             query = f"""
@@ -250,10 +276,10 @@ class PostgreSQLStorage(BaseStorage):
                   AND timestamp >= $2
                   AND timestamp <= $3
                 ORDER BY timestamp ASC
-            """
+            """  # nosec B608
 
             if limit:
-                query += f" LIMIT {limit}"
+                query += f" LIMIT {int(limit)}"  # Cast to int for safety
 
             async with self._pool.acquire() as conn:
                 rows = await conn.fetch(query, symbol, start_time, end_time)
@@ -276,6 +302,10 @@ class PostgreSQLStorage(BaseStorage):
             return []
 
         try:
+            # Validate SQL identifiers
+            self._validate_identifier(self.config.schema)
+            self._validate_identifier(self.config.table_prefix + data_type)
+
             table_name = f"{self.config.schema}.{self.config.table_prefix}{data_type}"
 
             # Convert interval string to PostgreSQL interval
@@ -296,7 +326,7 @@ class PostgreSQLStorage(BaseStorage):
                   AND timestamp <= $4
                 GROUP BY bucket, symbol
                 ORDER BY bucket ASC
-            """
+            """  # nosec B608
 
             async with self._pool.acquire() as conn:
                 rows = await conn.fetch(query, pg_interval, symbol, start_time, end_time)
@@ -316,12 +346,16 @@ class PostgreSQLStorage(BaseStorage):
             return 0
 
         try:
+            # Validate SQL identifiers
+            self._validate_identifier(self.config.schema)
+            self._validate_identifier(self.config.table_prefix + data_type)
+
             table_name = f"{self.config.schema}.{self.config.table_prefix}{data_type}"
 
             query = f"""
                 DELETE FROM {table_name}
                 WHERE timestamp < $1
-            """
+            """  # nosec B608
 
             async with self._pool.acquire() as conn:
                 result = await conn.execute(query, before_timestamp)
@@ -386,7 +420,7 @@ class PostgreSQLStorage(BaseStorage):
 
         try:
             async with self._pool.acquire() as conn:
-                # Get table sizes
+                # Get table sizes - query uses parameterized schema name
                 tables_query = f"""
                     SELECT
                         schemaname,
@@ -395,7 +429,7 @@ class PostgreSQLStorage(BaseStorage):
                         n_live_tup AS row_count
                     FROM pg_stat_user_tables
                     WHERE schemaname = $1
-                """
+                """  # nosec B608
                 tables = await conn.fetch(tables_query, self.config.schema)
 
                 stats = {
@@ -421,6 +455,19 @@ class PostgreSQLStorage(BaseStorage):
         except Exception as e:
             logger.error(f"Error getting statistics: {e}")
             return {}
+
+    @staticmethod
+    def _validate_identifier(identifier: str) -> None:
+        """Validate SQL identifier to prevent SQL injection.
+
+        Args:
+            identifier: Table name, column name, or other SQL identifier
+
+        Raises:
+            ValueError: If identifier contains invalid characters
+        """
+        if not _SQL_IDENTIFIER_RE.match(identifier):
+            raise ValueError(f"Invalid SQL identifier: {identifier}")
 
     @staticmethod
     def _convert_interval(interval: str) -> str:

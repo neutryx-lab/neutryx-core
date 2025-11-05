@@ -82,9 +82,14 @@ class TimescaleDBStorage(PostgreSQLStorage):
                 table_types = ["equity", "fx", "bond", "commodity", "rates"]
 
                 for data_type in table_types:
+                    # Validate SQL identifiers
+                    self._validate_identifier(self.config.schema)
+                    self._validate_identifier(self.config.table_prefix + data_type)
+                    self._validate_identifier(data_type)
+
                     table_name = f"{self.config.schema}.{self.config.table_prefix}{data_type}"
 
-                    # Create table if not exists
+                    # Create table if not exists - identifiers validated above
                     await conn.execute(f"""
                         CREATE TABLE IF NOT EXISTS {table_name} (
                             symbol VARCHAR(50) NOT NULL,
@@ -152,6 +157,7 @@ class TimescaleDBStorage(PostgreSQLStorage):
 
                     # Create continuous aggregate for OHLCV
                     cagg_name = f"{self.config.table_prefix}{data_type}_1min"
+                    self._validate_identifier(cagg_name)
                     try:
                         await conn.execute(f"""
                             CREATE MATERIALIZED VIEW IF NOT EXISTS {self.config.schema}.{cagg_name}
@@ -168,7 +174,7 @@ class TimescaleDBStorage(PostgreSQLStorage):
                             FROM {table_name}
                             GROUP BY bucket, symbol
                             WITH NO DATA
-                        """)
+                        """)  # nosec B608
 
                         # Add refresh policy
                         await conn.execute(f"""
@@ -205,6 +211,10 @@ class TimescaleDBStorage(PostgreSQLStorage):
         # Use continuous aggregate for 1min interval
         if interval == "1min":
             try:
+                # Validate SQL identifiers
+                self._validate_identifier(self.config.schema)
+                self._validate_identifier(self.config.table_prefix + data_type + "_1min")
+
                 cagg_name = f"{self.config.schema}.{self.config.table_prefix}{data_type}_1min"
 
                 query = f"""
@@ -222,7 +232,7 @@ class TimescaleDBStorage(PostgreSQLStorage):
                       AND bucket >= $2
                       AND bucket <= $3
                     ORDER BY bucket ASC
-                """
+                """  # nosec B608
 
                 async with self._pool.acquire() as conn:
                     rows = await conn.fetch(query, symbol, start_time, end_time)

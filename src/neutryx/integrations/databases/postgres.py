@@ -92,13 +92,14 @@ class PostgresConnector(DatabaseConnector):
         ]
 
         async with self._pool.acquire() as connection:
+            # Table name is validated in _ensure_table() via _validate_identifier()
             await connection.executemany(
                 f"""
                 INSERT INTO {self._qualified_table()} (
                     ts, source, quality, asset_class, instrument_id, payload, metadata
                 )
                 VALUES ($1, $2, $3, $4, $5, $6, $7)
-                """,
+                """,  # nosec B608
                 data,
             )
 
