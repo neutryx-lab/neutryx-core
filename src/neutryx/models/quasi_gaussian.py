@@ -174,8 +174,8 @@ def V_coefficient(
         G_x_integrand = jnp.exp(-alpha_int)
         G_y_integrand = jnp.exp(-beta_int)
 
-        G_x = jnp.trapz(G_x_integrand, u_grid)
-        G_y = jnp.trapz(G_y_integrand, u_grid)
+        G_x = jnp.trapezoid(G_x_integrand, u_grid)
+        G_y = jnp.trapezoid(G_y_integrand, u_grid)
 
         # Volatilities at time s
         sigma_x_s = params.sigma_x_fn(s)
@@ -243,7 +243,7 @@ def zero_coupon_bond_price(
     def compute_market_discount(tau):
         times = jnp.linspace(0, tau, 100)
         forwards = jax.vmap(params.forward_curve_fn)(times)
-        integral = jnp.trapz(forwards, times)
+        integral = jnp.trapezoid(forwards, times)
         return jnp.exp(-integral)
 
     P_market_t = compute_market_discount(t) if t > 0 else 1.0
@@ -264,11 +264,11 @@ def zero_coupon_bond_price(
                 return 0.0
             u_grid = jnp.linspace(t, s, 20)
             mean_rev_vals = jax.vmap(mean_reversion_fn)(u_grid)
-            integral = jnp.trapz(mean_rev_vals, u_grid)
+            integral = jnp.trapezoid(mean_rev_vals, u_grid)
             return jnp.exp(-integral)
 
         integrand_vals = jax.vmap(integrand)(s_grid)
-        return jnp.trapz(integrand_vals, s_grid)
+        return jnp.trapezoid(integrand_vals, s_grid)
 
     G_x = compute_G_coefficient(params.alpha_fn)
     G_y = compute_G_coefficient(params.beta_fn)
@@ -287,7 +287,6 @@ def zero_coupon_bond_price(
     return jnp.exp(log_P)
 
 
-@partial(jax.jit, static_argnames=["n_steps"])
 def simulate_path(
     params: QuasiGaussianParams,
     T: float,
@@ -377,7 +376,6 @@ def simulate_path(
     )
 
 
-@partial(jax.jit, static_argnames=["n_steps", "n_paths"])
 def simulate_paths(
     params: QuasiGaussianParams,
     T: float,

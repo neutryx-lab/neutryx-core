@@ -157,43 +157,46 @@ def zero_coupon_bond_price(
     B_x = B_coefficient(params.a, t, T)
     B_y = B_coefficient(params.b, t, T)
 
-    # Compute variance contribution V(t,T)
-    # V = (σ_x²/(2a²))[τ - 2B_x + B_x²/(2a)]
-    #   + (σ_y²/(2b²))[τ - 2B_y + B_y²/(2b)]
-    #   + (ρσ_xσ_y/(ab))[τ - B_x - B_y + B_x·B_y·exp(-aτ)/a]
+    # Compute variance contribution V(t,T) following Hull-White two-factor model
+    # V_x = (σ_x²/(2a²)) * (B_x - τ) - (σ_x²/(4a)) * B_x²
+    # V_y = (σ_y²/(2b²)) * (B_y - τ) - (σ_y²/(4b)) * B_y²
+    # V_xy = (ρσ_xσ_y/(ab)) * [B_x*B_y - (1-exp(-aτ))(1-exp(-bτ))/(ab)]
 
-    V_x = (params.sigma_x**2 / (2 * params.a**2)) * (
-        tau - 2 * B_x + B_x * (1 - jnp.exp(-params.a * tau)) / params.a
-    )
+    V_x = (params.sigma_x**2 / (2.0 * params.a**2)) * (B_x - tau) - \
+          (params.sigma_x**2 / (4.0 * params.a)) * B_x * B_x
 
-    V_y = (params.sigma_y**2 / (2 * params.b**2)) * (
-        tau - 2 * B_y + B_y * (1 - jnp.exp(-params.b * tau)) / params.b
-    )
+    V_y = (params.sigma_y**2 / (2.0 * params.b**2)) * (B_y - tau) - \
+          (params.sigma_y**2 / (4.0 * params.b)) * B_y * B_y
 
-    V_xy = (params.rho * params.sigma_x * params.sigma_y / (params.a * params.b)) * (
-        tau - B_x - B_y + B_x * B_y / tau if tau > 1e-10 else 0.0
-    )
+    # Cross term for correlation
+    exp_a_tau = jnp.exp(-params.a * tau)
+    exp_b_tau = jnp.exp(-params.b * tau)
+    cross_term = B_x * B_y - (1.0 - exp_a_tau) * (1.0 - exp_b_tau) / (params.a * params.b)
+    V_xy = (params.rho * params.sigma_x * params.sigma_y / (params.a * params.b)) * cross_term
 
     V = V_x + V_y + V_xy
 
     # Compute φ̄(t,T) = ∫_t^T φ(s) ds
     if params.phi_fn is not None:
         # Numerical integration of φ using trapezoidal rule
-        n_steps = 50
-        times = jnp.linspace(t, T, n_steps + 1)
+        n_steps_int = 50
+        times = jnp.linspace(t, T, n_steps_int + 1)
         phi_values = jax.vmap(params.phi_fn)(times)
-        phi_integral = jnp.trapz(phi_values, times)
+        phi_integral = jnp.trapezoid(phi_values, times)
     else:
-        phi_integral = 0.0
+        # Use constant drift to match initial rate
+        # For simplicity, assume flat curve at r0
+        phi_integral = params.r0 * tau
 
-    # Compute log bond price
-    log_A = V - phi_integral
+    # Compute A(t,T) = exp(V + drift terms)
+    log_A = V + (B_x + B_y - tau) * params.r0 - phi_integral
+
+    # Bond price: P(t,T) = A(t,T) * exp(-B_x*x - B_y*y)
     log_P = log_A - B_x * x_t - B_y * y_t
 
     return jnp.exp(log_P)
 
 
-@partial(jax.jit, static_argnames=["n_steps", "method"])
 def simulate_path(
     params: G2PPParams,
     T: float,
@@ -295,7 +298,6 @@ def simulate_path(
     )
 
 
-@partial(jax.jit, static_argnames=["n_steps", "n_paths", "method"])
 def simulate_paths(
     params: G2PPParams,
     T: float,

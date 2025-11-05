@@ -269,7 +269,6 @@ def simulate_path(
     return r_d_path, r_f_path, S_path
 
 
-@partial(jax.jit, static_argnames=["n_steps", "n_paths"])
 def simulate_paths(
     params: CrossCurrencyBasisParams,
     T: float,
@@ -334,7 +333,7 @@ def fx_forward_rate(
         # Numerical integration
         times = jnp.linspace(0, T, 100)
         basis_vals = jax.vmap(params.basis_spread)(times)
-        basis_integral = jnp.trapz(basis_vals, times)
+        basis_integral = jnp.trapezoid(basis_vals, times)
     else:
         basis_integral = params.basis_spread * T
 
