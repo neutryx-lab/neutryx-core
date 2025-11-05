@@ -12,6 +12,7 @@ __all__ = [
     "scenarios",
     "simm",
     "stress_test",
+    "stress_testing",
     "utils",
     "wrong_way_risk",
     "xva",
