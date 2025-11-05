@@ -39,11 +39,6 @@ Neutryx Core provides a complete JAX-first quantitative finance platform with:
 
 Core computational infrastructure for pricing and risk calculations.
 
-::: neutryx.core.engine
-    options:
-      show_root_heading: true
-      show_source: false
-
 #### Key Components
 
 **Engine Configuration**
