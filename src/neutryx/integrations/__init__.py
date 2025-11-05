@@ -7,6 +7,7 @@ This module provides integrations with external libraries and data formats:
 - **QuantLib**: Bindings to QuantLib C++ library
 - **FFI**: Foreign Function Interfaces for performance-critical code
 - **Eigen**: Linear algebra operations via Eigen C++ library
+- **Clearing**: CCP (Central Counterparty) clearing house integrations
 
 All integrations are designed to be optional and can be used independently.
 """
@@ -23,6 +24,9 @@ from .databases import (
     TimescaleConnector,
 )
 
+# Import clearing submodule
+from . import clearing
+
 __all__ = [
     "DatabaseConfig",
     "DatabaseConnector",
@@ -31,4 +35,5 @@ __all__ = [
     "TimescaleConnector",
     "MongoConnector",
     "InMemoryConnector",
+    "clearing",
 ]
