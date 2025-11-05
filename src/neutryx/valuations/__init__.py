@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 __all__ = [
+    "ccr_analytics",
     "exposure",
     "greeks",
     "margin",
