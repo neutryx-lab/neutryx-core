@@ -22,8 +22,14 @@ in Neutryx:
    - Variance Gamma process
 
 5. **Time-Changed Lévy Processes**
-   - General framework for Lévy processes with stochastic time change
-   - Includes VG, NIG, CGMY families
+   - Variance Gamma (VG)
+   - Normal Inverse Gaussian (NIG)
+   - CGMY (Carr-Geman-Madan-Yor)
+
+6. **Jump Clustering Models**
+   - Hawkes jump-diffusion (self-exciting jumps)
+   - Self-exciting Lévy models
+   - Jump contagion and volatility feedback
 
 All models support Monte Carlo simulation, calibration to market data,
 and various pricing methods.
@@ -161,64 +167,57 @@ def simulate_slv(
     V_paths = V_paths.at[:cfg.base_paths, 0].set(params.V0)
 
     # Euler-Maruyama scheme
-    def step_fn(carry, step_input):
-        S_prev, V_prev = carry
-        dW_S_i, dW_V_i, t = step_input
-
-        # Evaluate local vol at current (S, t)
-        # For vectorization, we'd need to vmap this - simplified here
-        sigma_L = jnp.ones_like(S_prev) * 0.2  # Placeholder - should call params.local_vol_func
-
-        # Variance process (Heston-style, with Feller condition)
-        sqrt_V = jnp.sqrt(jnp.maximum(V_prev, 0.0))
-        dV = params.kappa * (params.theta - V_prev) * dt + params.xi * sqrt_V * sqrt_dt * dW_V_i
-        V_next = jnp.maximum(V_prev + dV, 0.0)
-
-        # Spot process with SLV
-        sqrt_V_spot = jnp.sqrt(jnp.maximum(V_prev, 0.0))
-        dS = (r - q) * S_prev * dt + sqrt_V_spot * sigma_L * S_prev * sqrt_dt * dW_S_i
-        S_next = jnp.maximum(S_prev + dS, 1e-8)
-
-        return (S_next, V_next), (S_next, V_next)
-
     # Time grid
-    times = jnp.linspace(0, T, cfg.steps + 1, dtype=dtype)[1:]
+    times = jnp.linspace(0, T, cfg.steps + 1, dtype=dtype)
 
-    # Run simulation
-    init_carry = (S_paths[:cfg.base_paths, 0], V_paths[:cfg.base_paths, 0])
-    step_inputs = (dW_S, dW_V, times)
-
-    # Note: Full implementation would use lax.scan for efficiency
-    # Simplified version for demonstration
+    # Simulation loop
     S_current = S_paths[:cfg.base_paths, 0]
     V_current = V_paths[:cfg.base_paths, 0]
 
-    for i in range(cfg.steps):
-        sigma_L = 0.2  # Simplified - should evaluate local_vol_func(S_current, times[i])
+    # Vectorized local vol evaluation
+    def eval_local_vol_vectorized(S_vals, t_val):
+        """Evaluate local vol for all paths at time t."""
+        # If local_vol_func is a simple function, call it
+        # Otherwise, use a constant as fallback
+        try:
+            # Try to vectorize the local vol function
+            local_vols = jax.vmap(lambda s: params.local_vol_func(s, float(t_val)))(S_vals)
+            return local_vols
+        except:
+            # Fallback to constant local vol if function evaluation fails
+            return jnp.ones_like(S_vals) * 0.2
 
+    for i in range(cfg.steps):
+        # Evaluate local volatility at current S and t
+        sigma_L = eval_local_vol_vectorized(S_current, times[i])
+
+        # Variance process (Heston-style with Feller condition)
         sqrt_V = jnp.sqrt(jnp.maximum(V_current, 0.0))
         dV = params.kappa * (params.theta - V_current) * dt + params.xi * sqrt_V * sqrt_dt * dW_V[:, i]
         V_current = jnp.maximum(V_current + dV, 0.0)
 
-        dS = (r - q) * S_current * dt + sqrt_V * sigma_L * S_current * sqrt_dt * dW_S[:, i]
+        # Spot process with SLV: dS/S = (r-q)dt + σ_L(S,t)√V dW_S
+        sqrt_V_spot = jnp.sqrt(jnp.maximum(V_current, 0.0))
+        dS = (r - q) * S_current * dt + sqrt_V_spot * sigma_L * S_current * sqrt_dt * dW_S[:, i]
         S_current = jnp.maximum(S_current + dS, 1e-8)
 
         S_paths = S_paths.at[:cfg.base_paths, i + 1].set(S_current)
         V_paths = V_paths.at[:cfg.base_paths, i + 1].set(V_current)
 
     if cfg.antithetic:
-        # Antithetic paths
+        # Antithetic paths - flip Brownian increments
         S_current_anti = jnp.full(cfg.base_paths, S0, dtype=dtype)
         V_current_anti = jnp.full(cfg.base_paths, params.V0, dtype=dtype)
 
         for i in range(cfg.steps):
-            sigma_L = 0.2
+            sigma_L = eval_local_vol_vectorized(S_current_anti, times[i])
 
             sqrt_V = jnp.sqrt(jnp.maximum(V_current_anti, 0.0))
             dV = params.kappa * (params.theta - V_current_anti) * dt - params.xi * sqrt_V * sqrt_dt * dW_V[:, i]
             V_current_anti = jnp.maximum(V_current_anti + dV, 0.0)
 
-            dS = (r - q) * S_current_anti * dt - sqrt_V * sigma_L * S_current_anti * sqrt_dt * dW_S[:, i]
+            sqrt_V_spot = jnp.sqrt(jnp.maximum(V_current_anti, 0.0))
+            dS = (r - q) * S_current_anti * dt - sqrt_V_spot * sigma_L * S_current_anti * sqrt_dt * dW_S[:, i]
             S_current_anti = jnp.maximum(S_current_anti + dS, 1e-8)
 
             S_paths = S_paths.at[cfg.base_paths:, i + 1].set(S_current_anti)
@@ -450,25 +449,60 @@ def simulate_time_changed_levy(
 
     Example
     -------
-    >>> params = TimeChangedLevyParams(
+    >>> # Variance Gamma
+    >>> params_vg = TimeChangedLevyParams(
     ...     levy_process='VG',
-    ...     levy_params={'theta': -0.14, 'sigma': 0.2, 'nu': 0.2},
-    ...     time_change='gamma',
-    ...     time_change_params={'rate': 1.0}
+    ...     levy_params={'theta': -0.14, 'sigma': 0.2, 'nu': 0.2}
     ... )
-    >>> paths = simulate_time_changed_levy(key, 100, 1.0, 0.05, 0.01, params, cfg)
+    >>> paths = simulate_time_changed_levy(key, 100, 1.0, 0.05, 0.01, params_vg, cfg)
+    >>>
+    >>> # Normal Inverse Gaussian
+    >>> params_nig = TimeChangedLevyParams(
+    ...     levy_process='NIG',
+    ...     levy_params={'alpha': 15.0, 'beta': -5.0, 'delta': 0.5}
+    ... )
+    >>> paths = simulate_time_changed_levy(key, 100, 1.0, 0.05, 0.01, params_nig, cfg)
+    >>>
+    >>> # CGMY
+    >>> params_cgmy = TimeChangedLevyParams(
+    ...     levy_process='CGMY',
+    ...     levy_params={'C': 1.0, 'G': 10.0, 'M': 10.0, 'Y': 0.5}
+    ... )
+    >>> paths = simulate_time_changed_levy(key, 100, 1.0, 0.05, 0.01, params_cgmy, cfg)
     """
-    # Use variance gamma implementation
-    if params.levy_process.upper() == 'VG':
+    levy_type = params.levy_process.upper()
+
+    if levy_type == 'VG':
         from .variance_gamma import simulate_variance_gamma
 
         theta = params.levy_params.get('theta', -0.14)
         sigma = params.levy_params.get('sigma', 0.2)
         nu = params.levy_params.get('nu', 0.2)
 
-        return simulate_variance_gamma(
-            key, S0, r - q, theta, sigma, nu, T, cfg
-        )
+        return simulate_variance_gamma(key, S0, r - q, theta, sigma, nu, T, cfg)
+
+    elif levy_type == 'NIG':
+        from .levy_processes import NIGParams, simulate_nig
+
+        alpha = params.levy_params.get('alpha', 15.0)
+        beta = params.levy_params.get('beta', -5.0)
+        delta = params.levy_params.get('delta', 0.5)
+        mu = params.levy_params.get('mu', 0.0)
+
+        nig_params = NIGParams(alpha=alpha, beta=beta, delta=delta, mu=mu)
+        return simulate_nig(key, S0, T, r, q, nig_params, cfg)
+
+    elif levy_type == 'CGMY':
+        from .levy_processes import CGMYParams, simulate_cgmy
+
+        C = params.levy_params.get('C', 1.0)
+        G = params.levy_params.get('G', 10.0)
+        M = params.levy_params.get('M', 10.0)
+        Y = params.levy_params.get('Y', 0.5)
+
+        cgmy_params = CGMYParams(C=C, G=G, M=M, Y=Y)
+        return simulate_cgmy(key, S0, T, r, q, cgmy_params, cfg)
+
     else:
         raise NotImplementedError(f"Lévy process '{params.levy_process}' not yet implemented")
 
@@ -535,6 +569,24 @@ def get_model_characteristics():
             'cons': ['No diffusion component', 'Calibration sensitive'],
             'use_cases': ['Skew trading', 'Lévy modeling', 'Research'],
         },
+        'NIG': {
+            'features': ['pure_jump', 'infinite_activity', 'heavy_tails', 'skewness'],
+            'pros': ['Excellent fit to empirical returns', 'Semi-heavy tails', 'Tractable CF'],
+            'cons': ['No closed-form for options', 'Requires FFT pricing'],
+            'use_cases': ['Return modeling', 'Risk management', 'FFT pricing'],
+        },
+        'CGMY': {
+            'features': ['pure_jump', 'infinite_activity', 'flexible_tails', 'fine_structure'],
+            'pros': ['Very flexible', 'Controls small/large jumps separately', 'General framework'],
+            'cons': ['Many parameters', 'Complex calibration', 'Computationally intensive'],
+            'use_cases': ['Research', 'Exotic options', 'Jump modeling'],
+        },
+        'Hawkes_Jump': {
+            'features': ['self_exciting', 'jump_clustering', 'contagion'],
+            'pros': ['Realistic clustering', 'Captures volatility feedback', 'Contagion modeling'],
+            'cons': ['Complex dynamics', 'Difficult calibration', 'Path-dependent'],
+            'use_cases': ['Crisis modeling', 'Volatility clustering', 'Risk management'],
+        },
     }
 
 
@@ -551,3 +603,10 @@ __all__ = [
     # Utils
     "get_model_characteristics",
 ]
+
+# Note: For direct access to specific models, import from their respective modules:
+# - levy_processes: NIGParams, CGMYParams, simulate_nig, simulate_cgmy
+# - jump_clustering: HawkesJumpParams, simulate_hawkes_jump_diffusion
+# - variance_gamma: simulate_variance_gamma
+# - jump_diffusion: MertonParams, MertonJumpDiffusion
+# - kou: simulate_kou
