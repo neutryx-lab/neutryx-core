@@ -41,6 +41,15 @@ from .model_selection import (
     compute_local_sensitivity,
     sobol_indices,
 )
+from .bayesian_model_averaging import (
+    BayesianModelAveraging,
+    BMAResult,
+    ModelWeights,
+    WeightingScheme,
+    compute_stacking_weights,
+    compute_weights_from_ic,
+    pseudo_bma_weights,
+)
 
 __all__ = [
     "AssetClassSpec",
@@ -79,4 +88,12 @@ __all__ = [
     "GlobalSensitivity",
     "compute_local_sensitivity",
     "sobol_indices",
+    # Bayesian Model Averaging
+    "BayesianModelAveraging",
+    "BMAResult",
+    "ModelWeights",
+    "WeightingScheme",
+    "compute_stacking_weights",
+    "compute_weights_from_ic",
+    "pseudo_bma_weights",
 ]
