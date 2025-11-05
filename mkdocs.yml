@@ -5,12 +5,15 @@ repo_url: https://github.com/neutryx-lab/neutryx-core
 repo_name: neutryx-core
 nav:
   - Home: index.md
-  - Overview:
+  - Getting Started:
+      - Installation & Quick Start: getting_started.md
       - Project Overview: overview.md
+      - Architecture Guide: architecture.md
+      - Tutorials Index: tutorials.md
+  - Overview:
       - Product Strategy: products.md
       - Roadmap: roadmap.md
       - Design Decisions: design_decisions.md
-      - Tutorials Index: tutorials.md
   - Theory and Foundations:
       - Mathematical Foundations: theory/mathematical_foundations.md
       - Pricing Models Theory: theory/pricing_models.md
@@ -62,20 +65,22 @@ nav:
       - Deployment Guide: deployment.md
       - Orchestration Patterns: orchestration.md
       - Observability Stack: observability.md
+      - Monitoring Guide: monitoring.md
+      - Market Data Infrastructure: market_data.md
       - Tracking and Observability: tracking.md
       - CI Pipeline: ci_pipeline.md
       - Security Audit: security_audit.md
+  - Performance & Troubleshooting:
+      - Performance Tuning: performance_tuning.md
+      - Troubleshooting Guide: troubleshooting.md
+  - For Developers:
+      - Developer Guide: developer_guide.md
+      - API Reference: api_reference.md
+      - Test Coverage: test_coverage.md
   - Additional References:
-      - Project Overview: overview.md
-      - Product Strategy: products.md
-      - Roadmap: roadmap.md
-      - Design Decisions: design_decisions.md
-      - Tutorials Index: tutorials.md
       - Trade Management: trade_management.md
       - FpML Integration: fpml_integration.md
-      - API Reference: api_reference.md
       - Configuration Guide: configuration.md
-      - Test Coverage: test_coverage.md
       - Documentation Notebooks: notebooks/index.md
 docs_dir: docs
 theme:

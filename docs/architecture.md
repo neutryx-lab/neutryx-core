@@ -418,6 +418,63 @@ class PostgreSQLMarketDataRepository(MarketDataRepository):
         """, instrument, timestamp)
 ```
 
+## Scalability & Performance
+
+### Horizontal Scaling
+
+```python
+# Distributed pricing across multiple GPUs
+@partial(jax.pmap, axis_name='devices')
+def distributed_pricing(keys, spots, strikes, maturities, config):
+    """Price options in parallel across devices"""
+    prices = jax.vmap(price_option)(
+        spots, strikes, maturities, config
+    )
+    return prices
+
+# Split work across devices
+num_devices = jax.device_count()
+keys = jax.random.split(jax.random.PRNGKey(42), num_devices)
+prices = distributed_pricing(keys, spots, strikes, maturities, config)
+```
+
+### Vertical Scaling (GPU Acceleration)
+
+```python
+# JIT compilation for GPU
+@jax.jit
+def monte_carlo_pricer(key, S0, K, T, r, sigma, paths):
+    """GPU-accelerated Monte Carlo pricing"""
+    paths = simulate_gbm(key, S0, r, sigma, T, paths)
+    payoff = jnp.maximum(paths[:, -1] - K, 0.0)
+    return jnp.mean(payoff) * jnp.exp(-r * T)
+
+# Automatically runs on GPU if available
+price = monte_carlo_pricer(key, 100, 100, 1.0, 0.05, 0.20, 100_000)
+```
+
+### Caching Strategy
+
+```python
+from functools import lru_cache
+
+@lru_cache(maxsize=1000)
+def get_yield_curve(date, currency):
+    """Cache yield curves to avoid repeated DB queries"""
+    return fetch_curve_from_db(date, currency)
+
+# Redis for distributed caching
+class DistributedCache:
+    async def get_or_compute(self, key, compute_fn):
+        cached = await self.redis.get(key)
+        if cached:
+            return cached
+
+        value = await compute_fn()
+        await self.redis.set(key, value, ex=3600)
+        return value
+```
+
 ## Data Flow
 
 ### Pricing Workflow

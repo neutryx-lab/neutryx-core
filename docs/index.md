@@ -129,7 +129,6 @@ Production-grade real-time market data pipeline:
 
 **Quick Links**:
 - [Market Data Guide](market_data.md) - Complete documentation
-- [Integration Examples](market_data.md#integration-examples) - Code samples
 
 ### Observability & Monitoring
 Enterprise observability stack for production deployments:

@@ -387,9 +387,9 @@ Now that you've completed the basics, explore these advanced topics:
 
 1. **[Tutorials](tutorials.md)** - Hands-on tutorials for specific use cases
 2. **[Product Pricing Guide](products.md)** - Multi-asset class product coverage
-3. **[Risk Management Guide](docs/risk/index.md)** - Comprehensive risk analytics
+3. **[Risk Management Guide](risk/index.md)** - Comprehensive risk analytics
 4. **[XVA Framework](valuations_comprehensive.md)** - CVA, DVA, FVA, and more
-5. **[Model Calibration](docs/calibration/index.md)** - Advanced calibration techniques
+5. **[Model Calibration](calibration/index.md)** - Advanced calibration techniques
 6. **[API Reference](api_reference.md)** - Complete API documentation
 7. **[Performance Tuning](performance_tuning.md)** - Optimization strategies
 8. **[Architecture Guide](architecture.md)** - System design and patterns
