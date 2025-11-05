@@ -22,6 +22,25 @@ from .joint_calibration import (
     TimeDependentCalibrator,
     TimeSegment,
 )
+from .model_selection import (
+    InformationCriterion,
+    ModelFit,
+    compute_aic,
+    compute_bic,
+    compute_aicc,
+    compute_hqic,
+    compute_information_criterion,
+    ModelComparison,
+    compare_models,
+    CrossValidationResult,
+    k_fold_split,
+    time_series_split,
+    cross_validate,
+    LocalSensitivity,
+    GlobalSensitivity,
+    compute_local_sensitivity,
+    sobol_indices,
+)
 
 __all__ = [
     "AssetClassSpec",
@@ -40,4 +59,24 @@ __all__ = [
     "build_residual_plot_data",
     "compute_identifiability_metrics",
     "generate_calibration_diagnostics",
+    # Model Selection
+    "InformationCriterion",
+    "ModelFit",
+    "compute_aic",
+    "compute_bic",
+    "compute_aicc",
+    "compute_hqic",
+    "compute_information_criterion",
+    "ModelComparison",
+    "compare_models",
+    # Cross-Validation
+    "CrossValidationResult",
+    "k_fold_split",
+    "time_series_split",
+    "cross_validate",
+    # Sensitivity Analysis
+    "LocalSensitivity",
+    "GlobalSensitivity",
+    "compute_local_sensitivity",
+    "sobol_indices",
 ]
