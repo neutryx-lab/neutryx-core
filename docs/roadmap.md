@@ -425,7 +425,7 @@ v1.x (60% Complete - 2026-2027) ────────────────
 
 Want to help build these features?
 
-1. Check our [CONTRIBUTING.md](../.github/CONTRIBUTING.md) for guidelines
+1. Check our CONTRIBUTING.md in the repository root for guidelines
 2. Look for issues tagged with `help-wanted` or `good-first-issue`
 3. Propose new features in GitHub Discussions
 4. Join our community calls (quarterly)
