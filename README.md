@@ -425,13 +425,8 @@ v1.0.0 (Q2 2026) ─────────────────────
 v1.x (2026-2027) ─────────────────────────────────────────────┤
                                                                │
     📊 Advanced analytics & AI integration                    │
-    📊 ML pricing, portfolio optimization, backtesting        │
+    📊 Portfolio optimization, backtesting, factor analysis        │
                                                                │
-v2.0+ (2027+) ────────────────────────────────────────────────┘
-
-    🔮 Next-generation computing
-    🔮 Quantum, blockchain, autonomous trading
-```
 
 ### 🎯 Key Milestones
 
@@ -442,8 +437,7 @@ v2.0+ (2027+) ──────────────────────
 | **v0.3.0** | Trading Infrastructure | Q4 2025 | 🔄 **50% Complete** |
 | **v0.4.0** | Regulatory Compliance | Q1 2026 | 🔄 **75% Complete** |
 | **v1.0.0** | Enterprise Platform | Q2 2026 | 🔄 **68% Complete** |
-| **v1.x** | AI & Analytics | 2026-2027 | 🔮 Future |
-| **v2.0+** | Next-Gen Computing | 2027+ | 🔮 Vision |
+| **v1.x** | Analytics & Portfolio | 2026-2027 | 🔮 Future |
 
 ---
 
@@ -724,26 +718,7 @@ v2.0+ (2027+) ──────────────────────
 
 ### 📊 **v1.x — Advanced Analytics & AI Integration** (2026-2027)
 
-**Focus:** Machine learning for finance, portfolio optimization, and research tools
-
-#### Machine Learning for Finance
-- [ ] **Model-Free Pricing**
-  - [ ] Deep hedging strategies with neural networks
-  - [ ] Neural network-based implied volatility surfaces
-  - [ ] GANs (Generative Adversarial Networks) for scenario generation
-  - [ ] Transformer models for time-series prediction
-
-- [ ] **Risk Prediction & Analytics**
-  - [ ] ML-based VaR models (LSTM, GRU for time-series)
-  - [ ] Credit default prediction with gradient boosting
-  - [ ] Liquidity risk forecasting
-  - [ ] Market regime detection and classification
-
-- [ ] **Market Microstructure**
-  - [ ] Optimal execution (Almgren-Chriss framework)
-  - [ ] Market impact modeling with permanent/temporary effects
-  - [ ] High-frequency trading signal generation
-  - [ ] Order flow imbalance analysis
+**Focus:** Portfolio optimization and research tools
 
 #### Portfolio Optimization
 - [ ] **Classical Methods**
@@ -772,35 +747,6 @@ v2.0+ (2027+) ──────────────────────
   - [ ] Factor timing and allocation
 
 **Target Releases:** v1.1 (Q3 2026), v1.2 (Q4 2026), v1.3 (Q1 2027)
-
----
-
-### 🔮 **v2.0+ — Next-Generation Computing** (2027+)
-
-**Vision:** Quantum computing, blockchain integration, and AI-driven autonomous trading
-
-#### Quantum Computing Integration
-- [ ] Variational quantum eigensolver (VQE) for option pricing
-- [ ] Quantum Monte Carlo for high-dimensional problems
-- [ ] Quantum annealing for portfolio optimization
-- [ ] Quantum amplitude estimation for risk calculations
-- [ ] Hybrid classical-quantum algorithms
-
-#### Blockchain & DeFi
-- [ ] Smart contract integration (Ethereum, Solana)
-- [ ] DeFi protocol connectivity (Aave, Uniswap, Compound)
-- [ ] Tokenized derivatives and RWA (Real World Assets)
-- [ ] Decentralized clearing and settlement
-- [ ] On-chain risk management and margin posting
-
-#### AI-Driven Autonomous Trading
-- [ ] Reinforcement learning trading agents (multi-agent systems)
-- [ ] Natural language processing for trade entry ("Buy 100k AAPL calls at 50 delta")
-- [ ] Automated trade idea generation with explainability
-- [ ] Sentiment analysis from news, social media, and earnings calls
-- [ ] Multi-modal learning (text, price, volume, order book)
-
-**Target:** 2027 and beyond
 
 ---
 
@@ -991,22 +937,11 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ### **v1.x** (2026-2027)
 
-**Advanced Analytics & AI Integration**
+**Advanced Analytics & Portfolio Optimization**
 
-- Machine learning for pricing (deep hedging, neural network vol surfaces, GANs)
-- Risk prediction (ML-based VaR, credit default prediction, regime detection)
-- Portfolio optimization (Markowitz, Black-Litterman, CVaR optimization, RL)
+- Portfolio optimization (Markowitz, Black-Litterman, risk parity, CVaR optimization)
 - Backtesting framework (strategy simulation, transaction costs, performance attribution)
-
----
-
-### **v2.0+** (2027+)
-
-**Next-Generation Computing**
-
-- Quantum computing (VQE, quantum Monte Carlo, quantum annealing)
-- Blockchain & DeFi integration (smart contracts, decentralized clearing)
-- AI-driven autonomous trading (RL agents, NLP trade entry, sentiment analysis)
+- Factor analysis (PCA, Barra-style risk models, style attribution)
 
 ---
 
