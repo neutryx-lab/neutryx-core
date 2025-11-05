@@ -10,6 +10,12 @@ if SRC.exists() and str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 
+@pytest.fixture(scope="module")
+def anyio_backend():
+    """Override anyio_backend to only use asyncio, not trio."""
+    return "asyncio"
+
+
 @pytest.fixture(autouse=True)
 def reset_observability():
     """Reset observability state after each test to prevent cross-test contamination."""
