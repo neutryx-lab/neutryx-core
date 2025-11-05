@@ -49,7 +49,8 @@ is **JIT-compiled**, **GPU-accelerated**, and **production-ready**.
   - **Commodities:** Forwards with convenience yield, options, swaps, spread options
   - **Fixed Income:** Bonds (zero-coupon, coupon, FRN), inflation-linked securities
   - **Interest Rate Derivatives:**
-    - Vanilla: Caps, floors, swaptions (European/American/Bermudan)
+    - Linear: IRS with multi-curve framework, OIS (SOFR/ESTR/SONIA), cross-currency swaps with FX reset, basis swaps (tenor/currency), FRAs, caps/floors/collars
+    - Vanilla: Swaptions (European/American/Bermudan)
     - CMS: CMS products, spread options, caplets/floorlets with convexity adjustments
     - Exotic: Range accruals, TARN, snowball notes, autocallable notes, ratchet caps/floors
     - SOFR: Post-LIBOR transition ready with daily compounding
@@ -94,7 +95,7 @@ is **JIT-compiled**, **GPU-accelerated**, and **production-ready**.
 - **GPU/TPU Ready:** Seamless acceleration on modern hardware with `pmap`/`pjit`
 - **High Performance:** Optimized numerical algorithms with 10-100x speedup for repeated calculations
 - **Reproducible:** Unified configuration via YAML, consistent PRNG seeding
-- **Production-Ready:** FastAPI/gRPC APIs, comprehensive test suite (160+ tests), quality tooling (ruff, bandit)
+- **Production-Ready:** FastAPI/gRPC APIs, comprehensive test suite (200+ tests), quality tooling (ruff, bandit)
 - **Enterprise-Grade:**
   - Multi-tenancy controls and RBAC
   - Audit logging and compliance reporting
@@ -402,6 +403,9 @@ Interactive pricing, Greeks, and scenario analysis at `http://localhost:8050`
 - ✅ **Exotics:** American, Asian, Barrier, Lookback options
 
 #### Multi-Asset Class Products
+- ✅ **Interest Rate Derivatives:**
+  - ✅ Linear Products: IRS (multi-curve), OIS (SOFR/ESTR/SONIA), CCS with FX reset, basis swaps, FRAs, caps/floors/collars (39 tests)
+  - ✅ Swaptions & Exotic IR: European/American/Bermudan swaptions, CMS products, range accruals, TARN, snowball/autocallable notes
 - ✅ **Equity:** Forwards, dividend/variance swaps, TRS, ELN
 - ✅ **Commodities:** Forwards, options, swaps, spread options
 - ✅ **Fixed Income:** Bonds, FRN, duration/convexity
@@ -440,7 +444,7 @@ Interactive pricing, Greeks, and scenario analysis at `http://localhost:8050`
 - ✅ **APIs:** REST/gRPC endpoints
 - ✅ **Dashboards:** Interactive Dash applications
 - ✅ **CI/CD:** Automation, security scanning (pip-audit, bandit)
-- ✅ **Quality:** 100+ tests, code quality enforcement
+- ✅ **Quality:** 200+ tests, code quality enforcement
 
 ---
 
@@ -451,13 +455,13 @@ Interactive pricing, Greeks, and scenario analysis at `http://localhost:8050`
 #### 📊 **Phase 1: Front Office Trading Platform** (Q2 2025)
 
 ##### Interest Rate Derivatives
-- [ ] **Linear Products**
-  - [ ] Interest rate swaps (IRS) with multi-curve framework
-  - [ ] Overnight index swaps (OIS)
-  - [ ] Cross-currency swaps with FX reset
-  - [ ] Basis swaps (tenor basis, currency basis)
-  - [ ] Forward rate agreements (FRA)
-  - [ ] Caps, floors, and collars
+- ✅ **Linear Products** (v0.1.0)
+  - ✅ Interest rate swaps (IRS) with multi-curve framework
+  - ✅ Overnight index swaps (OIS) with daily compounding (SOFR, ESTR, SONIA)
+  - ✅ Cross-currency swaps with FX reset and currency exchange
+  - ✅ Basis swaps (tenor basis 3M vs 6M, currency basis)
+  - ✅ Forward rate agreements (FRA) with advance/arrears settlement
+  - ✅ Caps, floors, and collars with Black model pricing
 
 - ✅ **Swaptions & Exotic IR** (v0.1.0)
   - ✅ European swaptions (physical/cash settlement) with Black pricing and full Greeks
@@ -953,11 +957,13 @@ Interactive pricing, Greeks, and scenario analysis at `http://localhost:8050`
 
 ## 🧪 Testing
 
-160+ comprehensive tests covering:
+200+ comprehensive tests covering:
 
 - **Unit tests:** Core functionality and model correctness
 - **Integration tests:** End-to-end workflows
-- **Product tests:** Multi-asset class coverage (48 tests)
+- **Product tests:** Multi-asset class coverage
+  - Linear IR products: IRS, OIS, CCS, basis swaps, FRAs, caps/floors (39 tests)
+  - Swaptions and exotic IR: European/American/Bermudan swaptions, CMS, exotic rates (48 tests)
 - **Market data tests:** Storage, validation, feed management
 - **Calibration tests:** Model selection and sensitivity analysis (24 tests)
 - **Risk tests:** VaR methodologies, limits and controls (57 tests)
@@ -1010,10 +1016,11 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 - Database connectors (PostgreSQL, MongoDB, TimescaleDB)
 - Comprehensive observability stack (Prometheus, Grafana, Jaeger)
 - Data validation and quality framework
+- Interest rate derivatives: Linear products (IRS, OIS, CCS, basis swaps, FRAs, caps/floors/collars) and exotic IR
 - VaR methodologies: Historical, Monte Carlo, parametric, ES/CVaR, incremental/component VaR
 - Position limits & pre-trade controls: Notional, VaR, concentration, issuer limits with real-time checking
 - Model selection tools: Information criteria (AIC/BIC/AICc/HQIC), cross-validation, sensitivity analysis
-- 160+ tests, production-ready APIs
+- 200+ tests, production-ready APIs
 
 **v0.2** (Q2 2025) - Interest Rate Derivatives
 - IRS, swaptions, CMS products
