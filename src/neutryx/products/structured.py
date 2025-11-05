@@ -261,6 +261,111 @@ class StepDownAutocallable(PathProduct):
 
 
 @dataclass
+class AthenaAutocallable(PathProduct):
+    """Athena (non-memory) autocallable note.
+
+    An autocallable note that pays coupons only when the coupon barrier
+    is breached at observation dates. Unlike Phoenix, unpaid coupons are
+    NOT accumulated (no memory feature). Autocalls if above autocall barrier.
+
+    Parameters
+    ----------
+    K : float
+        Strike price (typically at-the-money)
+    T : float
+        Maturity in years
+    autocall_barrier : float
+        Barrier level for autocall (e.g., 1.0 = 100% of initial)
+    coupon_barrier : float
+        Barrier level for coupon payment (e.g., 0.75 = 75% of initial)
+    coupon_rate : float
+        Coupon rate per observation period
+    observation_times : jnp.ndarray
+        Array of observation times in years
+    put_strike : float
+        Strike for downside put protection (typically 1.0)
+
+    Notes
+    -----
+    Key differences from Phoenix:
+    - NO memory: unpaid coupons are lost forever
+    - Typically has lower coupon barrier than Phoenix
+    - Cheaper than Phoenix due to no memory feature
+    - More aggressive structure, suitable for bullish views
+    """
+
+    K: float
+    T: float
+    autocall_barrier: float
+    coupon_barrier: float
+    coupon_rate: float
+    observation_times: jnp.ndarray
+    put_strike: float = 1.0
+
+    def __post_init__(self):
+        self.observation_times = ensure_array(self.observation_times)
+
+    def payoff_path(self, path: jnp.ndarray) -> jnp.ndarray:
+        """Compute payoff for a single path.
+
+        The payoff logic:
+        1. At each observation, check if autocall barrier is hit -> early redemption
+        2. If not autocalled, pay coupon ONLY if barrier is hit (no accumulation)
+        3. At maturity, if not autocalled, apply put protection
+        """
+        path = ensure_array(path)
+        n_steps = len(path)
+
+        # Normalize path by initial strike
+        normalized_path = path / self.K
+
+        # Determine which indices to check based on observation times
+        dt = self.T / (n_steps - 1) if n_steps > 1 else self.T
+        observation_indices = jnp.round(self.observation_times / dt).astype(int)
+        observation_indices = jnp.clip(observation_indices, 0, n_steps - 1)
+
+        # Track coupons paid (not accumulated, just total paid)
+        total_coupons_paid = 0.0
+        autocalled = False
+        autocall_value = 0.0
+
+        for i, obs_idx in enumerate(observation_indices):
+            if not autocalled:
+                level = normalized_path[obs_idx]
+
+                # Check autocall
+                if level >= self.autocall_barrier:
+                    # Autocall: return principal + coupons paid so far + current coupon
+                    if level >= self.coupon_barrier:
+                        total_coupons_paid += self.coupon_rate
+                    autocall_value = 1.0 + total_coupons_paid
+                    autocalled = True
+                    break
+
+                # Check coupon payment (Athena: NO memory, pay or lose)
+                if level >= self.coupon_barrier:
+                    # Pay coupon for this period only
+                    total_coupons_paid += self.coupon_rate
+                # If barrier not hit, coupon is lost (no memory)
+
+        # If autocalled, return autocall value
+        if autocalled:
+            return autocall_value
+
+        # If not autocalled, check maturity payoff
+        final_level = normalized_path[-1]
+
+        if final_level >= self.coupon_barrier:
+            # Pay final coupon
+            total_coupons_paid += self.coupon_rate
+            return 1.0 + total_coupons_paid
+        else:
+            # Below barrier: put protection kicks in
+            downside = jnp.maximum(final_level / self.put_strike, 0.0)
+            return downside + total_coupons_paid
+
+
+@dataclass
 class ReverseConvertible(PathProduct):
     """Reverse convertible note.
 
@@ -473,12 +578,196 @@ class BonusEnhancedNote(PathProduct):
             return self.principal * jnp.maximum(final_level, self.bonus_level)
 
 
+@dataclass
+class CliquetOption(PathProduct):
+    """Cliquet (Ratchet) option with local caps and floors.
+
+    A path-dependent option that locks in returns at periodic reset dates.
+    Each period's return is subject to local floor and cap, and the final
+    payoff is the sum of all period returns.
+
+    Parameters
+    ----------
+    K : float
+        Initial strike price
+    T : float
+        Maturity in years
+    reset_times : jnp.ndarray
+        Array of reset observation times in years
+    local_floor : float
+        Floor on each period's return (e.g., 0.0 = 0%)
+    local_cap : float
+        Cap on each period's return (e.g., 0.10 = 10%)
+    global_floor : float
+        Floor on total accumulated return (default: 0.0)
+    global_cap : float | None
+        Cap on total accumulated return (default: None for uncapped)
+
+    Notes
+    -----
+    Cliquet options (also called ratchet options) are popular in structured
+    products. They provide:
+    - Participation in upside with periodic resets
+    - Local caps that limit each period's gain
+    - Local floors that protect each period from losses
+    - Global floor/cap on total returns
+
+    Example:
+    - Initial spot: 100, Reset times: [0.25, 0.5, 0.75, 1.0] (quarterly)
+    - Local floor: 0.0, Local cap: 0.10 (10%)
+    - Spot evolution: 100 -> 115 -> 110 -> 120 -> 125
+
+    Period returns (before caps/floors):
+    - Period 1: (115-100)/100 = 15%
+    - Period 2: (110-115)/115 = -4.35%
+    - Period 3: (120-110)/110 = 9.09%
+    - Period 4: (125-120)/120 = 4.17%
+
+    After applying local floor (0%) and cap (10%):
+    - Period 1: min(15%, 10%) = 10%
+    - Period 2: max(-4.35%, 0%) = 0%
+    - Period 3: min(9.09%, 10%) = 9.09%
+    - Period 4: min(4.17%, 10%) = 4.17%
+
+    Total return: 10% + 0% + 9.09% + 4.17% = 23.26%
+    """
+
+    K: float
+    T: float
+    reset_times: jnp.ndarray
+    local_floor: float = 0.0
+    local_cap: float = 0.10
+    global_floor: float = 0.0
+    global_cap: float | None = None
+
+    def __post_init__(self):
+        self.reset_times = ensure_array(self.reset_times)
+
+    def payoff_path(self, path: jnp.ndarray) -> jnp.ndarray:
+        """Compute cliquet option payoff.
+
+        Returns the sum of capped and floored period returns.
+        """
+        path = ensure_array(path)
+        n_steps = len(path)
+
+        # Determine reset indices
+        dt = self.T / (n_steps - 1) if n_steps > 1 else self.T
+        reset_indices = jnp.round(self.reset_times / dt).astype(int)
+        reset_indices = jnp.clip(reset_indices, 0, n_steps - 1)
+
+        # Initialize with strike price as first "reset" level
+        accumulated_return = 0.0
+        previous_level = self.K
+
+        # Calculate returns for each reset period
+        for i, reset_idx in enumerate(reset_indices):
+            current_level = path[reset_idx]
+
+            # Period return
+            period_return = (current_level - previous_level) / previous_level
+
+            # Apply local floor and cap
+            capped_return = jnp.minimum(period_return, self.local_cap)
+            floored_capped_return = jnp.maximum(capped_return, self.local_floor)
+
+            # Accumulate
+            accumulated_return += floored_capped_return
+
+            # Reset for next period
+            previous_level = current_level
+
+        # Apply global floor
+        final_return = jnp.maximum(accumulated_return, self.global_floor)
+
+        # Apply global cap if specified
+        if self.global_cap is not None:
+            final_return = jnp.minimum(final_return, self.global_cap)
+
+        # Payoff is the accumulated return (as a multiple of notional/strike)
+        return final_return * self.K
+
+
+@dataclass
+class NapoleonOption(PathProduct):
+    """Napoleon option (Cliquet variant with guaranteed minimum).
+
+    A variant of cliquet option that guarantees a minimum return regardless
+    of market performance, making it more suitable for conservative investors.
+
+    Parameters
+    ----------
+    K : float
+        Initial strike price
+    T : float
+        Maturity in years
+    reset_times : jnp.ndarray
+        Array of reset observation times
+    local_floor : float
+        Floor on each period's return
+    local_cap : float
+        Cap on each period's return
+    guaranteed_return : float
+        Minimum guaranteed total return (e.g., 0.05 = 5%)
+
+    Notes
+    -----
+    Napoleon options are cliquets with a guaranteed minimum return,
+    providing downside protection. Popular in European retail markets.
+
+    Example:
+    - If cliquet accumulates 2% return but guaranteed_return = 5%
+    - Payoff = max(2%, 5%) = 5%
+    """
+
+    K: float
+    T: float
+    reset_times: jnp.ndarray
+    local_floor: float = 0.0
+    local_cap: float = 0.10
+    guaranteed_return: float = 0.0
+
+    def __post_init__(self):
+        self.reset_times = ensure_array(self.reset_times)
+
+    def payoff_path(self, path: jnp.ndarray) -> jnp.ndarray:
+        """Compute Napoleon option payoff."""
+        path = ensure_array(path)
+        n_steps = len(path)
+
+        dt = self.T / (n_steps - 1) if n_steps > 1 else self.T
+        reset_indices = jnp.round(self.reset_times / dt).astype(int)
+        reset_indices = jnp.clip(reset_indices, 0, n_steps - 1)
+
+        accumulated_return = 0.0
+        previous_level = self.K
+
+        for i, reset_idx in enumerate(reset_indices):
+            current_level = path[reset_idx]
+            period_return = (current_level - previous_level) / previous_level
+
+            # Apply local caps and floors
+            capped_return = jnp.minimum(period_return, self.local_cap)
+            floored_capped_return = jnp.maximum(capped_return, self.local_floor)
+
+            accumulated_return += floored_capped_return
+            previous_level = current_level
+
+        # Apply guaranteed minimum return
+        final_return = jnp.maximum(accumulated_return, self.guaranteed_return)
+
+        return final_return * self.K
+
+
 __all__ = [
     "PhoenixAutocallable",
     "SnowballAutocallable",
     "StepDownAutocallable",
+    "AthenaAutocallable",
     "ReverseConvertible",
     "DualCurrencyInvestment",
     "EquityLinkedNote",
     "BonusEnhancedNote",
+    "CliquetOption",
+    "NapoleonOption",
 ]

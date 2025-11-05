@@ -47,7 +47,12 @@ is **JIT-compiled**, **GPU-accelerated**, and **production-ready**.
   - **Derivatives:** European, Asian, Barrier, Lookback, American (Longstaff-Schwartz)
   - **Equity:** Forwards, dividend swaps, variance swaps, TRS, equity-linked notes
   - **Commodities:** Forwards with convenience yield, options, swaps, spread options
-  - **Fixed Income:** Bonds (zero-coupon, coupon, FRN), inflation-linked securities, swaptions
+  - **Fixed Income:** Bonds (zero-coupon, coupon, FRN), inflation-linked securities
+  - **Interest Rate Derivatives:**
+    - Vanilla: Caps, floors, swaptions (European/American/Bermudan)
+    - CMS: CMS products, spread options, caplets/floorlets with convexity adjustments
+    - Exotic: Range accruals, TARN, snowball notes, autocallable notes, ratchet caps/floors
+    - SOFR: Post-LIBOR transition ready with daily compounding
   - **Credit:** CDS pricing, hazard models, structural models
   - **Volatility:** VIX futures/options, variance swaps, corridor swaps, gamma swaps
   - **Convertibles:** Convertible bonds, mandatory convertibles, exchangeable bonds
@@ -228,6 +233,48 @@ tips_price = inflation_linked_bond_price(
 )
 ```
 
+### Interest Rate Derivatives (Swaptions & Exotic IR)
+
+```python
+from neutryx.products.swaptions import EuropeanSwaption, european_swaption_black
+from neutryx.products.advanced_rates import BermudanSwaption, TargetRedemptionNote
+from neutryx.products.interest_rate import cms_caplet_price, price_cms_spread_option
+
+# European swaption with Black pricing and Greeks
+payer_swaption_price = european_swaption_black(
+    strike=0.05, option_maturity=1.0, swap_maturity=5.0,
+    volatility=0.20, notional=1_000_000, is_payer=True
+)
+
+# Bermudan swaption with Longstaff-Schwartz Monte Carlo
+bermudan = BermudanSwaption(
+    T=1.0, K=0.05, notional=1_000_000,
+    exercise_dates=jnp.array([0.25, 0.5, 0.75, 1.0]),
+    option_type='payer', tenor=5.0
+)
+bermudan_price = bermudan.price_lsm(rate_paths, discount_factors)
+
+# CMS caplet with convexity adjustment
+cms_caplet = cms_caplet_price(
+    cms_forward=0.04, strike=0.045, time_to_expiry=1.0,
+    volatility=0.25, discount_factor=0.97, annuity=9.0,
+    convexity_adjustment=0.002
+)
+
+# CMS spread option (10Y - 2Y)
+spread_option_price = price_cms_spread_option(
+    cms1_forward=0.045, cms2_forward=0.035, strike=0.01,
+    time_to_expiry=1.0, spread_volatility=0.30,
+    discount_factor=0.97, annuity=4.5, is_call=True
+)
+
+# Target Redemption Note (TARN)
+tarn = TargetRedemptionNote(
+    T=5.0, notional=1_000_000, target_coupon=100_000,
+    coupon_rate=0.05, payment_freq=4
+)
+```
+
 ---
 
 ## 🧭 Project Structure
@@ -297,12 +344,30 @@ Demonstrates:
 - **Volatility:** VIX futures, variance swaps, VVIX
 - **Convertibles:** Convertible bond analytics
 
+### Swaptions & Exotic Interest Rate Derivatives
+
+```bash
+python examples/swaptions_and_exotic_ir_demo.py
+```
+
+Demonstrates:
+- **European Swaptions:** Black pricing with Greeks (delta, vega), implied volatility
+- **American Swaptions:** Trinomial tree pricing with early exercise
+- **Bermudan Swaptions:** Longstaff-Schwartz Monte Carlo with regression
+- **CMS Products:** Caplets/floorlets with convexity adjustments, CMS swaps
+- **CMS Spread Options:** Black formula and Monte Carlo pricing
+- **Range Accruals:** Path-dependent accrual based on rate ranges
+- **TARN:** Target redemption notes with automatic early redemption
+- **Callable/Puttable Bonds:** Multiple exercise dates with optimal strategy
+- **Additional Exotics:** Snowball notes, autocallable notes, ratchet caps/floors
+
 ### Basic Examples
 
 ```bash
 python demos/01_bs_vanilla.py        # Vanilla options
 python demos/02_path_dependents.py   # Exotic options
 python demos/03_american_lsm.py      # American options
+python examples/swaptions_and_exotic_ir_demo.py  # Swaptions & exotic IR (NEW)
 ```
 
 ### Dash Dashboard
@@ -385,13 +450,20 @@ Interactive pricing, Greeks, and scenario analysis at `http://localhost:8050`
   - [ ] Forward rate agreements (FRA)
   - [ ] Caps, floors, and collars
 
-- [ ] **Swaptions & Exotic IR**
-  - [ ] European swaptions (physical/cash settlement)
-  - [ ] Bermudan swaptions with Longstaff-Schwartz
-  - [ ] CMS (Constant Maturity Swap) products
-  - [ ] CMS spread options
-  - [ ] Range accruals and target redemption notes (TARN)
-  - [ ] Callable/puttable bonds
+- ✅ **Swaptions & Exotic IR** (v0.1.0)
+  - ✅ European swaptions (physical/cash settlement) with Black pricing and full Greeks
+  - ✅ American swaptions with trinomial tree pricing
+  - ✅ Bermudan swaptions with Longstaff-Schwartz Monte Carlo
+  - ✅ CMS (Constant Maturity Swap) products with convexity adjustments
+  - ✅ CMS spread options (Black formula and Monte Carlo)
+  - ✅ Range accruals (standard and CMS spread variants)
+  - ✅ Target redemption notes (TARN) with early redemption
+  - ✅ Callable/puttable bonds with multiple exercise dates
+  - ✅ Snowball notes with memory coupon feature
+  - ✅ Autocallable notes with barrier triggers
+  - ✅ Ratchet caps/floors with dynamic strikes
+  - ✅ Digital caplets/floorlets
+  - ✅ SOFR caps/floors (post-LIBOR transition ready)
 
 - [ ] **Volatility Products**
   - [ ] Interest rate volatility trading
