@@ -1,0 +1,215 @@
+# Default values for neutryx
+# This is a YAML-formatted file.
+
+global:
+  environment: production
+  region: us-central1
+  cloudProvider: gcp  # gcp, aws, azure
+
+# Image configuration
+image:
+  repository: neutryx/neutryx-core
+  tag: "latest"
+  pullPolicy: IfNotPresent
+  pullSecrets: []
+
+# API deployment
+api:
+  enabled: true
+  replicaCount: 3
+
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: 2000m
+      memory: 4Gi
+
+  autoscaling:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 50
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+
+  service:
+    type: ClusterIP
+    port: 80
+    targetPort: 8080
+    annotations: {}
+
+  ingress:
+    enabled: true
+    className: nginx
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+      nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    hosts:
+      - host: api.neutryx.io
+        paths:
+          - path: /
+            pathType: Prefix
+    tls:
+      - secretName: neutryx-tls
+        hosts:
+          - api.neutryx.io
+
+  probes:
+    liveness:
+      enabled: true
+      path: /health/live
+      initialDelaySeconds: 30
+      periodSeconds: 10
+    readiness:
+      enabled: true
+      path: /health/ready
+      initialDelaySeconds: 10
+      periodSeconds: 5
+    startup:
+      enabled: true
+      path: /health/startup
+      initialDelaySeconds: 0
+      periodSeconds: 5
+      failureThreshold: 30
+
+# Worker deployment
+worker:
+  enabled: true
+  replicaCount: 5
+
+  resources:
+    requests:
+      cpu: 1000m
+      memory: 2Gi
+    limits:
+      cpu: 4000m
+      memory: 8Gi
+
+  autoscaling:
+    enabled: true
+    minReplicas: 5
+    maxReplicas: 100
+    targetCPUUtilizationPercentage: 75
+    targetMemoryUtilizationPercentage: 85
+
+  concurrency: 4
+  prefetchMultiplier: 1
+
+# Redis configuration
+redis:
+  enabled: true
+  architecture: standalone  # or replication
+  auth:
+    enabled: true
+    password: ""  # Set via secrets
+  master:
+    persistence:
+      enabled: true
+      size: 10Gi
+      storageClass: fast-ssd
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 1Gi
+
+# Database configuration
+database:
+  type: postgresql
+  host: ""
+  port: 5432
+  name: neutryx
+  existingSecret: neutryx-db-secret
+
+# Monitoring
+monitoring:
+  enabled: true
+
+  prometheus:
+    enabled: true
+    retention: 30d
+    storageSize: 50Gi
+
+  grafana:
+    enabled: true
+    adminPassword: ""  # Set via secrets
+    dashboards:
+      enabled: true
+
+  serviceMonitor:
+    enabled: true
+    interval: 30s
+
+# Multi-region configuration
+multiRegion:
+  enabled: false
+  regions:
+    - name: us-central
+      priority: 1
+      backup: europe-west
+    - name: europe-west
+      priority: 2
+      backup: asia-southeast
+    - name: asia-southeast
+      priority: 3
+      backup: us-central
+
+# Disaster recovery
+disasterRecovery:
+  enabled: true
+  backup:
+    enabled: true
+    schedule: "0 */6 * * *"
+    retention:
+      hourly: 24
+      daily: 30
+      weekly: 12
+      monthly: 12
+    storage:
+      type: gcs  # gcs, s3, azure-blob
+      bucket: neutryx-backups
+
+# Security
+security:
+  podSecurityPolicy:
+    enabled: true
+  networkPolicy:
+    enabled: true
+  serviceAccount:
+    create: true
+    name: ""
+    annotations: {}
+
+# Pod Disruption Budget
+podDisruptionBudget:
+  enabled: true
+  api:
+    minAvailable: 2
+  worker:
+    minAvailable: 3
+
+# ConfigMap and Secrets
+config:
+  logLevel: INFO
+  logFormat: json
+  apiWorkers: 4
+  apiTimeout: 300
+  features:
+    metrics: true
+    tracing: true
+    profiling: false
+
+# Node affinity and tolerations
+affinity: {}
+tolerations: []
+nodeSelector: {}
+
+# Priority class
+priorityClassName: ""
+
+# Additional labels
+labels: {}
+annotations: {}

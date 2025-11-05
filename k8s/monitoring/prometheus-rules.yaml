@@ -1,0 +1,218 @@
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: neutryx-alerts
+  labels:
+    app: neutryx
+    prometheus: main
+spec:
+  groups:
+    - name: neutryx.availability
+      interval: 30s
+      rules:
+        - alert: NeutryxAPIDown
+          expr: up{job="neutryx-api"} == 0
+          for: 1m
+          labels:
+            severity: critical
+            component: api
+          annotations:
+            summary: "Neutryx API is down"
+            description: "{{ $labels.instance }} has been down for more than 1 minute"
+
+        - alert: NeutryxAPIHighErrorRate
+          expr: rate(http_requests_total{job="neutryx-api",status=~"5.."}[5m]) > 0.05
+          for: 5m
+          labels:
+            severity: warning
+            component: api
+          annotations:
+            summary: "High error rate on Neutryx API"
+            description: "Error rate is {{ $value | humanizePercentage }} on {{ $labels.instance }}"
+
+        - alert: NeutryxWorkerDown
+          expr: up{job="neutryx-worker"} == 0
+          for: 5m
+          labels:
+            severity: warning
+            component: worker
+          annotations:
+            summary: "Neutryx worker is down"
+            description: "{{ $labels.instance }} has been down for more than 5 minutes"
+
+    - name: neutryx.performance
+      interval: 30s
+      rules:
+        - alert: NeutryxAPIHighLatency
+          expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{job="neutryx-api"}[5m])) > 1
+          for: 10m
+          labels:
+            severity: warning
+            component: api
+          annotations:
+            summary: "High latency on Neutryx API"
+            description: "95th percentile latency is {{ $value }}s on {{ $labels.instance }}"
+
+        - alert: NeutryxWorkerQueueBacklog
+          expr: celery_queue_length{job="neutryx-worker"} > 10000
+          for: 15m
+          labels:
+            severity: warning
+            component: worker
+          annotations:
+            summary: "Large backlog in worker queue"
+            description: "Queue depth is {{ $value }} on {{ $labels.queue }}"
+
+        - alert: NeutryxCalculationTimeouts
+          expr: rate(calculation_timeouts_total{job="neutryx-api"}[5m]) > 0.01
+          for: 5m
+          labels:
+            severity: warning
+            component: calculation
+          annotations:
+            summary: "Calculation timeouts detected"
+            description: "Timeout rate is {{ $value | humanizePercentage }}"
+
+    - name: neutryx.resources
+      interval: 30s
+      rules:
+        - alert: NeutryxHighCPUUsage
+          expr: rate(process_cpu_seconds_total{job=~"neutryx-.*"}[5m]) > 0.8
+          for: 10m
+          labels:
+            severity: warning
+            component: resources
+          annotations:
+            summary: "High CPU usage"
+            description: "CPU usage is {{ $value | humanizePercentage }} on {{ $labels.instance }}"
+
+        - alert: NeutryxHighMemoryUsage
+          expr: process_resident_memory_bytes{job=~"neutryx-.*"} / node_memory_MemTotal_bytes > 0.9
+          for: 5m
+          labels:
+            severity: warning
+            component: resources
+          annotations:
+            summary: "High memory usage"
+            description: "Memory usage is {{ $value | humanizePercentage }} on {{ $labels.instance }}"
+
+        - alert: NeutryxPodCrashLooping
+          expr: rate(kube_pod_container_status_restarts_total{namespace="neutryx"}[15m]) > 0
+          for: 5m
+          labels:
+            severity: critical
+            component: pod
+          annotations:
+            summary: "Pod is crash looping"
+            description: "Pod {{ $labels.pod }} in namespace {{ $labels.namespace }} is crash looping"
+
+    - name: neutryx.data
+      interval: 30s
+      rules:
+        - alert: NeutryxDatabaseConnectionsFailing
+          expr: rate(database_connection_errors_total{job="neutryx-api"}[5m]) > 0.01
+          for: 2m
+          labels:
+            severity: critical
+            component: database
+          annotations:
+            summary: "Database connection errors"
+            description: "Database connection error rate is {{ $value | humanizePercentage }}"
+
+        - alert: NeutryxRedisDown
+          expr: redis_up{job="neutryx-redis"} == 0
+          for: 1m
+          labels:
+            severity: critical
+            component: redis
+          annotations:
+            summary: "Redis is down"
+            description: "Redis instance {{ $labels.instance }} is down"
+
+        - alert: NeutryxCacheHitRateLow
+          expr: rate(cache_hits_total{job="neutryx-api"}[5m]) / rate(cache_requests_total{job="neutryx-api"}[5m]) < 0.5
+          for: 15m
+          labels:
+            severity: info
+            component: cache
+          annotations:
+            summary: "Low cache hit rate"
+            description: "Cache hit rate is {{ $value | humanizePercentage }}"
+
+    - name: neutryx.business
+      interval: 60s
+      rules:
+        - alert: NeutryxPricingCalculationsFailing
+          expr: rate(pricing_calculations_failed_total{job="neutryx-api"}[10m]) / rate(pricing_calculations_total{job="neutryx-api"}[10m]) > 0.05
+          for: 10m
+          labels:
+            severity: critical
+            component: pricing
+          annotations:
+            summary: "High pricing calculation failure rate"
+            description: "Failure rate is {{ $value | humanizePercentage }}"
+
+        - alert: NeutryxClearingSubmissionsFailing
+          expr: rate(clearing_submissions_failed_total{job="neutryx-api"}[10m]) / rate(clearing_submissions_total{job="neutryx-api"}[10m]) > 0.1
+          for: 5m
+          labels:
+            severity: critical
+            component: clearing
+          annotations:
+            summary: "High clearing submission failure rate"
+            description: "Failure rate is {{ $value | humanizePercentage }}"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: neutryx-api-metrics
+  labels:
+    app: neutryx
+    component: api
+spec:
+  type: ClusterIP
+  selector:
+    app: neutryx
+    component: api
+  ports:
+    - name: metrics
+      port: 9090
+      targetPort: metrics
+      protocol: TCP
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: neutryx-api
+  labels:
+    app: neutryx
+    component: api
+spec:
+  selector:
+    matchLabels:
+      app: neutryx
+      component: api
+  endpoints:
+    - port: metrics
+      interval: 30s
+      path: /metrics
+      scheme: http
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: neutryx-worker
+  labels:
+    app: neutryx
+    component: worker
+spec:
+  selector:
+    matchLabels:
+      app: neutryx
+      component: worker
+  endpoints:
+    - port: metrics
+      interval: 30s
+      path: /metrics
+      scheme: http

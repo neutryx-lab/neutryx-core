@@ -1,0 +1,186 @@
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: neutryx-redis
+  labels:
+    app: neutryx
+    component: redis
+spec:
+  serviceName: neutryx-redis-headless
+  replicas: 3
+  selector:
+    matchLabels:
+      app: neutryx
+      component: redis
+  template:
+    metadata:
+      labels:
+        app: neutryx
+        component: redis
+    spec:
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchExpressions:
+                  - key: app
+                    operator: In
+                    values:
+                      - neutryx
+                  - key: component
+                    operator: In
+                    values:
+                      - redis
+              topologyKey: kubernetes.io/hostname
+      containers:
+        - name: redis
+          image: redis:7-alpine
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: redis
+              containerPort: 6379
+              protocol: TCP
+          command:
+            - redis-server
+            - /etc/redis/redis.conf
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 1Gi
+          livenessProbe:
+            tcpSocket:
+              port: redis
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            exec:
+              command:
+                - redis-cli
+                - ping
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 1
+            successThreshold: 1
+            failureThreshold: 3
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            - name: config
+              mountPath: /etc/redis
+              readOnly: true
+      volumes:
+        - name: config
+          configMap:
+            name: neutryx-redis-config
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: fast-ssd
+        resources:
+          requests:
+            storage: 10Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: neutryx-redis
+  labels:
+    app: neutryx
+    component: redis
+spec:
+  type: ClusterIP
+  selector:
+    app: neutryx
+    component: redis
+  ports:
+    - name: redis
+      port: 6379
+      targetPort: redis
+      protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: neutryx-redis-headless
+  labels:
+    app: neutryx
+    component: redis
+spec:
+  type: ClusterIP
+  clusterIP: None
+  selector:
+    app: neutryx
+    component: redis
+  ports:
+    - name: redis
+      port: 6379
+      targetPort: redis
+      protocol: TCP
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: neutryx-redis-config
+  labels:
+    app: neutryx
+    component: redis
+data:
+  redis.conf: |
+    # Network
+    bind 0.0.0.0
+    port 6379
+    tcp-backlog 511
+    timeout 0
+    tcp-keepalive 300
+
+    # General
+    daemonize no
+    supervised no
+    pidfile /var/run/redis.pid
+    loglevel notice
+    logfile ""
+
+    # Snapshotting
+    save 900 1
+    save 300 10
+    save 60 10000
+    stop-writes-on-bgsave-error yes
+    rdbcompression yes
+    rdbchecksum yes
+    dbfilename dump.rdb
+    dir /data
+
+    # Replication
+    replica-serve-stale-data yes
+    replica-read-only yes
+    repl-diskless-sync no
+    repl-diskless-sync-delay 5
+
+    # Security
+    protected-mode no
+    # requirepass changeme
+
+    # Limits
+    maxclients 10000
+    maxmemory 512mb
+    maxmemory-policy allkeys-lru
+
+    # Append only mode
+    appendonly yes
+    appendfilename "appendonly.aof"
+    appendfsync everysec
+    no-appendfsync-on-rewrite no
+    auto-aof-rewrite-percentage 100
+    auto-aof-rewrite-min-size 64mb
+
+    # Slow log
+    slowlog-log-slower-than 10000
+    slowlog-max-len 128

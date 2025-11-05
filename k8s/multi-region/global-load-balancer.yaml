@@ -1,0 +1,177 @@
+---
+# Global Load Balancer configuration for multi-region deployment
+# This uses Google Cloud's Global Load Balancer as an example
+# Adapt for AWS (Route53 + ALB), Azure (Traffic Manager), or other providers
+
+apiVersion: compute.cnrm.cloud.google.com/v1beta1
+kind: ComputeBackendService
+metadata:
+  name: neutryx-global-backend
+  labels:
+    app: neutryx
+    tier: global
+spec:
+  description: "Neutryx Global Backend Service"
+  protocol: HTTPS
+  timeoutSec: 300
+  portName: http
+  healthChecks:
+    - name: neutryx-health-check
+  enableCDN: true
+  cdnPolicy:
+    cacheMode: CACHE_ALL_STATIC
+    defaultTtl: 3600
+    maxTtl: 86400
+    clientTtl: 3600
+  loadBalancingScheme: EXTERNAL_MANAGED
+  sessionAffinity: CLIENT_IP
+  affinityCookieTtlSec: 3600
+  backends:
+    - group: projects/PROJECT_ID/zones/us-central1-a/networkEndpointGroups/neutryx-neg-us
+      balancingMode: RATE
+      maxRatePerEndpoint: 1000
+      capacityScaler: 1.0
+    - group: projects/PROJECT_ID/zones/europe-west1-b/networkEndpointGroups/neutryx-neg-eu
+      balancingMode: RATE
+      maxRatePerEndpoint: 1000
+      capacityScaler: 1.0
+    - group: projects/PROJECT_ID/zones/asia-southeast1-a/networkEndpointGroups/neutryx-neg-asia
+      balancingMode: RATE
+      maxRatePerEndpoint: 1000
+      capacityScaler: 1.0
+  outlierDetection:
+    consecutiveErrors: 5
+    interval:
+      seconds: 10
+    baseEjectionTime:
+      seconds: 30
+    maxEjectionPercent: 50
+    enforcingConsecutiveErrors: 100
+    enforcingSuccessRate: 100
+---
+apiVersion: compute.cnrm.cloud.google.com/v1beta1
+kind: ComputeHealthCheck
+metadata:
+  name: neutryx-health-check
+  labels:
+    app: neutryx
+spec:
+  description: "Neutryx Global Health Check"
+  checkIntervalSec: 10
+  timeoutSec: 5
+  healthyThreshold: 2
+  unhealthyThreshold: 3
+  httpsHealthCheck:
+    port: 443
+    requestPath: /health
+    proxyHeader: NONE
+---
+apiVersion: compute.cnrm.cloud.google.com/v1beta1
+kind: ComputeURLMap
+metadata:
+  name: neutryx-url-map
+  labels:
+    app: neutryx
+spec:
+  description: "Neutryx Global URL Map"
+  defaultService:
+    name: neutryx-global-backend
+  hostRules:
+    - hosts:
+        - api.neutryx.io
+        - neutryx.io
+      pathMatcher: neutryx-paths
+  pathMatchers:
+    - name: neutryx-paths
+      defaultService:
+        name: neutryx-global-backend
+      pathRules:
+        - paths:
+            - /api/*
+          service:
+            name: neutryx-global-backend
+        - paths:
+            - /health
+          service:
+            name: neutryx-health-backend
+---
+apiVersion: compute.cnrm.cloud.google.com/v1beta1
+kind: ComputeTargetHttpsProxy
+metadata:
+  name: neutryx-https-proxy
+  labels:
+    app: neutryx
+spec:
+  description: "Neutryx HTTPS Proxy"
+  urlMapRef:
+    name: neutryx-url-map
+  sslCertificates:
+    - name: neutryx-ssl-cert
+  sslPolicy:
+    name: neutryx-ssl-policy
+---
+apiVersion: compute.cnrm.cloud.google.com/v1beta1
+kind: ComputeGlobalForwardingRule
+metadata:
+  name: neutryx-https-forwarding-rule
+  labels:
+    app: neutryx
+spec:
+  description: "Neutryx Global HTTPS Forwarding Rule"
+  ipProtocol: TCP
+  portRange: "443"
+  target:
+    name: neutryx-https-proxy
+  loadBalancingScheme: EXTERNAL_MANAGED
+  ipAddress:
+    addressRef:
+      name: neutryx-global-ip
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: neutryx-multi-region-config
+  labels:
+    app: neutryx
+data:
+  regions.yaml: |
+    regions:
+      - name: us-central
+        location: us-central1
+        priority: 1
+        endpoints:
+          - us-central1-a
+          - us-central1-b
+          - us-central1-c
+        backup: europe-west
+
+      - name: europe-west
+        location: europe-west1
+        priority: 2
+        endpoints:
+          - europe-west1-b
+          - europe-west1-c
+          - europe-west1-d
+        backup: asia-southeast
+
+      - name: asia-southeast
+        location: asia-southeast1
+        priority: 3
+        endpoints:
+          - asia-southeast1-a
+          - asia-southeast1-b
+          - asia-southeast1-c
+        backup: us-central
+
+    failover:
+      health_check_interval: 10s
+      failure_threshold: 3
+      recovery_threshold: 2
+      automatic_failback: true
+      failback_delay: 300s
+
+    traffic_policy:
+      type: latency-based
+      geo_routing: true
+      sticky_sessions: true
+      session_ttl: 3600

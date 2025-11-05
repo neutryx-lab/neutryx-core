@@ -1,0 +1,46 @@
+---
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: neutryx
+
+resources:
+  - base/namespace.yaml
+  - base/deployment.yaml
+  - base/service.yaml
+  - base/hpa.yaml
+  - base/configmap.yaml
+  - base/ingress.yaml
+  - base/statefulset.yaml
+
+commonLabels:
+  app: neutryx
+  managed-by: kustomize
+
+images:
+  - name: neutryx/neutryx-core
+    newTag: latest
+
+configMapGenerator:
+  - name: neutryx-config
+    behavior: merge
+    literals:
+      - VERSION=1.0.0
+      - BUILD_TIME=2024-01-01T00:00:00Z
+
+secretGenerator:
+  - name: neutryx-secrets
+    envs:
+      - secrets.env
+
+generatorOptions:
+  disableNameSuffixHash: true
+
+patchesStrategicMerge:
+  - overlays/patches/increase-resources.yaml
+
+replicas:
+  - name: neutryx-api
+    count: 3
+  - name: neutryx-worker
+    count: 5

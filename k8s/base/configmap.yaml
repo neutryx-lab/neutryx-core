@@ -1,0 +1,53 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: neutryx-config
+  labels:
+    app: neutryx
+data:
+  # Application configuration
+  LOG_LEVEL: "INFO"
+  LOG_FORMAT: "json"
+
+  # API configuration
+  API_HOST: "0.0.0.0"
+  API_PORT: "8080"
+  API_WORKERS: "4"
+  API_TIMEOUT: "300"
+
+  # Worker configuration
+  WORKER_QUEUE: "neutryx"
+  WORKER_BROKER: "redis://neutryx-redis:6379/0"
+  WORKER_BACKEND: "redis://neutryx-redis:6379/1"
+
+  # Database configuration
+  DB_POOL_SIZE: "20"
+  DB_MAX_OVERFLOW: "10"
+  DB_POOL_TIMEOUT: "30"
+  DB_POOL_RECYCLE: "3600"
+
+  # Cache configuration
+  CACHE_TYPE: "redis"
+  CACHE_REDIS_HOST: "neutryx-redis"
+  CACHE_REDIS_PORT: "6379"
+  CACHE_REDIS_DB: "2"
+  CACHE_DEFAULT_TIMEOUT: "300"
+
+  # Feature flags
+  ENABLE_METRICS: "true"
+  ENABLE_TRACING: "true"
+  ENABLE_PROFILING: "false"
+
+  # Computation settings
+  JAX_PLATFORM_NAME: "cpu"
+  JAX_ENABLE_X64: "true"
+  XLA_FLAGS: "--xla_cpu_multi_thread_eigen=true"
+
+  # Rate limiting
+  RATE_LIMIT_ENABLED: "true"
+  RATE_LIMIT_PER_MINUTE: "1000"
+
+  # Timeouts
+  REQUEST_TIMEOUT: "300"
+  CALCULATION_TIMEOUT: "600"
