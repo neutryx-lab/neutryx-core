@@ -46,6 +46,20 @@ from neutryx.valuations.scenarios.scenario_engine import (
     ScenarioType,
 )
 from neutryx.valuations.stress_test import HISTORICAL_SCENARIOS, StressScenario
+from .sensitivity_analysis import (
+    SensitivityConfig,
+    SensitivityMethod,
+    FiniteDiffScheme,
+    PortfolioSensitivity,
+    calculate_dv01,
+    calculate_cs01,
+    calculate_vega_surface,
+    calculate_fx_greeks,
+    calculate_higher_order_greeks,
+    aggregate_portfolio_sensitivities,
+    format_sensitivity_report,
+    benchmark_sensitivity_methods,
+)
 
 __all__ = [
     "RiskEngine",
@@ -86,4 +100,17 @@ __all__ = [
     "pre_trade_control",
     "WhatIfScenario",
     "what_if_analysis",
+    # Sensitivity Analysis
+    "SensitivityConfig",
+    "SensitivityMethod",
+    "FiniteDiffScheme",
+    "PortfolioSensitivity",
+    "calculate_dv01",
+    "calculate_cs01",
+    "calculate_vega_surface",
+    "calculate_fx_greeks",
+    "calculate_higher_order_greeks",
+    "aggregate_portfolio_sensitivities",
+    "format_sensitivity_report",
+    "benchmark_sensitivity_methods",
 ]
