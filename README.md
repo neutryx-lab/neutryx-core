@@ -505,35 +505,35 @@ v2.0+ (2027+) ──────────────────────
 **Focus:** Enhanced calibration techniques, joint calibration, and model stability improvements
 
 #### Advanced Calibration Methods
-- [x] **Joint Calibration Framework**
-  - [x] Multi-instrument simultaneous calibration (e.g., cap/floor + swaption joint calibration)
-  - [x] Cross-asset calibration (FX smile + equity correlation)
-  - [x] Time-dependent parameter fitting with smoothness constraints
+- ✅ **Joint Calibration Framework**
+  - ✅ Multi-instrument simultaneous calibration (e.g., cap/floor + swaption joint calibration)
+  - ✅ Cross-asset calibration (FX smile + equity correlation)
+  - ✅ Time-dependent parameter fitting with smoothness constraints
   - [ ] Multi-objective optimization with Pareto frontiers
 
-- [x] **Regularization & Stability**
-  - [x] Tikhonov regularization for ill-posed calibration problems
-  - [x] L1/L2 penalty methods for parameter sparsity
-  - [x] Arbitrage-free constraints enforcement
-  - [x] Smoothness penalties for local volatility surfaces
+- ✅ **Regularization & Stability**
+  - ✅ Tikhonov regularization for ill-posed calibration problems
+  - ✅ L1/L2 penalty methods for parameter sparsity
+  - ✅ Arbitrage-free constraints enforcement
+  - ✅ Smoothness penalties for local volatility surfaces
 
-- [x] **Advanced Model Selection**
-  - [x] Out-of-sample validation framework
-  - [x] Rolling window backtesting for time-series models
+- ✅ **Advanced Model Selection**
+  - ✅ Out-of-sample validation framework
+  - ✅ Rolling window backtesting for time-series models
   - [ ] Model combination and averaging (Bayesian model averaging)
-  - [x] Diagnostic suite for calibration quality
+  - ✅ Diagnostic suite for calibration quality
 
 #### Model Enhancements
-- [x] **Equity Models**
-  - [x] Time-changed Lévy processes (VG implemented, NIG/CGMY in progress)
-  - [x] Stochastic local volatility (SLV) hybrid models
+- ✅ **Equity Models**
+  - ✅ Time-changed Lévy processes (VG implemented, NIG/CGMY in progress)
+  - ✅ Stochastic local volatility (SLV) hybrid models
   - [ ] Jump clustering models
 
-- [x] **Credit Models**
-  - [x] Student-t copula for tail dependence
-  - [x] Large portfolio approximation (LPA) for CDOs
-  - [x] CreditMetrics framework integration
-  - [x] Structural models (Merton, Black-Cox)
+- ✅ **Credit Models**
+  - ✅ Student-t copula for tail dependence
+  - ✅ Large portfolio approximation (LPA) for CDOs
+  - ✅ CreditMetrics framework integration
+  - ✅ Structural models (Merton, Black-Cox)
 
 - [ ] **Interest Rate Models**
   - [ ] G2++ (two-factor Gaussian) model
@@ -550,43 +550,43 @@ v2.0+ (2027+) ──────────────────────
 **Focus:** Trade lifecycle management, reference data, and clearing/settlement integration
 
 #### Trade Lifecycle Management
-- [x] **Pre-Trade**
-  - [x] Real-time pricing engines for multi-asset classes
-  - [x] Streaming quotes with dynamic refresh (polling-based)
+- ✅ **Pre-Trade**
+  - ✅ Real-time pricing engines for multi-asset classes
+  - ✅ Streaming quotes with dynamic refresh (polling-based)
   - [ ] RFQ (Request for Quote) workflow and auction mechanisms
-  - [x] Pre-trade analytics and what-if scenario analysis
+  - ✅ Pre-trade analytics and what-if scenario analysis
 
-- [x] **Trade Capture**
-  - [x] FpML parsing and generation for all product types
-  - [x] Trade booking workflow with validation
-  - [x] Trade amendment and cancellation handling
-  - [x] Automated trade enrichment (counterparty, legal entity, booking center)
+- ✅ **Trade Capture**
+  - ✅ FpML parsing and generation for all product types
+  - ✅ Trade booking workflow with validation
+  - ✅ Trade amendment and cancellation handling
+  - ✅ Automated trade enrichment (counterparty, legal entity, booking center)
 
-- [x] **Post-Trade**
+- ✅ **Post-Trade**
   - [ ] Confirmation matching and affirmation
   - [ ] Settlement instruction generation
-  - [x] Payment calculation and netting
+  - ✅ Payment calculation and netting
   - [ ] Corporate action processing
-  - [x] Novation and assignment workflows
+  - ✅ Novation and assignment workflows
 
 #### Reference Data Management
 - [ ] **Security Master**
   - [ ] Centralized security master database
-  - [x] ISIN/CUSIP/SEDOL cross-reference (in vendor adapters)
+  - ✅ ISIN/CUSIP/SEDOL cross-reference (in vendor adapters)
   - [ ] Corporate actions processing and adjustments
-  - [x] Real-time reference data updates
+  - ✅ Real-time reference data updates
 
-- [x] **Market Conventions**
-  - [x] Curve definitions and construction methodologies
-  - [x] Holiday calendars for all major markets (TARGET, US, UK, Japan, joint calendars)
-  - [x] Day count conventions (ACT/360, 30/360, ACT/ACT, etc.)
-  - [x] Business day adjustment rules
-  - [x] Payment and settlement conventions by currency
+- ✅ **Market Conventions**
+  - ✅ Curve definitions and construction methodologies
+  - ✅ Holiday calendars for all major markets (TARGET, US, UK, Japan, joint calendars)
+  - ✅ Day count conventions (ACT/360, 30/360, ACT/ACT, etc.)
+  - ✅ Business day adjustment rules
+  - ✅ Payment and settlement conventions by currency
 
 #### Vendor Integration
-- [x] **Market Data Vendors**
-  - [x] Bloomberg BPIPE integration for ultra-low latency (architecture ready)
-  - [x] Refinitiv RTDS (Real-Time Distribution System) (architecture ready)
+- ✅ **Market Data Vendors**
+  - ✅ Bloomberg BPIPE integration for ultra-low latency (architecture ready)
+  - ✅ Refinitiv RTDS (Real-Time Distribution System) (architecture ready)
   - [ ] ICE Data Services connectivity
   - [ ] CME Market Data direct feeds
 
@@ -611,10 +611,10 @@ v2.0+ (2027+) ──────────────────────
 **Focus:** FRTB, SA-CCR, SIMM implementation for full regulatory compliance
 
 #### FRTB (Fundamental Review of the Trading Book)
-- [x] **Standardized Approach (SA)**
-  - [x] Delta risk charge (DRC) calculation by risk class
-  - [x] Vega risk charge with smile risk
-  - [x] Curvature risk charge for non-linear products
+- ✅ **Standardized Approach (SA)**
+  - ✅ Delta risk charge (DRC) calculation by risk class
+  - ✅ Vega risk charge with smile risk
+  - ✅ Curvature risk charge for non-linear products
   - [ ] Default risk charge (DRC) for credit-sensitive instruments
   - [ ] Residual risk add-on (RRAO) for exotic payoffs
 
@@ -625,40 +625,40 @@ v2.0+ (2027+) ──────────────────────
   - [ ] Non-modellable risk factors (NMRF) identification and treatment
 
 #### SA-CCR (Standardized Approach for Counterparty Credit Risk)
-- [x] **Exposure Calculation**
-  - [x] Replacement cost (RC) for mark-to-market exposure
-  - [x] Potential future exposure (PFE) add-on by asset class
-  - [x] Asset class specific calculations (IR, FX, Credit, Equity, Commodity)
-  - [x] Margined vs unmargined netting set treatment
+- ✅ **Exposure Calculation**
+  - ✅ Replacement cost (RC) for mark-to-market exposure
+  - ✅ Potential future exposure (PFE) add-on by asset class
+  - ✅ Asset class specific calculations (IR, FX, Credit, Equity, Commodity)
+  - ✅ Margined vs unmargined netting set treatment
 
-- [x] **Trade Bucketing & Hedging**
-  - [x] Maturity buckets and supervisory durations
-  - [x] Hedging set construction with offset recognition
-  - [x] Basis risk recognition and treatment
-  - [x] Cross-currency basis handling
+- ✅ **Trade Bucketing & Hedging**
+  - ✅ Maturity buckets and supervisory durations
+  - ✅ Hedging set construction with offset recognition
+  - ✅ Basis risk recognition and treatment
+  - ✅ Cross-currency basis handling
 
 #### Initial Margin (SIMM & UMR)
-- [x] **ISDA SIMM Methodology**
-  - [x] SIMM 2.6 implementation (v3.0+ upgrade needed)
-  - [x] Risk factor sensitivities calculation (delta, vega, curvature)
-  - [x] Correlation matrices by product class
-  - [x] Concentration thresholds and risk weights
-  - [x] Product class calculations (RatesFX, Credit, Equity, Commodity)
+- ✅ **ISDA SIMM Methodology**
+  - ✅ SIMM 2.6 implementation (v3.0+ upgrade needed)
+  - ✅ Risk factor sensitivities calculation (delta, vega, curvature)
+  - ✅ Correlation matrices by product class
+  - ✅ Concentration thresholds and risk weights
+  - ✅ Product class calculations (RatesFX, Credit, Equity, Commodity)
 
-- [x] **UMR Compliance**
-  - [x] Uncleared margin rules (bilateral OTC derivatives)
-  - [x] Variation margin (VM) calculation and dispute resolution
-  - [x] Initial margin (IM) posting and collection workflows
-  - [x] Custodian integration and pledge tracking
-  - [x] Threshold monitoring (AANA and MTA)
+- ✅ **UMR Compliance**
+  - ✅ Uncleared margin rules (bilateral OTC derivatives)
+  - ✅ Variation margin (VM) calculation and dispute resolution
+  - ✅ Initial margin (IM) posting and collection workflows
+  - ✅ Custodian integration and pledge tracking
+  - ✅ Threshold monitoring (AANA and MTA)
 
 #### Accounting Standards
-- [x] **IFRS 9/13 Compliance**
-  - [x] Fair value hierarchy (Level 1/2/3) classification
-  - [x] Valuation adjustments (CVA, DVA, FVA)
-  - [x] Expected Credit Loss (ECL) for derivatives
-  - [x] Hedge effectiveness testing (prospective and retrospective)
-  - [x] Disclosure requirements and financial statement impact
+- ✅ **IFRS 9/13 Compliance**
+  - ✅ Fair value hierarchy (Level 1/2/3) classification
+  - ✅ Valuation adjustments (CVA, DVA, FVA)
+  - ✅ Expected Credit Loss (ECL) for derivatives
+  - ✅ Hedge effectiveness testing (prospective and retrospective)
+  - ✅ Disclosure requirements and financial statement impact
 
 **Target Release:** Q1 2026
 **Key Deliverables:** FRTB SA implementation, SA-CCR calculator, ISDA SIMM 3.0+, 100+ new regulatory tests
@@ -670,51 +670,51 @@ v2.0+ (2027+) ──────────────────────
 **Milestone:** Complete enterprise-grade derivatives platform with full regulatory compliance
 
 #### Enterprise Features
-- [x] **Security & Access Control**
+- ✅ **Security & Access Control**
   - [ ] SSO (Single Sign-On) with OAuth 2.0/OpenID Connect
-  - [x] Role-based access control (RBAC) and fine-grained permissions
+  - ✅ Role-based access control (RBAC) and fine-grained permissions
   - [ ] Multi-factor authentication (MFA)
   - [ ] LDAP/Active Directory integration
 
-- [x] **Audit & Compliance**
-  - [x] Immutable audit trail with user action tracking
+- ✅ **Audit & Compliance**
+  - ✅ Immutable audit trail with user action tracking
   - [ ] Data lineage and provenance tracking
-  - [x] Maker-checker workflow with 4-eyes principle (generic workflow)
-  - [x] Approval workflows and compliance attestation (reporting framework)
+  - ✅ Maker-checker workflow with 4-eyes principle (generic workflow)
+  - ✅ Approval workflows and compliance attestation (reporting framework)
 
-- [x] **Multi-Tenancy**
-  - [x] Multi-desk/legal entity isolation
-  - [x] Geography-based segregation and data residency (metadata support)
-  - [x] Compute quota management and cost allocation
-  - [x] SLA monitoring and reporting by tenant
+- ✅ **Multi-Tenancy**
+  - ✅ Multi-desk/legal entity isolation
+  - ✅ Geography-based segregation and data residency (metadata support)
+  - ✅ Compute quota management and cost allocation
+  - ✅ SLA monitoring and reporting by tenant
 
 #### Collateral Management
-- [x] **Margining & Optimization**
-  - [x] Initial margin calculation (ISDA SIMM)
-  - [x] Variation margin calculation and dispute resolution
-  - [x] Margin call generation with aging analysis
-  - [x] Collateral optimization engine (framework ready)
+- ✅ **Margining & Optimization**
+  - ✅ Initial margin calculation (ISDA SIMM)
+  - ✅ Variation margin calculation and dispute resolution
+  - ✅ Margin call generation with aging analysis
+  - ✅ Collateral optimization engine (framework ready)
   - [ ] Collateral transformation strategies
-  - [x] Pledge vs rehypothecation tracking (CSA framework)
+  - ✅ Pledge vs rehypothecation tracking (CSA framework)
 
 #### Performance & Scalability
-- [x] **Distributed Computing**
+- ✅ **Distributed Computing**
   - [ ] Kubernetes orchestration with auto-scaling
-  - [x] Risk grid architecture for distributed calculations (framework ready)
+  - ✅ Risk grid architecture for distributed calculations (framework ready)
   - [ ] Multi-region deployment with disaster recovery
-  - [x] Fault tolerance and automatic recovery (workflow checkpointing)
+  - ✅ Fault tolerance and automatic recovery (workflow checkpointing)
 
-- [x] **GPU/TPU Acceleration**
-  - [x] Multi-GPU Monte Carlo with pmap/pjit
-  - [x] PDE solver GPU acceleration
-  - [x] Batch pricing optimization
-  - [x] Parallel Greeks calculation across devices
+- ✅ **GPU/TPU Acceleration**
+  - ✅ Multi-GPU Monte Carlo with pmap/pjit
+  - ✅ PDE solver GPU acceleration
+  - ✅ Batch pricing optimization
+  - ✅ Parallel Greeks calculation across devices
 
-- [x] **Algorithmic Improvements**
-  - [x] Adjoint AAD for all product types
-  - [x] Variance reduction (antithetic, control variates, importance sampling)
-  - [x] Quasi-random numbers (Sobol, Halton sequences)
-  - [x] Multilevel Monte Carlo (MLMC)
+- ✅ **Algorithmic Improvements**
+  - ✅ Adjoint AAD for all product types
+  - ✅ Variance reduction (antithetic, control variates, importance sampling)
+  - ✅ Quasi-random numbers (Sobol, Halton sequences)
+  - ✅ Multilevel Monte Carlo (MLMC)
   - [ ] Adaptive mesh refinement for PDEs
 
 **Target Release:** Q2 2026
