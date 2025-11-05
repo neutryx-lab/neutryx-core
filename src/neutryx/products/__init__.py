@@ -45,7 +45,13 @@ from .lookback import (
     LookbackPartialFixedStrikeCall,
     LookbackPartialFixedStrikePut,
 )
-from .vanilla import European
+from .ladder import (
+    LadderCall,
+    LadderPut,
+    PercentageLadderCall,
+    PercentageLadderPut,
+)
+from .vanilla import European, American
 from . import basket
 from . import bonds
 from . import commodity
@@ -55,7 +61,13 @@ from . import digital
 from . import equity
 from . import fx_exotics
 from . import inflation
+from . import ladder
 from . import structured
+from .structured import (
+    AthenaAutocallable,
+    CliquetOption,
+    NapoleonOption,
+)
 from . import swaptions
 from . import volatility
 from . import credit_derivatives
@@ -65,6 +77,7 @@ from . import correlation_products
 
 PAYOFF_CATALOGUE = {
     "european": European,
+    "american": American,
     "asian_arithmetic": AsianArithmetic,
     "asian_geometric": AsianGeometric,
     "asian_arithmetic_floating": AsianArithmeticFloatingStrike,
@@ -74,17 +87,24 @@ PAYOFF_CATALOGUE = {
     "lookback_float_strike_put": LookbackFloatStrikePut,
     "lookback_fixed_strike_call": LookbackFixedStrikeCall,
     "lookback_fixed_strike_put": LookbackFixedStrikePut,
+    "ladder_call": LadderCall,
+    "ladder_put": LadderPut,
     "worst_of_call": WorstOfCall,
     "best_of_call": BestOfCall,
     "average_basket_call": AverageBasketCall,
     "spread_option": SpreadOption,
+    "athena_autocallable": AthenaAutocallable,
+    "cliquet_option": CliquetOption,
+    "napoleon_option": NapoleonOption,
 }
 
 __all__ = [
     "PAYOFF_CATALOGUE",
     "Product",
     "PathProduct",
+    # Vanilla options
     "European",
+    "American",
     # Asian options
     "AsianArithmetic",
     "AsianGeometric",
@@ -97,6 +117,11 @@ __all__ = [
     "LookbackFixedStrikePut",
     "LookbackPartialFixedStrikeCall",
     "LookbackPartialFixedStrikePut",
+    # Ladder options
+    "LadderCall",
+    "LadderPut",
+    "PercentageLadderCall",
+    "PercentageLadderPut",
     # Barrier options
     "UpAndOutCall",
     "UpAndOutPut",
@@ -117,6 +142,10 @@ __all__ = [
     "AverageBasketPut",
     "SpreadOption",
     "RainbowOption",
+    # Structured products
+    "AthenaAutocallable",
+    "CliquetOption",
+    "NapoleonOption",
     # FX products
     "FXVanillaOption",
     "FXBarrierOption",
@@ -135,6 +164,7 @@ __all__ = [
     "equity",
     "fx_exotics",
     "inflation",
+    "ladder",
     "structured",
     "swaptions",
     "volatility",
