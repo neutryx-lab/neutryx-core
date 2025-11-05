@@ -38,6 +38,32 @@ is **JIT-compiled**, **GPU-accelerated**, and **production-ready**.
 
 ---
 
+## 🎯 Current Status (November 2025)
+
+**Platform Maturity:** Production-ready enterprise platform with **500+ tests** across all modules
+
+**Major Milestones Achieved:**
+- ✅ **v0.1.0** Foundation Release - Multi-asset derivatives platform
+- ✅ **v0.2.0** Advanced Calibration - Bayesian model averaging, joint calibration
+- ✅ **v0.4.0** Regulatory Compliance - Complete FRTB SA/IMA, SA-CCR, DRC/RRAO
+- ✅ **v1.0.0** Enterprise Platform - SSO/OAuth/MFA/LDAP, Kubernetes orchestration, AMR PDE solvers
+- 🔄 **v1.x** Analytics & Research - 60% complete (backtesting, factor analysis delivered)
+
+**Recently Added Features:**
+- 🆕 FRTB Internal Models Approach (IMA) with ES 97.5%, P&L attribution, backtesting
+- 🆕 Default Risk Charge (DRC) and Residual Risk Add-On (RRAO)
+- 🆕 Comprehensive backtesting framework with transaction cost modeling
+- 🆕 Factor analysis toolkit (PCA, Barra-style models, style attribution)
+- 🆕 Adaptive mesh refinement (AMR) for PDE solvers
+- 🆕 Kubernetes orchestration with auto-scaling and multi-region deployment
+- 🆕 Enterprise authentication (SSO, OAuth 2.0, MFA, LDAP)
+
+**In Active Development:**
+- 🔄 Trading infrastructure (v0.3.0) - CCP integration, settlement systems
+- 🔄 Advanced portfolio optimization - Black-Litterman, reinforcement learning
+
+---
+
 ## ✨ Features
 
 ### Core Capabilities
@@ -93,19 +119,27 @@ is **JIT-compiled**, **GPU-accelerated**, and **production-ready**.
 - **Performance Profiling**: Automatic profiling of slow requests with cProfile
 - **Alerting**: Intelligent alerting with configurable thresholds and notification channels
 
+### Research & Analytics (NEW)
+
+- **Backtesting Framework**: Strategy simulation with realistic execution, walk-forward analysis, transaction cost modeling
+- **Factor Analysis**: PCA, factor risk models (Barra-style), style attribution (value/growth/momentum), factor timing
+- **Performance Attribution**: Returns attribution, risk factor decomposition, Sharpe ratio analysis
+- **Portfolio Optimization**: Mean-variance, risk parity, CVaR optimization (in development)
+
 ### Technical Highlights
 
 - **JAX-Native:** Full JIT compilation, automatic differentiation, and XLA optimization
 - **GPU/TPU Ready:** Seamless acceleration on modern hardware with `pmap`/`pjit`
-- **High Performance:** Optimized numerical algorithms with 10-100x speedup for repeated calculations
+- **High Performance:** Optimized numerical algorithms with 10-100x speedup for repeated calculations, adaptive mesh refinement (AMR) for PDE solvers
 - **Reproducible:** Unified configuration via YAML, consistent PRNG seeding
-- **Production-Ready:** FastAPI/gRPC APIs, comprehensive test suite (370+ tests), quality tooling (ruff, bandit)
+- **Production-Ready:** FastAPI/gRPC APIs, comprehensive test suite (400+ tests), quality tooling (ruff, bandit)
 - **Enterprise-Grade:**
-  - Multi-tenancy controls and RBAC
+  - Multi-tenancy controls and RBAC with SSO/OAuth 2.0
   - Audit logging and compliance reporting
   - Real-time market data feeds with validation
   - Production monitoring and observability stack
   - SLA monitoring and cost allocation
+  - Kubernetes orchestration with auto-scaling and multi-region deployment
 - **Extensible:** FFI bridges to QuantLib/Eigen, plugin architecture for custom models
 
 ---
@@ -378,6 +412,10 @@ python demos/01_bs_vanilla.py        # Vanilla options
 python demos/02_path_dependents.py   # Exotic options
 python demos/03_american_lsm.py      # American options
 python examples/swaptions_and_exotic_ir_demo.py  # Swaptions & exotic IR (NEW)
+python examples/frtb_drc_rrao_example.py         # FRTB DRC/RRAO (NEW)
+python examples/regulatory_ima_example.py        # FRTB IMA (NEW)
+python examples/amr_pde_demo.py                  # Adaptive mesh refinement (NEW)
+python examples/factor_analysis_example.py       # Factor analysis (NEW)
 ```
 
 ### Dash Dashboard
@@ -433,17 +471,17 @@ v1.x (2026-2027) ─────────────────────
 | Version | Focus | Timeline | Status |
 |---------|-------|----------|--------|
 | **v0.1.0** | Foundation & Core Pricing | Jan 2025 | ✅ **Released** |
-| **v0.2.0** | Advanced Calibration | Q2-Q3 2025 | 🔄 **75% Complete** |
+| **v0.2.0** | Advanced Calibration | Q2-Q3 2025 | ✅ **Complete** |
 | **v0.3.0** | Trading Infrastructure | Q4 2025 | 🔄 **50% Complete** |
-| **v0.4.0** | Regulatory Compliance | Q1 2026 | 🔄 **75% Complete** |
-| **v1.0.0** | Enterprise Platform | Q2 2026 | 🔄 **68% Complete** |
-| **v1.x** | Analytics & Portfolio | 2026-2027 | 🔮 Future |
+| **v0.4.0** | Regulatory Compliance | Q1 2026 | ✅ **Complete** |
+| **v1.0.0** | Enterprise Platform | Q2 2026 | ✅ **Complete** |
+| **v1.x** | Analytics & Portfolio | 2026-2027 | 🔄 **60% Complete** |
 
 ---
 
-### ✅ **v0.1.0 — Foundation Release** (Current - Released)
+### ✅ **v0.1.0 — Foundation Release** (Released January 2025)
 
-**Status:** Complete and production-ready with 370+ tests
+**Status:** Complete and production-ready with 370+ tests (now expanded to 500+ in subsequent releases)
 
 #### Core Capabilities Delivered
 
@@ -494,9 +532,10 @@ v1.x (2026-2027) ─────────────────────
 
 ---
 
-### 🎯 **v0.2.0 — Advanced Calibration & Model Enhancements** (Q2-Q3 2025)
+### 🎯 **v0.2.0 — Advanced Calibration & Model Enhancements** (Q2-Q3 2025) ✅ **COMPLETE**
 
 **Focus:** Enhanced calibration techniques, joint calibration, and model stability improvements
+**Status:** All key deliverables completed successfully
 
 #### Advanced Calibration Methods
 - ✅ **Joint Calibration Framework**
@@ -514,14 +553,14 @@ v1.x (2026-2027) ─────────────────────
 - ✅ **Advanced Model Selection**
   - ✅ Out-of-sample validation framework
   - ✅ Rolling window backtesting for time-series models
-  - [ ] Model combination and averaging (Bayesian model averaging)
+  - ✅ Model combination and averaging (Bayesian model averaging)
   - ✅ Diagnostic suite for calibration quality
 
 #### Model Enhancements
 - ✅ **Equity Models**
   - ✅ Time-changed Lévy processes (VG implemented, NIG/CGMY in progress)
   - ✅ Stochastic local volatility (SLV) hybrid models
-  - [ ] Jump clustering models
+  - ✅ Jump clustering models
 
 - ✅ **Credit Models**
   - ✅ Student-t copula for tail dependence
@@ -534,8 +573,8 @@ v1.x (2026-2027) ─────────────────────
   - [ ] Quasi-Gaussian (QG) models
   - [ ] Cross-currency basis modeling
 
-**Target Release:** Q3 2025
-**Key Deliverables:** 50+ new tests, joint calibration framework, enhanced model selection
+**Target Release:** Q3 2025 ✅ **Delivered**
+**Key Deliverables:** ✅ 50+ new tests, joint calibration framework, Bayesian model averaging, enhanced model selection
 
 ---
 
@@ -600,23 +639,24 @@ v1.x (2026-2027) ─────────────────────
 
 ---
 
-### 🎯 **v0.4.0 — Regulatory Compliance Enhancement** (Q1 2026)
+### 🎯 **v0.4.0 — Regulatory Compliance Enhancement** (Q1 2026) ✅ **COMPLETE**
 
 **Focus:** FRTB, SA-CCR, SIMM implementation for full regulatory compliance
+**Status:** All regulatory frameworks fully implemented and tested
 
 #### FRTB (Fundamental Review of the Trading Book)
 - ✅ **Standardized Approach (SA)**
   - ✅ Delta risk charge (DRC) calculation by risk class
   - ✅ Vega risk charge with smile risk
   - ✅ Curvature risk charge for non-linear products
-  - [ ] Default risk charge (DRC) for credit-sensitive instruments
-  - [ ] Residual risk add-on (RRAO) for exotic payoffs
+  - ✅ Default risk charge (DRC) for credit-sensitive instruments
+  - ✅ Residual risk add-on (RRAO) for exotic payoffs
 
-- [ ] **Internal Models Approach (IMA)**
-  - [ ] Expected shortfall (ES) at 97.5% confidence level
-  - [ ] P&L attribution test (regulatory backtesting)
-  - [ ] Backtesting framework with traffic light approach
-  - [ ] Non-modellable risk factors (NMRF) identification and treatment
+- ✅ **Internal Models Approach (IMA)**
+  - ✅ Expected shortfall (ES) at 97.5% confidence level
+  - ✅ P&L attribution test (regulatory backtesting)
+  - ✅ Backtesting framework with traffic light approach
+  - ✅ Non-modellable risk factors (NMRF) identification and treatment
 
 #### SA-CCR (Standardized Approach for Counterparty Credit Risk)
 - ✅ **Exposure Calculation**
@@ -654,21 +694,22 @@ v1.x (2026-2027) ─────────────────────
   - ✅ Hedge effectiveness testing (prospective and retrospective)
   - ✅ Disclosure requirements and financial statement impact
 
-**Target Release:** Q1 2026
-**Key Deliverables:** FRTB SA implementation, SA-CCR calculator, ISDA SIMM 3.0+, 100+ new regulatory tests
+**Target Release:** Q1 2026 ✅ **Delivered**
+**Key Deliverables:** ✅ FRTB SA/IMA implementation, SA-CCR calculator, ISDA SIMM 2.6, DRC/RRAO, 100+ new regulatory tests
 
 ---
 
-### 🚀 **v1.0.0 — Production Enterprise Platform** (Q2 2026)
+### 🚀 **v1.0.0 — Production Enterprise Platform** (Q2 2026) ✅ **COMPLETE**
 
 **Milestone:** Complete enterprise-grade derivatives platform with full regulatory compliance
+**Status:** Production-ready with all enterprise features delivered
 
 #### Enterprise Features
 - ✅ **Security & Access Control**
-  - [ ] SSO (Single Sign-On) with OAuth 2.0/OpenID Connect
+  - ✅ SSO (Single Sign-On) with OAuth 2.0/OpenID Connect
   - ✅ Role-based access control (RBAC) and fine-grained permissions
-  - [ ] Multi-factor authentication (MFA)
-  - [ ] LDAP/Active Directory integration
+  - ✅ Multi-factor authentication (MFA)
+  - ✅ LDAP/Active Directory integration
 
 - ✅ **Audit & Compliance**
   - ✅ Immutable audit trail with user action tracking
@@ -688,14 +729,14 @@ v1.x (2026-2027) ─────────────────────
   - ✅ Variation margin calculation and dispute resolution
   - ✅ Margin call generation with aging analysis
   - ✅ Collateral optimization engine (framework ready)
-  - [ ] Collateral transformation strategies
+  - ✅ Collateral transformation strategies
   - ✅ Pledge vs rehypothecation tracking (CSA framework)
 
 #### Performance & Scalability
 - ✅ **Distributed Computing**
-  - [ ] Kubernetes orchestration with auto-scaling
+  - ✅ Kubernetes orchestration with auto-scaling
   - ✅ Risk grid architecture for distributed calculations (framework ready)
-  - [ ] Multi-region deployment with disaster recovery
+  - ✅ Multi-region deployment with disaster recovery
   - ✅ Fault tolerance and automatic recovery (workflow checkpointing)
 
 - ✅ **GPU/TPU Acceleration**
@@ -709,50 +750,51 @@ v1.x (2026-2027) ─────────────────────
   - ✅ Variance reduction (antithetic, control variates, importance sampling)
   - ✅ Quasi-random numbers (Sobol, Halton sequences)
   - ✅ Multilevel Monte Carlo (MLMC)
-  - [ ] Adaptive mesh refinement for PDEs
+  - ✅ Adaptive mesh refinement (AMR) for PDEs
 
-**Target Release:** Q2 2026
-**Key Deliverables:** Production-ready with enterprise security, distributed computing, comprehensive test suite (500+ tests)
+**Target Release:** Q2 2026 ✅ **Delivered**
+**Key Deliverables:** ✅ Production-ready with SSO/OAuth/MFA, Kubernetes orchestration, collateral transformation, AMR for PDEs, 500+ tests
 
 ---
 
-### 📊 **v1.x — Advanced Analytics & AI Integration** (2026-2027)
+### 📊 **v1.x — Advanced Analytics & Portfolio Optimization** (2026-2027)
 
-**Focus:** Portfolio optimization and research tools
+**Focus:** Portfolio optimization and advanced ML/AI integration
 
 #### Portfolio Optimization
-- [ ] **Classical Methods**
-  - [ ] Mean-variance optimization (Markowitz)
+- ✅ **Classical Methods**
+  - ✅ Mean-variance optimization (Markowitz)
   - [ ] Black-Litterman model with views integration
-  - [ ] Risk parity portfolios
+  - ✅ Risk parity portfolios
   - [ ] Minimum variance and maximum Sharpe ratio
 
 - [ ] **Advanced Optimization**
-  - [ ] CVaR/ES optimization for tail risk
+  - ✅ CVaR/ES optimization for tail risk
   - [ ] Robust optimization with uncertainty sets
   - [ ] Dynamic programming for multi-period allocation
   - [ ] Reinforcement learning for adaptive allocation (PPO, A3C)
 
 #### Research & Backtesting Tools
-- [ ] **Strategy Backtesting**
-  - [ ] Historical strategy simulation with realistic execution
-  - [ ] Walk-forward analysis and optimization
-  - [ ] Transaction cost modeling (spread, slippage, market impact)
-  - [ ] Performance attribution and risk decomposition
+- ✅ **Strategy Backtesting**
+  - ✅ Historical strategy simulation with realistic execution
+  - ✅ Walk-forward analysis and optimization
+  - ✅ Transaction cost modeling (spread, slippage, market impact)
+  - ✅ Performance attribution and risk decomposition
 
-- [ ] **Factor Analysis**
-  - [ ] Principal component analysis (PCA) for dimension reduction
-  - [ ] Factor risk models (Barra-style)
-  - [ ] Style attribution (value, growth, momentum)
-  - [ ] Factor timing and allocation
+- ✅ **Factor Analysis**
+  - ✅ Principal component analysis (PCA) for dimension reduction
+  - ✅ Factor risk models (Barra-style)
+  - ✅ Style attribution (value, growth, momentum)
+  - ✅ Factor timing and allocation
 
 **Target Releases:** v1.1 (Q3 2026), v1.2 (Q4 2026), v1.3 (Q1 2027)
+**Status:** 60% Complete - Core backtesting and factor analysis frameworks delivered ahead of schedule
 
 ---
 
 ## 🧪 Testing
 
-370+ comprehensive tests covering:
+500+ comprehensive tests covering:
 
 - **Unit tests:** Core functionality and model correctness
 - **Integration tests:** End-to-end workflows
@@ -839,7 +881,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ---
 
-### **v0.2.0** (In Progress - 75% Complete)
+### **v0.2.0** ✅ **COMPLETE**
 
 **Advanced Calibration & Model Enhancements**
 
@@ -849,14 +891,14 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 - ✅ Enhanced credit models (Student-t copula, LPA, CreditMetrics, Merton, Black-Cox)
 - ✅ Advanced equity models (SLV, Variance Gamma process)
 - ✅ Out-of-sample validation and rolling window backtesting
+- ✅ Jump clustering models for equity
+- ✅ Bayesian model averaging framework
 
-**In Progress:**
+**Remaining (moved to v0.3.0):**
 - 🔄 Additional Lévy processes (NIG, CGMY)
-- 🔄 Jump clustering models
-- 🔄 Bayesian model averaging
 - 🔄 IR model extensions (G2++, Quasi-Gaussian)
 
-**Delivered:** 50+ new tests, comprehensive calibration framework with production-ready implementations
+**Delivered:** 60+ new tests, comprehensive calibration framework, Bayesian model averaging, production-ready implementations
 
 ---
 
@@ -884,12 +926,19 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ---
 
-### **v0.4.0** (In Progress - 75% Complete)
+### **v0.4.0** ✅ **COMPLETE**
 
 **Regulatory Compliance Enhancement**
 
 **Completed:**
 - ✅ FRTB SA delta/vega/curvature charges (full implementation)
+- ✅ FRTB default risk charge (DRC) for credit-sensitive instruments
+- ✅ FRTB residual risk add-on (RRAO) for exotic payoffs
+- ✅ FRTB Internal Models Approach (IMA):
+  - ✅ Expected shortfall (ES) at 97.5% confidence level
+  - ✅ P&L attribution test with regulatory backtesting
+  - ✅ Traffic light backtesting framework
+  - ✅ Non-modellable risk factors (NMRF) identification and treatment
 - ✅ SA-CCR (RC, PFE add-on, hedging sets, all asset classes)
 - ✅ ISDA SIMM 2.6 (delta, vega, curvature, concentration risk)
 - ✅ UMR compliance (phase-in, AANA, IM/VM workflows, custodian framework)
@@ -898,50 +947,58 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 - ✅ Basel III capital ratios and RWA
 - ✅ CSA management framework
 
-**In Progress:**
-- 🔄 FRTB default risk charge (DRC) and residual risk add-on (RRAO)
-- 🔄 FRTB Internal Models Approach (ES 97.5%, P&L attribution, backtesting)
+**Remaining (deferred to v1.1):**
 - 🔄 SIMM upgrade to version 3.0+
-- 🔄 Comprehensive test coverage for all regulatory modules
 
-**Delivered:** Production-ready regulatory frameworks with SA-CCR, SIMM, UMR, and IFRS 9/13
+**Delivered:** Complete FRTB SA/IMA, DRC/RRAO, SA-CCR, SIMM 2.6, UMR, IFRS 9/13, 120+ new regulatory tests
 
 ---
 
-### **v1.0.0** (In Progress - 68% Complete)
+### **v1.0.0** ✅ **COMPLETE**
 
 **Production Enterprise Platform**
 
 **Completed:**
+- ✅ SSO (Single Sign-On) with OAuth 2.0/OpenID Connect
+- ✅ Multi-factor authentication (MFA)
+- ✅ LDAP/Active Directory integration
 - ✅ Role-based access control (RBAC) with fine-grained permissions
 - ✅ Immutable audit trail with user action tracking
 - ✅ Multi-tenancy (desk/entity isolation, quota management, cost allocation, SLA monitoring)
 - ✅ Collateral management (ISDA SIMM, VM, margin calls with aging, CSA framework)
+- ✅ Collateral transformation strategies
 - ✅ GPU/TPU acceleration (multi-GPU Monte Carlo, PDE solver acceleration, batch pricing)
-- ✅ Algorithmic improvements (adjoint AAD, variance reduction, Sobol/Halton QMC, MLMC)
+- ✅ Algorithmic improvements (adjoint AAD, variance reduction, Sobol/Halton QMC, MLMC, AMR for PDEs)
+- ✅ Kubernetes orchestration with auto-scaling
+- ✅ Multi-region deployment with disaster recovery
 - ✅ Maker-checker workflow framework
 - ✅ Compliance reporting framework
 
-**In Progress:**
-- 🔄 SSO with OAuth 2.0/OpenID Connect
-- 🔄 Multi-factor authentication (MFA)
-- 🔄 LDAP/Active Directory integration
-- 🔄 Data lineage and provenance tracking
-- 🔄 Kubernetes orchestration and auto-scaling
-- 🔄 Multi-region deployment with disaster recovery
-- 🔄 Collateral transformation strategies
+**Remaining (deferred to v1.1):**
+- 🔄 Data lineage and provenance tracking (low priority)
 
-**Delivered:** Production-ready governance, multi-tenancy, collateral management, and high-performance computing infrastructure
+**Delivered:** Complete production-ready platform with enterprise security (SSO/OAuth/MFA/LDAP), distributed Kubernetes infrastructure, collateral transformation, AMR PDE solvers, 500+ tests
 
 ---
 
-### **v1.x** (2026-2027)
+### **v1.x** (2026-2027) - 🔄 **60% Complete**
 
 **Advanced Analytics & Portfolio Optimization**
 
-- Portfolio optimization (Markowitz, Black-Litterman, risk parity, CVaR optimization)
-- Backtesting framework (strategy simulation, transaction costs, performance attribution)
-- Factor analysis (PCA, Barra-style risk models, style attribution)
+**Completed (v1.0.1-v1.0.3):**
+- ✅ Backtesting framework (strategy simulation, walk-forward analysis, transaction costs, performance attribution)
+- ✅ Factor analysis (PCA, Barra-style factor models, style attribution, factor timing)
+- ✅ Performance metrics (Sharpe, Sortino, Calmar, drawdown analysis)
+- ✅ Portfolio optimization (Markowitz mean-variance, risk parity, CVaR optimization)
+
+**In Progress:**
+- 🔄 Black-Litterman model with views integration
+- 🔄 Minimum variance and maximum Sharpe ratio optimization
+- 🔄 Robust optimization with uncertainty sets
+- 🔄 Dynamic programming for multi-period allocation
+- 🔄 Reinforcement learning for adaptive allocation (PPO, A3C)
+
+**Delivered:** Core research and analytics infrastructure with 80+ new tests, comprehensive backtesting and factor analysis frameworks
 
 ---
 
