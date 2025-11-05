@@ -5,6 +5,7 @@ This module provides calculations for:
 - Initial Margin (IM): Risk-based collateral (SIMM and other models)
 - UMR Compliance: BCBS-IOSCO uncleared margin rules
 - CSA Management: Credit Support Annex terms and margin calls
+- Collateral Transformation: Optimal collateral selection and cost minimization
 """
 
 from neutryx.valuations.margin.initial_margin import (
@@ -32,6 +33,20 @@ from neutryx.valuations.margin.umr_compliance import (
     UMRThresholds,
     generate_margin_report,
 )
+from neutryx.valuations.margin.collateral_transformation import (
+    CollateralHolding,
+    CollateralPortfolio,
+    CollateralSelection,
+    ConcentrationOptimizedStrategy,
+    GreedyLowestCostStrategy,
+    OptimalMixStrategy,
+    TransformationCost,
+    TransformationResult,
+    TransformationStrategy,
+    calculate_funding_cost,
+    calculate_fx_conversion_cost,
+    calculate_haircut_adjusted_value,
+)
 
 __all__ = [
     # Variation Margin
@@ -58,4 +73,17 @@ __all__ = [
     "CustodianAccount",
     "CustodianInterface",
     "CollateralMovement",
+    # Collateral Transformation
+    "CollateralHolding",
+    "CollateralPortfolio",
+    "CollateralSelection",
+    "TransformationCost",
+    "TransformationResult",
+    "TransformationStrategy",
+    "GreedyLowestCostStrategy",
+    "OptimalMixStrategy",
+    "ConcentrationOptimizedStrategy",
+    "calculate_haircut_adjusted_value",
+    "calculate_fx_conversion_cost",
+    "calculate_funding_cost",
 ]
