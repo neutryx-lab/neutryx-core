@@ -23,6 +23,12 @@ from .equity_models import (
     simulate_time_changed_levy,
     get_model_characteristics,
 )
+from .fx_models import (
+    FXHestonModel,
+    FXSABRModel,
+    FXBatesModel,
+    TwoFactorFXModel,
+)
 # Workflow utilities moved to core.infrastructure.workflows
 from neutryx.infrastructure.workflows import CheckpointManager, ModelWorkflow
 
@@ -57,4 +63,8 @@ __all__ = [
     "simulate_time_changed_levy",
     "get_model_characteristics",
     "vasicek",
+    "FXHestonModel",
+    "FXSABRModel",
+    "FXBatesModel",
+    "TwoFactorFXModel",
 ]
