@@ -10,10 +10,11 @@ from neutryx.tests.fixtures.fictional_portfolio import (
 )
 
 
+@pytest.mark.integration
 class TestFictionalPortfolio:
     """Test suite for fictional portfolio creation and management."""
 
-    @pytest.fixture
+    @pytest.fixture(scope="class")
     def portfolio_and_hierarchy(self):
         """Create portfolio and book hierarchy for testing."""
         return create_fictional_portfolio()
@@ -359,10 +360,11 @@ class TestFictionalPortfolio:
         assert ma_aaa.agreement_type.value == "ISDA2002"
 
 
+@pytest.mark.integration
 class TestPortfolioStatistics:
     """Test portfolio statistics and analytics."""
 
-    @pytest.fixture
+    @pytest.fixture(scope="class")
     def portfolio(self):
         """Create portfolio for testing."""
         portfolio, _ = create_fictional_portfolio()

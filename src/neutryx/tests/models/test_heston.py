@@ -11,6 +11,8 @@ from neutryx.models.heston import (
 )
 
 
+@pytest.mark.fast
+@pytest.mark.unit
 def test_heston_params_feller_condition():
     """Test Feller condition check."""
     # Satisfies Feller condition
@@ -22,6 +24,7 @@ def test_heston_params_feller_condition():
     assert not params2.feller_condition()
 
 
+@pytest.mark.unit
 def test_simulate_heston_euler():
     """Test Heston simulation with Euler scheme."""
     key = jax.random.PRNGKey(42)
@@ -54,6 +57,7 @@ def test_simulate_heston_euler():
     assert jnp.all(S_paths > 0.0)
 
 
+@pytest.mark.unit
 def test_simulate_heston_qe():
     """Test Heston simulation with QE scheme."""
     key = jax.random.PRNGKey(123)
@@ -126,6 +130,8 @@ def test_heston_call_price_itm():
     assert price_itm > intrinsic
 
 
+@pytest.mark.slow
+@pytest.mark.unit
 def test_calibrate_heston_basic():
     """Test basic Heston calibration."""
     # Create synthetic market data

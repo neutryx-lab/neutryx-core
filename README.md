@@ -812,7 +812,18 @@ pytest -v                                    # All tests
 pytest src/neutryx/tests/products/ -v       # Product tests
 pytest src/neutryx/tests/market/ -v         # Market data tests
 pytest --cov=neutryx --cov-report=html      # Coverage report
+
+# Parallel execution for faster testing
+pytest -n auto                               # Use all CPU cores
+pytest -n 4                                  # Use 4 cores
+
+# Selective test execution
+pytest -m "fast"                             # Run only fast tests
+pytest -m "not slow"                         # Skip slow tests
+pytest -m "integration"                      # Run integration tests only
 ```
+
+**Test Optimization:** See [`TESTING_OPTIMIZATION.md`](TESTING_OPTIMIZATION.md) and [`TEST_OPTIMIZATION_SUMMARY.md`](TEST_OPTIMIZATION_SUMMARY.md) for strategies to reduce CI time by 50-70% while maintaining coverage.
 
 ---
 

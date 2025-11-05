@@ -29,6 +29,7 @@ jobs:
       - name: Run unit tests
         run: |
           PYTHONPATH=$PWD:$PYTHONPATH pytest src/neutryx/tests \
+            -n auto \
             --ignore=src/neutryx/tests/regression \
             --ignore=src/neutryx/tests/performance \
             --ignore=src/neutryx/tests/monte_carlo \

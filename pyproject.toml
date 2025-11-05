@@ -44,6 +44,7 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
   "pytest-benchmark>=4.0.0",
+  "pytest-xdist>=3.5.0",
   "pip-audit>=2.6.1",
   "bandit>=1.7.7",
   "jupyterlab>=4.4.8",
@@ -69,6 +70,10 @@ addopts = "-q"
 markers = [
     "regression: marks tests as part of the regression suite",
     "performance: marks tests that exercise performance benchmarks",
+    "slow: marks tests that take significant time to run (>1s)",
+    "fast: marks tests that complete quickly (<0.1s)",
+    "integration: marks integration tests that test multiple components",
+    "unit: marks unit tests for isolated components",
 ]
 
 [tool.isort]
