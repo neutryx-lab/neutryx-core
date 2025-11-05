@@ -128,9 +128,11 @@ def _nig_increments(
     key_ig, key_norm = jax.random.split(key)
 
     # Inverse Gaussian parameters scaled by dt
+    # For NIG subordinator: IG(δ*dt/γ, δ*dt) where γ = √(α²-β²)
+    # This gives E[T] = δ*dt/γ and matches the NIG mean: μ + δβ/γ
     gamma = jnp.sqrt(params.alpha**2 - params.beta**2)
-    ig_mean = params.delta * dt
-    ig_shape = (params.delta * dt) ** 2 / ig_mean  # λ parameter
+    ig_mean = params.delta * dt / gamma
+    ig_shape = params.delta * dt  # λ parameter
 
     # Generate inverse Gaussian variates using Michael-Schucany-Haas algorithm
     # IG(μ, λ) generation
@@ -153,8 +155,8 @@ def _nig_increments(
     key_norm2 = jax.random.fold_in(key_norm, 1)
     Z = jax.random.normal(key_norm2, shape, dtype=dtype)
 
-    # NIG increments: β*IG + √IG * Z (accounting for time change)
-    nig_inc = params.beta * ig_samples + jnp.sqrt(jnp.maximum(ig_samples, 1e-10)) * Z
+    # NIG increments: μ*dt + β*IG + √IG * Z (accounting for time change)
+    nig_inc = params.mu * dt + params.beta * ig_samples + jnp.sqrt(jnp.maximum(ig_samples, 1e-10)) * Z
 
     return nig_inc
 
@@ -211,13 +213,12 @@ def simulate_nig(
     dt = T / cfg.steps
 
     # Martingale correction (convexity adjustment)
-    # omega such that E[exp(X(1))] = 1
-    # For NIG: omega = -log(φ(-i)) where φ is the char function
-    # φ(-i) = exp(-iμ + δ[√(α²-β²) - √(α²-(β-i)²)])
-    # For real exp, we need: exp(ω) = exp(δ[√(α²-(β-1)²) - √(α²-β²)] - μ)
+    # omega such that E[exp(X(1))] = exp(ω)
+    # For NIG: E[exp(X)] = exp(μ + δ[√(α²-β²) - √(α²-(β+1)²)])
+    # So: ω = μ + δ[√(α²-β²) - √(α²-(β+1)²)]
     gamma = jnp.sqrt(params.alpha**2 - params.beta**2)
-    gamma_shifted = jnp.sqrt(params.alpha**2 - (params.beta - 1) ** 2)
-    omega = params.delta * (gamma_shifted - gamma) - params.mu
+    gamma_shifted = jnp.sqrt(params.alpha**2 - (params.beta + 1) ** 2)
+    omega = params.mu + params.delta * (gamma - gamma_shifted)
 
     # Drift per time step
     drift = (r - q - omega) * dt
@@ -234,8 +235,14 @@ def simulate_nig(
         params_anti = NIGParams(
             alpha=params.alpha, beta=-params.beta, delta=params.delta, mu=-params.mu
         )
+        # Compute martingale correction for antithetic params
+        gamma_anti = jnp.sqrt(params_anti.alpha**2 - params_anti.beta**2)
+        gamma_shifted_anti = jnp.sqrt(params_anti.alpha**2 - (params_anti.beta + 1) ** 2)
+        omega_anti = params_anti.mu + params_anti.delta * (gamma_anti - gamma_shifted_anti)
+        drift_anti = (r - q - omega_anti) * dt
+
         nig_anti = _nig_increments(anti_key, params_anti, dt, (cfg.base_paths, cfg.steps), dtype)
-        increments = jnp.concatenate([increments, drift + nig_anti], axis=0)
+        increments = jnp.concatenate([increments, drift_anti + nig_anti], axis=0)
 
     # Build log price paths
     log_S0 = jnp.log(jnp.asarray(S0, dtype=dtype))
