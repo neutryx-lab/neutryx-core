@@ -57,9 +57,14 @@ is **JIT-compiled**, **GPU-accelerated**, and **production-ready**.
   - **Volatility:** VIX futures/options, variance swaps, corridor swaps, gamma swaps
   - **Convertibles:** Convertible bonds, mandatory convertibles, exchangeable bonds
 - **Risk:** Pathwise & bump Greeks, stress testing, VaR, ES, and adjoint-based sensitivity analysis
+  - **VaR & Risk Metrics:** Historical simulation, Monte Carlo, parametric VaR, expected shortfall (CVaR), incremental VaR, component VaR
+  - **Position Limits:** Notional limits, VaR limits, concentration limits, issuer exposure limits with hierarchical breach thresholds
+  - **Pre-Trade Controls:** Real-time limit checking, what-if scenario analysis, approval workflows, limit breach notifications
 - **Market:** Multi-curve framework with OIS discounting, tenor basis, FX volatility surfaces
 - **XVA:** Exposure models (CVA, DVA, FVA, MVA, KVA) for counterparty risk
 - **Calibration:** Differentiable calibration framework with diagnostics and identifiability checks
+  - **Model Selection:** Information criteria (AIC, BIC, AICc, HQIC), k-fold and time-series cross-validation
+  - **Sensitivity Analysis:** Local sensitivity via finite differences, global Sobol indices with Saltelli sampling
 
 ### Market Data Infrastructure (NEW)
 
@@ -89,7 +94,7 @@ is **JIT-compiled**, **GPU-accelerated**, and **production-ready**.
 - **GPU/TPU Ready:** Seamless acceleration on modern hardware with `pmap`/`pjit`
 - **High Performance:** Optimized numerical algorithms with 10-100x speedup for repeated calculations
 - **Reproducible:** Unified configuration via YAML, consistent PRNG seeding
-- **Production-Ready:** FastAPI/gRPC APIs, comprehensive test suite (100+ tests), quality tooling (ruff, bandit)
+- **Production-Ready:** FastAPI/gRPC APIs, comprehensive test suite (160+ tests), quality tooling (ruff, bandit)
 - **Enterprise-Grade:**
   - Multi-tenancy controls and RBAC
   - Audit logging and compliance reporting
@@ -425,7 +430,11 @@ Interactive pricing, Greeks, and scenario analysis at `http://localhost:8050`
 - ✅ **XVA Suite:** CVA, DVA, FVA, MVA implementation
 - ✅ **Credit:** CDS pricing, hazard models, structural models
 - ✅ **Risk:** Stress testing, scenario generation, capital metrics
+- ✅ **VaR Methodologies:** Historical, Monte Carlo, parametric VaR, ES/CVaR, incremental VaR, component VaR
+- ✅ **Position Limits:** Notional, VaR, concentration, issuer exposure limits with hierarchical thresholds
+- ✅ **Pre-Trade Controls:** Real-time limit checking, what-if scenario analysis, approval workflows
 - ✅ **Calibration:** Differentiable framework with diagnostics
+- ✅ **Model Selection:** Information criteria (AIC/BIC/AICc/HQIC), cross-validation, sensitivity analysis
 
 #### APIs & Infrastructure
 - ✅ **APIs:** REST/gRPC endpoints
@@ -581,24 +590,24 @@ Interactive pricing, Greeks, and scenario analysis at `http://localhost:8050`
   - [ ] Arbitrage-free constraints
   - [ ] Smoothness penalties for local vol
 
-- [ ] **Model Selection**
-  - [ ] Information criteria (AIC, BIC)
-  - [ ] Cross-validation frameworks
-  - [ ] Identifiability analysis
-  - [ ] Parameter sensitivity analysis
+- ✅ **Model Selection** (v0.1.0)
+  - ✅ Information criteria (AIC, BIC, AICc, HQIC)
+  - ✅ Cross-validation frameworks (k-fold, time-series expanding/rolling)
+  - ✅ Identifiability analysis
+  - ✅ Parameter sensitivity analysis (local finite differences, global Sobol indices)
 
 ---
 
 #### 🎯 **Phase 3: Risk Management & P&L** (Q4 2025)
 
 ##### Market Risk (VaR/ES)
-- [ ] **VaR Methodologies**
-  - [ ] Historical simulation VaR
-  - [ ] Monte Carlo VaR
-  - [ ] Parametric (variance-covariance) VaR
-  - [ ] Expected shortfall (ES/CVaR)
-  - [ ] Incremental VaR (IVaR)
-  - [ ] Component VaR
+- ✅ **VaR Methodologies** (v0.1.0)
+  - ✅ Historical simulation VaR
+  - ✅ Monte Carlo VaR
+  - ✅ Parametric (variance-covariance) VaR with Cornish-Fisher expansion
+  - ✅ Expected shortfall (ES/CVaR)
+  - ✅ Incremental VaR (IVaR)
+  - ✅ Component VaR
 
 - [ ] **Stress Testing**
   - [ ] Historical scenario analysis
@@ -647,16 +656,17 @@ Interactive pricing, Greeks, and scenario analysis at `http://localhost:8050`
   - [ ] Wrong-way risk modeling
 
 ##### Limits & Controls
-- [ ] **Position Limits**
-  - [ ] Notional limits by product/desk
-  - [ ] VaR limits and utilization
-  - [ ] Concentration limits
-  - [ ] Issuer exposure limits
+- ✅ **Position Limits** (v0.1.0)
+  - ✅ Notional limits by product/desk
+  - ✅ VaR limits and utilization tracking
+  - ✅ Concentration limits (single-name, sector)
+  - ✅ Issuer exposure limits with credit rating support
 
-- [ ] **Pre-Trade Controls**
-  - [ ] Real-time limit checking
-  - [ ] What-if scenario analysis
-  - [ ] Limit breach notifications
+- ✅ **Pre-Trade Controls** (v0.1.0)
+  - ✅ Real-time limit checking with hierarchical breach levels (hard/soft/warning)
+  - ✅ What-if scenario analysis for trade planning
+  - ✅ Limit breach notifications with severity classification
+  - ✅ Approval workflows for soft breach handling
 
 ---
 
@@ -943,12 +953,14 @@ Interactive pricing, Greeks, and scenario analysis at `http://localhost:8050`
 
 ## 🧪 Testing
 
-100+ comprehensive tests covering:
+160+ comprehensive tests covering:
 
 - **Unit tests:** Core functionality and model correctness
 - **Integration tests:** End-to-end workflows
 - **Product tests:** Multi-asset class coverage (48 tests)
 - **Market data tests:** Storage, validation, feed management
+- **Calibration tests:** Model selection and sensitivity analysis (24 tests)
+- **Risk tests:** VaR methodologies, limits and controls (57 tests)
 - **Regression tests:** Numerical stability checks
 - **Performance tests:** Benchmarking and profiling
 
@@ -998,7 +1010,10 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 - Database connectors (PostgreSQL, MongoDB, TimescaleDB)
 - Comprehensive observability stack (Prometheus, Grafana, Jaeger)
 - Data validation and quality framework
-- 100+ tests, production-ready APIs
+- VaR methodologies: Historical, Monte Carlo, parametric, ES/CVaR, incremental/component VaR
+- Position limits & pre-trade controls: Notional, VaR, concentration, issuer limits with real-time checking
+- Model selection tools: Information criteria (AIC/BIC/AICc/HQIC), cross-validation, sensitivity analysis
+- 160+ tests, production-ready APIs
 
 **v0.2** (Q2 2025) - Interest Rate Derivatives
 - IRS, swaptions, CMS products
