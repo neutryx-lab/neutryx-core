@@ -192,7 +192,7 @@ class TestPACS008:
         assert '<?xml version="1.0"' in xml_msg
         assert '<Document' in xml_msg
         assert '<InstrId>INSTR001</InstrId>' in xml_msg
-        assert '<Ccy>USD</Ccy>' in xml_msg
+        assert 'Ccy="USD"' in xml_msg
 
 
 class TestSETR002:

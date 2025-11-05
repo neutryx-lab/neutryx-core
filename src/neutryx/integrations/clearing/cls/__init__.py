@@ -5,7 +5,13 @@ payment-versus-payment (PvP) settlement to eliminate settlement risk.
 """
 
 from .connector import CLSConnector
-from .messages import CLSSettlementInstruction, CLSConfirmation, CLSStatus
+from .messages import (
+    CLSSettlementInstruction,
+    CLSConfirmation,
+    CLSStatus,
+    CLSCurrency,
+    CLSSettlementStatus,
+)
 from .settlement import CLSSettlementService
 
 __all__ = [
@@ -13,5 +19,7 @@ __all__ = [
     "CLSSettlementInstruction",
     "CLSConfirmation",
     "CLSStatus",
+    "CLSCurrency",
+    "CLSSettlementStatus",
     "CLSSettlementService",
 ]

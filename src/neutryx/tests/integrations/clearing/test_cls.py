@@ -110,13 +110,13 @@ class TestCLSSettlementInstruction:
 class TestCLSConnector:
     """Tests for CLS connector."""
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_connect(self, cls_connector):
         """Test connecting to CLS."""
         assert cls_connector.is_connected
         assert cls_connector.session_id is not None
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_submit_settlement_instruction(self, cls_connector):
         """Test submitting settlement instruction."""
         instruction = CLSSettlementInstruction(
@@ -141,7 +141,7 @@ class TestCLSConnector:
         assert confirmation.status == CLSSettlementStatus.MATCHED
         assert confirmation.is_successful() is False  # Not yet settled
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_get_settlement_status(self, cls_connector):
         """Test getting settlement status."""
         # First submit instruction
@@ -170,7 +170,7 @@ class TestCLSConnector:
         assert status.trade_id == "TRADE005"
         assert status.pay_in_complete
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_cancel_settlement_instruction(self, cls_connector):
         """Test cancelling settlement instruction."""
         # Submit instruction
@@ -200,7 +200,7 @@ class TestCLSConnector:
         status = await cls_connector.get_settlement_status("CLSI006")
         assert status.status == CLSSettlementStatus.CANCELLED
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_healthcheck(self, cls_connector):
         """Test CLS healthcheck."""
         healthy = await cls_connector.healthcheck()
@@ -210,7 +210,7 @@ class TestCLSConnector:
 class TestCLSSettlementService:
     """Tests for CLS settlement service."""
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_settle_fx_trade(self, cls_connector):
         """Test settling FX trade."""
         service = CLSSettlementService(cls_connector)
@@ -230,7 +230,7 @@ class TestCLSSettlementService:
         assert confirmation.trade_id == "TRADE007"
         assert confirmation.status == CLSSettlementStatus.MATCHED
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_settle_fx_trade_invalid_currency(self, cls_connector):
         """Test settling FX trade with invalid currency."""
         service = CLSSettlementService(cls_connector)
@@ -248,7 +248,7 @@ class TestCLSSettlementService:
                 settlement_member="MEMBER001",
             )
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_calculate_settlement_exposure(self, cls_connector):
         """Test calculating net settlement exposure."""
         service = CLSSettlementService(cls_connector)

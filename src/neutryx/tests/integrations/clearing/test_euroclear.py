@@ -140,13 +140,13 @@ class TestEuroclearSettlementInstruction:
 class TestEuroclearConnector:
     """Tests for Euroclear connector."""
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_connect(self, euroclear_connector):
         """Test connecting to Euroclear."""
         assert euroclear_connector.is_connected
         assert euroclear_connector.session_id is not None
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_submit_settlement_instruction(self, euroclear_connector):
         """Test submitting settlement instruction."""
         instruction = EuroclearSettlementInstruction(
@@ -170,7 +170,7 @@ class TestEuroclearConnector:
         assert confirmation.status == SettlementStatus.MATCHED
         assert confirmation.euroclear_reference is not None
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_get_settlement_status(self, euroclear_connector):
         """Test getting settlement status."""
         # First submit instruction
@@ -196,7 +196,7 @@ class TestEuroclearConnector:
         assert status.sender_reference == "SENDER007"
         assert status.matched
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_cancel_settlement_instruction(self, euroclear_connector):
         """Test cancelling settlement instruction."""
         # Submit instruction
@@ -223,7 +223,7 @@ class TestEuroclearConnector:
         status = await euroclear_connector.get_settlement_status("ECSI008")
         assert status.status == SettlementStatus.CANCELLED
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_amend_settlement_instruction(self, euroclear_connector):
         """Test amending settlement instruction."""
         # Submit instruction
@@ -254,7 +254,7 @@ class TestEuroclearConnector:
 
         assert confirmation.instruction_id == "ECSI009"
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_get_holdings(self, euroclear_connector):
         """Test getting securities holdings."""
         holdings = await euroclear_connector.get_holdings("ACCOUNT001")
@@ -263,7 +263,7 @@ class TestEuroclearConnector:
         assert "holdings" in holdings
         assert isinstance(holdings["holdings"], list)
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_healthcheck(self, euroclear_connector):
         """Test Euroclear healthcheck."""
         healthy = await euroclear_connector.healthcheck()
@@ -273,7 +273,7 @@ class TestEuroclearConnector:
 class TestEuroclearSettlementService:
     """Tests for Euroclear settlement service."""
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_settle_securities_trade(self, euroclear_connector):
         """Test settling securities trade."""
         service = EuroclearSettlementService(euroclear_connector)
@@ -295,7 +295,7 @@ class TestEuroclearSettlementService:
         assert confirmation.sender_reference == "SENDER010"
         assert confirmation.status == SettlementStatus.MATCHED
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_get_pending_instructions(self, euroclear_connector):
         """Test getting pending instructions."""
         service = EuroclearSettlementService(euroclear_connector)
@@ -317,7 +317,7 @@ class TestEuroclearSettlementService:
         pending = await service.get_pending_instructions(settlement_date=date(2025, 1, 17))
         assert len(pending) >= 3
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_reconcile_settlements(self, euroclear_connector):
         """Test reconciling settlements."""
         service = EuroclearSettlementService(euroclear_connector)

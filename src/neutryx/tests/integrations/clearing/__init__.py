@@ -1,1 +1,1 @@
-"""Tests for CCP clearing integrations."""
+"""Tests for clearing and settlement integrations."""
