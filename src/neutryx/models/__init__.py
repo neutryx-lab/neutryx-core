@@ -29,6 +29,26 @@ from .fx_models import (
     FXBatesModel,
     TwoFactorFXModel,
 )
+from .credit_models import (
+    GaussianCopulaParams,
+    simulate_gaussian_copula,
+    base_correlation_to_compound_correlation,
+    StudentTCopulaParams,
+    simulate_student_t_copula,
+    LPAParams,
+    vasicek_loss_distribution,
+    lpa_expected_loss,
+    lpa_unexpected_loss,
+    CreditMetricsParams,
+    simulate_credit_migrations,
+    MertonModelParams,
+    merton_default_probability,
+    merton_distance_to_default,
+    merton_equity_value,
+    BlackCoxParams,
+    black_cox_default_probability,
+    credit_spread_from_default_prob,
+)
 # Workflow utilities moved to core.infrastructure.workflows
 from neutryx.infrastructure.workflows import CheckpointManager, ModelWorkflow
 
@@ -67,4 +87,23 @@ __all__ = [
     "FXSABRModel",
     "FXBatesModel",
     "TwoFactorFXModel",
+    # Credit models
+    "GaussianCopulaParams",
+    "simulate_gaussian_copula",
+    "base_correlation_to_compound_correlation",
+    "StudentTCopulaParams",
+    "simulate_student_t_copula",
+    "LPAParams",
+    "vasicek_loss_distribution",
+    "lpa_expected_loss",
+    "lpa_unexpected_loss",
+    "CreditMetricsParams",
+    "simulate_credit_migrations",
+    "MertonModelParams",
+    "merton_default_probability",
+    "merton_distance_to_default",
+    "merton_equity_value",
+    "BlackCoxParams",
+    "black_cox_default_probability",
+    "credit_spread_from_default_prob",
 ]
