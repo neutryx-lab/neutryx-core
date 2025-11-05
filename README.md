@@ -435,35 +435,35 @@ Interactive pricing, Greeks, and scenario analysis at `http://localhost:8050`
 ### 📅 Roadmap Timeline
 
 ```
-v0.1.0 (Released) ────────────────────────────────────────────┐
+v0.1.0 (Released Jan 2025) ───────────────────────────────────┐
                                                                │
     ✅ Foundation: Multi-asset derivatives, risk, XVA         │
     ✅ 370+ tests, Bloomberg/Refinitiv, Observability         │
                                                                │
-v0.2.0 (Q2-Q3 2025) ──────────────────────────────────────────┤
+v0.2.0 (COMPLETE) ────────────────────────────────────────────┤
                                                                │
-    🎯 Advanced calibration & model enhancements              │
-    🎯 Joint calibration, regularization, credit models       │
+    ✅ Advanced calibration & model enhancements              │
+    ✅ Bayesian model averaging, jump clustering              │
                                                                │
-v0.3.0 (Q4 2025) ─────────────────────────────────────────────┤
+v0.3.0 (In Progress - 50%) ───────────────────────────────────┤
                                                                │
-    🏗️ Trading platform infrastructure                        │
-    🏗️ Lifecycle management, CCP integration, FpML           │
+    🔄 Trading platform infrastructure                        │
+    🔄 Lifecycle management, CCP integration, FpML           │
                                                                │
-v0.4.0 (Q1 2026) ─────────────────────────────────────────────┤
+v0.4.0 (COMPLETE) ────────────────────────────────────────────┤
                                                                │
-    📋 Regulatory compliance enhancement                      │
-    📋 FRTB, SA-CCR, ISDA SIMM 3.0+, IFRS 9/13              │
+    ✅ FRTB SA/IMA, DRC/RRAO, SA-CCR                         │
+    ✅ Regulatory compliance (120+ tests)                     │
                                                                │
-v1.0.0 (Q2 2026) ─────────────────────────────────────────────┤
+v1.0.0 (COMPLETE) ────────────────────────────────────────────┤
                                                                │
-    🚀 Production enterprise platform                         │
-    🚀 Security, multi-tenancy, distributed computing        │
+    ✅ SSO/OAuth/MFA, Kubernetes, AMR PDEs                    │
+    ✅ Enterprise platform (500+ tests)                       │
                                                                │
-v1.x (2026-2027) ─────────────────────────────────────────────┤
+v1.x (60% Complete) ──────────────────────────────────────────┤
                                                                │
-    📊 Advanced analytics & AI integration                    │
-    📊 Portfolio optimization, backtesting, factor analysis        │
+    ✅ Backtesting, factor analysis                           │
+    🔄 Portfolio optimization, reinforcement learning         │
                                                                │
 
 ### 🎯 Key Milestones
