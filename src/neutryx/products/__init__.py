@@ -52,6 +52,14 @@ from .fx_vanilla_exotic import (
     FXLookbackPartialFixedStrikeCall,
     FXLookbackPartialFixedStrikePut,
 )
+from .dispersion_correlation import (
+    IndexVarianceSwap,
+    SingleNameVarianceSwap,
+    CorrelationSwap,
+    BasicDispersionStrategy,
+    ImpliedCorrelationStrategy,
+    RealizedCorrelationDispersion,
+)
 from .lookback import (
     LookbackFloatStrikeCall,
     LookbackFloatStrikePut,
@@ -73,6 +81,7 @@ from . import commodity
 from . import commodity_exotics
 from . import convertible
 from . import digital
+from . import dispersion_correlation
 from . import equity
 from . import fx_exotics
 from . import inflation
@@ -183,6 +192,13 @@ __all__ = [
     "FXLookbackFixedStrikePut",
     "FXLookbackPartialFixedStrikeCall",
     "FXLookbackPartialFixedStrikePut",
+    # Dispersion & Correlation
+    "IndexVarianceSwap",
+    "SingleNameVarianceSwap",
+    "CorrelationSwap",
+    "BasicDispersionStrategy",
+    "ImpliedCorrelationStrategy",
+    "RealizedCorrelationDispersion",
     # Modules
     "basket",
     "bonds",
@@ -190,6 +206,7 @@ __all__ = [
     "commodity_exotics",
     "convertible",
     "digital",
+    "dispersion_correlation",
     "equity",
     "fx_exotics",
     "inflation",
