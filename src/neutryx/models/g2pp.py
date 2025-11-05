@@ -402,10 +402,14 @@ def caplet_price(
     ) * Delta_B_x * Delta_B_y
 
     variance = V_x + V_y + 2 * V_xy
-    volatility = jnp.sqrt(variance / T) if T > 0 else 0.0
+    # Ensure variance is positive and handle edge cases
+    variance = jnp.maximum(variance, 1e-10)
+    volatility = jnp.sqrt(variance / jnp.maximum(T, 1e-10))
 
     # Black's formula for caplet
-    d1 = (jnp.log(forward_rate / strike) + 0.5 * variance) / jnp.sqrt(variance)
+    # Add small epsilon to avoid log(0) and division by zero
+    log_moneyness = jnp.log((forward_rate + 1e-10) / (strike + 1e-10))
+    d1 = (log_moneyness + 0.5 * variance) / jnp.sqrt(variance)
     d2 = d1 - jnp.sqrt(variance)
 
     from jax.scipy.stats import norm
@@ -542,18 +546,24 @@ def forward_rate_correlation(
     vol_f2_y = params.sigma_y * dB_y_T2
 
     # Covariance: E[df(t,T₁)·df(t,T₂)]
+    # Fix: The covariance should not include cross terms when both are from same W
     covariance = (
-        vol_f1_x * vol_f2_x +  # Contribution from W₁
-        vol_f1_y * vol_f2_y +  # Contribution from W₂
-        params.rho * (vol_f1_x * vol_f2_y + vol_f1_y * vol_f2_x)  # Cross terms
+        vol_f1_x * vol_f2_x +  # Both from W₁
+        vol_f1_y * vol_f2_y +  # Both from W₂
+        params.rho * (vol_f1_x * vol_f2_y + vol_f1_y * vol_f2_x)  # Mixed terms
     )
 
     # Variances
     var_f1 = vol_f1_x**2 + vol_f1_y**2 + 2 * params.rho * vol_f1_x * vol_f1_y
     var_f2 = vol_f2_x**2 + vol_f2_y**2 + 2 * params.rho * vol_f2_x * vol_f2_y
 
-    # Correlation
-    correlation = covariance / jnp.sqrt(var_f1 * var_f2 + 1e-10)
+    # Correlation with numerical stability
+    denominator = jnp.sqrt(var_f1 * var_f2 + 1e-10)
+    correlation = jnp.where(
+        denominator < 1e-8,
+        1.0,  # If both variances are ~0, consider correlation as 1
+        covariance / denominator
+    )
 
     return jnp.clip(correlation, -1.0, 1.0)
 

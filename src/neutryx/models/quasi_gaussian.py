@@ -191,7 +191,7 @@ def V_coefficient(
 
     # Numerical integration using trapezoidal rule
     integrand_values = jax.vmap(integrand)(times)
-    V = jnp.trapz(integrand_values, times)
+    V = jnp.trapezoid(integrand_values, times)
 
     return V
 
@@ -235,37 +235,41 @@ def zero_coupon_bond_price(
         >>> price = zero_coupon_bond_price(params, T=5.0)
         >>> assert 0.0 < price < 1.0
     """
-    if T <= t:
-        return 1.0
+    # Use JAX-compatible conditional - avoid early return with if statement
+    # when the function might be JIT compiled or vmapped
+    T_safe = jnp.where(T <= t, t + 1.0, T)  # Ensure T > t for calculations
 
     # Compute market discount factors from forward curve
     # P^M(0,T) = exp(-∫_0^T f^M(0,s) ds)
     def compute_market_discount(tau):
-        times = jnp.linspace(0, tau, 100)
+        tau_safe = jnp.maximum(tau, 1e-10)  # Ensure positive time
+        times = jnp.linspace(0, tau_safe, 100)
         forwards = jax.vmap(params.forward_curve_fn)(times)
         integral = jnp.trapezoid(forwards, times)
         return jnp.exp(-integral)
 
-    P_market_t = compute_market_discount(t) if t > 0 else 1.0
-    P_market_T = compute_market_discount(T)
+    P_market_t = jnp.where(t > 0, compute_market_discount(t), 1.0)
+    P_market_T = compute_market_discount(T_safe)
 
     # Compute G coefficients: G(t,T) = ∫_t^T exp(-∫_t^s mean_reversion(u) du) ds
     # For constant mean reversion: G(t,T) = (1 - exp(-α(T-t))) / α
     # For time-dependent: need numerical integration
 
     n_steps = 50
-    s_grid = jnp.linspace(t, T, n_steps + 1)
+    s_grid = jnp.linspace(t, T_safe, n_steps + 1)
 
     def compute_G_coefficient(mean_reversion_fn):
         # G(t,T) = ∫_t^T exp(-∫_t^s α(u) du) ds
         def integrand(s):
             # Compute ∫_t^s α(u) du
-            if s <= t:
-                return 0.0
-            u_grid = jnp.linspace(t, s, 20)
+            # Use JAX-compatible operations instead of if statement
+            s_safe = jnp.maximum(s, t + 1e-10)  # Ensure s > t
+            u_grid = jnp.linspace(t, s_safe, 20)
             mean_rev_vals = jax.vmap(mean_reversion_fn)(u_grid)
             integral = jnp.trapezoid(mean_rev_vals, u_grid)
-            return jnp.exp(-integral)
+            result = jnp.exp(-integral)
+            # Return 0 if s <= t, otherwise return the computed value
+            return jnp.where(s <= t, 0.0, result)
 
         integrand_vals = jax.vmap(integrand)(s_grid)
         return jnp.trapezoid(integrand_vals, s_grid)
@@ -284,7 +288,9 @@ def zero_coupon_bond_price(
         0.5 * V
     )
 
-    return jnp.exp(log_P)
+    # Return 1.0 if T <= t (bond at maturity), otherwise compute price
+    result = jnp.exp(log_P)
+    return jnp.where(T <= t, 1.0, result)
 
 
 def simulate_path(
