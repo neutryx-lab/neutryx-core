@@ -28,8 +28,13 @@ import jax.numpy as jnp
 from jax import Array
 from jax.scipy.stats import norm
 
-from neutryx.models.heston import heston_call_price_cf as heston_price_fft
-from neutryx.models.sabr import hagan_implied_vol as sabr_implied_vol
+from neutryx.models.heston import (
+    heston_call_price_cf,
+    HestonParams,
+    characteristic_function as heston_characteristic_function
+)
+from neutryx.models.sabr import hagan_implied_vol as sabr_implied_vol, SABRParams
+from neutryx.products.fx_options import garman_kohlhagen
 
 
 @dataclass
@@ -122,21 +127,32 @@ class FXHestonModel:
         """
         # Reuse equity Heston FFT with FX drift adjustment
         # r_d - r_f replaces r - q (dividend yield becomes foreign rate)
-        price = heston_price_fft(
-            S=S,
-            K=K,
-            T=T,
-            r=self.r_domestic,
-            q=self.r_foreign,  # Foreign rate acts as dividend yield
+        params = HestonParams(
             v0=self.v0,
             kappa=self.kappa,
             theta=self.theta,
             sigma=self.sigma,
-            rho=self.rho,
-            is_call=is_call,
-            N=N
+            rho=self.rho
         )
-        return price
+
+        call_price = heston_call_price_cf(
+            S0=S,
+            K=K,
+            T=T,
+            r=self.r_domestic,
+            q=self.r_foreign,  # Foreign rate acts as dividend yield
+            params=params,
+            n_points=N
+        )
+
+        if is_call:
+            return call_price
+        else:
+            # Put-call parity: P = C - S*exp(-r_f*T) + K*exp(-r_d*T)
+            forward = S * jnp.exp((self.r_domestic - self.r_foreign) * T)
+            discount = jnp.exp(-self.r_domestic * T)
+            put_price = call_price - (forward - K) * discount
+            return put_price
 
     def implied_vol(
         self,
@@ -175,14 +191,12 @@ class FXHestonModel:
         max_iter: int = 100
     ) -> float:
         """Invert Garman-Kohlhagen to get implied vol (Newton-Raphson)."""
-        from neutryx.products._utils import garman_kohlhagen, compute_d1_d2_fx
-
         # Initial guess: ATM vol from current variance
         vol = jnp.sqrt(self.v0)
 
         for _ in range(max_iter):
             model_price = garman_kohlhagen(
-                S, K, T, vol, self.r_domestic, self.r_foreign, is_call
+                S, K, T, self.r_domestic, self.r_foreign, vol, is_call
             )
 
             diff = model_price - price
@@ -190,7 +204,8 @@ class FXHestonModel:
                 return vol
 
             # Vega for Newton step
-            d1, _ = compute_d1_d2_fx(S, K, T, vol, self.r_domestic, self.r_foreign)
+            # d1 = [ln(S/K) + (r_d - r_f + σ²/2)T] / (σ√T)
+            d1 = (jnp.log(S / K) + (self.r_domestic - self.r_foreign + 0.5 * vol ** 2) * T) / (vol * jnp.sqrt(T))
             vega = S * jnp.exp(-self.r_foreign * T) * norm.pdf(d1) * jnp.sqrt(T)
 
             if vega < 1e-10:
@@ -371,7 +386,8 @@ class FXSABRModel:
             Uses Hagan et al. (2002) asymptotic expansion.
             Accurate for T < 2 years. For longer, use MC.
         """
-        return sabr_implied_vol(F, K, T, self.alpha, self.beta, self.rho, self.nu)
+        params = SABRParams(alpha=self.alpha, beta=self.beta, rho=self.rho, nu=self.nu)
+        return sabr_implied_vol(F, K, T, params)
 
     def calibrate_to_smile(
         self,
@@ -410,8 +426,9 @@ class FXSABRModel:
                 beta_opt = beta
 
             # Compute model vols
+            sabr_params = SABRParams(alpha=alpha, beta=beta_opt, rho=rho, nu=nu)
             model_vols = jnp.array([
-                sabr_implied_vol(F, K, T, alpha, beta_opt, rho, nu)
+                sabr_implied_vol(F, K, T, sabr_params)
                 for K in strikes
             ])
 
@@ -535,19 +552,16 @@ class FXBatesModel:
             Complex characteristic function value
         """
         # Heston component
-        from neutryx.models.heston import heston_characteristic_function
-
         heston_cf = heston_characteristic_function(
             u=u,
-            T=T,
-            S0=S0,
-            r=self.r_domestic,
-            q=self.r_foreign,
+            t=T,
             v0=self.v0,
             kappa=self.kappa,
             theta=self.theta,
             sigma=self.sigma,
-            rho=self.rho
+            rho=self.rho,
+            r=self.r_domestic,
+            q=self.r_foreign
         )
 
         # Jump compensation (risk-neutral drift adjustment)
@@ -726,9 +740,10 @@ class TwoFactorFXModel:
         v2 = jnp.ones(n_paths) * self.v2_0
 
         # Simulate
+        key = random_key
         for step in range(n_steps):
             # Generate independent normals
-            key, subkey = jax.random.split(random_key)
+            key, subkey = jax.random.split(key)
             Z_indep = jax.random.normal(subkey, (n_paths, 3))
 
             # Correlate
