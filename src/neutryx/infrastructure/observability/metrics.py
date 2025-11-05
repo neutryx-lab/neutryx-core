@@ -186,6 +186,38 @@ class MetricsRecorder:
             buckets=buckets,
         )
 
+        # Additional custom metrics for pricing and risk operations
+        self._pricing_calculations = _reusable_counter(
+            namespace,
+            subsystem,
+            name="pricing_calculations_total",
+            documentation="Total number of pricing calculations performed.",
+            labelnames=("product_type", "model", "status"),
+        )
+        self._monte_carlo_paths = _reusable_histogram(
+            namespace,
+            subsystem,
+            name="monte_carlo_paths",
+            documentation="Number of Monte Carlo paths used in simulations.",
+            labelnames=("product_type",),
+            buckets=(1000, 5000, 10000, 50000, 100000, 500000, 1000000),
+        )
+        self._xva_calculations = _reusable_counter(
+            namespace,
+            subsystem,
+            name="xva_calculations_total",
+            documentation="Total number of XVA calculations (CVA, FVA, MVA).",
+            labelnames=("xva_type", "status"),
+        )
+        self._calibration_iterations = _reusable_histogram(
+            namespace,
+            subsystem,
+            name="calibration_iterations",
+            documentation="Number of iterations in calibration routines.",
+            labelnames=("model",),
+            buckets=(10, 25, 50, 100, 250, 500, 1000),
+        )
+
     def time(
         self,
         operation: str,
@@ -266,6 +298,57 @@ class MetricsRecorder:
             if "product" in labels and labels["product"]:
                 data["product"] = labels["product"]
         return data
+
+    def record_pricing_calculation(
+        self,
+        *,
+        product_type: str,
+        model: str = "monte_carlo",
+        success: bool = True,
+    ) -> None:
+        """Record a pricing calculation event."""
+        if not self.enabled:
+            return
+        status = "success" if success else "failure"
+        self._pricing_calculations.labels(
+            product_type=product_type,
+            model=model,
+            status=status,
+        ).inc()
+
+    def record_monte_carlo_paths(
+        self,
+        *,
+        product_type: str,
+        num_paths: int,
+    ) -> None:
+        """Record the number of Monte Carlo paths used."""
+        if not self.enabled:
+            return
+        self._monte_carlo_paths.labels(product_type=product_type).observe(num_paths)
+
+    def record_xva_calculation(
+        self,
+        *,
+        xva_type: str,
+        success: bool = True,
+    ) -> None:
+        """Record an XVA calculation event."""
+        if not self.enabled:
+            return
+        status = "success" if success else "failure"
+        self._xva_calculations.labels(xva_type=xva_type, status=status).inc()
+
+    def record_calibration_iterations(
+        self,
+        *,
+        model: str,
+        iterations: int,
+    ) -> None:
+        """Record the number of iterations in a calibration routine."""
+        if not self.enabled:
+            return
+        self._calibration_iterations.labels(model=model).observe(iterations)
 
 
 class _NullMetricsRecorder(MetricsRecorder):

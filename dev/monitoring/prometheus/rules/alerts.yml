@@ -1,0 +1,113 @@
+groups:
+  - name: neutryx_api_alerts
+    interval: 30s
+    rules:
+      # High error rate alert
+      - alert: HighErrorRate
+        expr: |
+          (
+            sum(rate(neutryx_api_requests_total{status=~"5.."}[5m]))
+            /
+            sum(rate(neutryx_api_requests_total[5m]))
+          ) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+          component: api
+        annotations:
+          summary: "High API error rate detected"
+          description: "Error rate is {{ $value | humanizePercentage }} (threshold: 5%)"
+
+      # High latency alert
+      - alert: HighLatency
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(neutryx_api_request_latency_seconds_bucket[5m])) by (le)
+          ) > 2.0
+        for: 5m
+        labels:
+          severity: warning
+          component: api
+        annotations:
+          summary: "High API latency detected"
+          description: "95th percentile latency is {{ $value }}s (threshold: 2s)"
+
+      # Pricing calculation failures
+      - alert: PricingCalculationFailures
+        expr: |
+          sum(rate(neutryx_api_pricing_calculations_total{status="failure"}[5m])) > 0.1
+        for: 3m
+        labels:
+          severity: warning
+          component: pricing
+        annotations:
+          summary: "Pricing calculation failures detected"
+          description: "Failure rate: {{ $value }} calculations/sec"
+
+      # XVA calculation failures
+      - alert: XVACalculationFailures
+        expr: |
+          sum(rate(neutryx_api_xva_calculations_total{status="failure"}[5m])) > 0.05
+        for: 3m
+        labels:
+          severity: warning
+          component: xva
+        annotations:
+          summary: "XVA calculation failures detected"
+          description: "Failure rate: {{ $value }} calculations/sec"
+
+      # Service down
+      - alert: ServiceDown
+        expr: up{job="neutryx-api"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          component: api
+        annotations:
+          summary: "Neutryx API service is down"
+          description: "The service {{ $labels.instance }} has been down for more than 1 minute"
+
+      # High memory usage for Monte Carlo simulations
+      - alert: HighMonteCarloPathCount
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(neutryx_api_monte_carlo_paths_bucket[5m])) by (le)
+          ) > 1000000
+        for: 10m
+        labels:
+          severity: info
+          component: pricing
+        annotations:
+          summary: "High Monte Carlo path counts detected"
+          description: "95th percentile path count: {{ $value }}"
+
+  - name: neutryx_performance_alerts
+    interval: 30s
+    rules:
+      # Slow operations
+      - alert: SlowOperations
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(neutryx_api_operation_latency_seconds_bucket[5m])) by (le, operation)
+          ) > 5.0
+        for: 5m
+        labels:
+          severity: warning
+          component: operations
+        annotations:
+          summary: "Slow operation detected: {{ $labels.operation }}"
+          description: "95th percentile latency is {{ $value }}s for {{ $labels.operation }}"
+
+      # High calibration iterations
+      - alert: HighCalibrationIterations
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(neutryx_api_calibration_iterations_bucket[10m])) by (le, model)
+          ) > 500
+        for: 10m
+        labels:
+          severity: info
+          component: calibration
+        annotations:
+          summary: "High calibration iterations for model {{ $labels.model }}"
+          description: "95th percentile iterations: {{ $value }}"

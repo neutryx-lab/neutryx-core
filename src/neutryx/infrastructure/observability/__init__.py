@@ -9,6 +9,7 @@ from fastapi import FastAPI
 
 from .alerting import BaseAlertManager, BaseNotifier, create_alert_manager
 from .config import (
+    AlertingConfig,
     ObservabilityConfig,
     ProfilingConfig,
     PrometheusConfig,
@@ -87,6 +88,9 @@ def setup_observability(
 
 
 __all__ = [
+    "AlertingConfig",
+    "BaseAlertManager",
+    "BaseNotifier",
     "ObservabilityConfig",
     "ObservabilityState",
     "ProfilingConfig",
