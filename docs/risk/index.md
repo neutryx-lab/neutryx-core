@@ -852,10 +852,11 @@ def generate_daily_frtb_report():
 - [Risk Grandmaster Codex](reference/risk_grandmaster_codex.md) - Advanced risk techniques
 
 ### Code Examples
-- [VaR Calculation Examples](../../examples/var_calculation_example.py)
-- [Stress Testing Examples](../../examples/stress_testing_example.py)
-- [Greek Calculation Examples](../../examples/greeks_example.py)
-- [Pre-Trade Controls Demo](../../examples/pre_trade_controls_demo.py)
+See the [API Reference](../api_reference.md) for comprehensive code examples covering:
+- VaR calculation methodologies (Historical, Monte Carlo, Parametric)
+- Stress testing and scenario analysis
+- Greek calculations and sensitivities
+- Pre-trade controls and limit management
 
 ### Regulatory Guidance
 - [FRTB Implementation](../src/neutryx/regulatory/frtb/)
@@ -955,7 +956,7 @@ var = compute_var(returns, confidence_level=0.99)
 - **Email**: dev@neutryx.tech
 
 ### Contributing
-We welcome contributions to the risk management framework! See [CONTRIBUTING.md](../../CONTRIBUTING.md) for guidelines.
+We welcome contributions to the risk management framework! See the [Developer Guide](../developer_guide.md) for guidelines.
 
 **Priority areas:**
 - Additional VaR methodologies (filtered historical simulation, GARCH-based)

@@ -13,9 +13,9 @@ This guide provides comprehensive instructions for deploying Neutryx Core across
 7. [Environment Configuration](#environment-configuration)
 8. [Database Setup](#database-setup)
 9. [Market Data Infrastructure](#market-data-infrastructure)
-10. [Security & Compliance](#security--compliance)
+10. [Security & Compliance](#security-compliance)
 11. [CI/CD Integration](#cicd-integration)
-12. [Monitoring & Observability](#monitoring--observability)
+12. [Monitoring & Observability](#monitoring-observability)
 13. [Troubleshooting](#troubleshooting)
 
 ---

@@ -8,7 +8,7 @@ This document provides a comprehensive overview of Neutryx Core's architecture, 
 2. [Core Components](#core-components)
 3. [Design Patterns](#design-patterns)
 4. [Data Flow](#data-flow)
-5. [Scalability & Performance](#scalability--performance)
+5. [Scalability & Performance](#scalability-performance)
 6. [Security Architecture](#security-architecture)
 7. [Deployment Architecture](#deployment-architecture)
 

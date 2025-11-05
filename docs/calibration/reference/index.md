@@ -7,7 +7,7 @@ Comprehensive API reference documentation for all calibration modules, classes, 
 - [Core Framework](#core-framework)
 - [Model-Specific Calibrators](#model-specific-calibrators)
 - [Loss Functions](#loss-functions)
-- [Constraints & Transformations](#constraints--transformations)
+- [Constraints & Transformations](#constraints-transformations)
 - [Diagnostics](#diagnostics)
 - [Joint Calibration](#joint-calibration)
 - [Model Selection](#model-selection)
@@ -162,7 +162,7 @@ class ParameterTransform:
 ```
 
 **Usage:**
-Typically created via constraint functions (see [Constraints](#constraints--transformations)) rather than directly.
+Typically created via constraint functions (see [Constraints](#constraints-transformations)) rather than directly.
 
 ---
 

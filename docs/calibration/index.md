@@ -45,7 +45,7 @@ The Stochastic Alpha Beta Rho (SABR) model is widely used for interest rate and 
 - **Use cases**: Interest rate swaptions, FX options, equity volatility smiles
 - **Calibration**: Fast semi-analytic Hagan approximation with automatic differentiation
 
-See [`SABRCalibrator`](reference/calibration_reference_compendium.md#sabr-calibrator) for details.
+See the [Calibration Reference](reference/calibration_reference_compendium.md) for implementation details.
 
 ### Heston Model
 The Heston stochastic volatility model for equity and index options:
@@ -54,7 +54,7 @@ The Heston stochastic volatility model for equity and index options:
 - **Use cases**: Equity options, variance swaps, volatility derivatives
 - **Calibration**: Fourier-based pricing with gradient-based optimization
 
-See [`HestonCalibrator`](reference/calibration_reference_compendium.md#heston-calibrator) for details.
+See the [Calibration Reference](reference/calibration_reference_compendium.md) for implementation details.
 
 ### Stochastic-Local Volatility (SLV)
 A hybrid model combining local and stochastic volatility features:
@@ -63,7 +63,7 @@ A hybrid model combining local and stochastic volatility features:
 - **Use cases**: Exotic derivatives, multi-asset products, model risk management
 - **Calibration**: Flexible parametric approach with smooth smile interpolation
 
-See [`SLVCalibrator`](reference/calibration_reference_compendium.md#slv-calibrator) for details.
+See the [Calibration Reference](reference/calibration_reference_compendium.md) for implementation details.
 
 ## Core Components
 
@@ -270,9 +270,9 @@ Typical calibration times on CPU:
 The calibration framework integrates seamlessly with other Neutryx modules:
 
 - **Models**: Directly uses [`neutryx.models`](../models/index.md) for pricing functions
-- **Market Data**: Compatible with [`neutryx.market`](../market/index.md) data structures
+- **Market Data**: Compatible with [`neutryx.market`](../market_data.md) data structures
 - **Risk**: Calibrated parameters flow into [`neutryx.risk`](../risk/index.md) calculations
-- **Valuations**: Powers mark-to-market in [`neutryx.valuations`](../valuations/index.md)
+- **Valuations**: Powers mark-to-market in [`neutryx.valuations`](../valuations_index.md)
 
 ## Next Steps
 

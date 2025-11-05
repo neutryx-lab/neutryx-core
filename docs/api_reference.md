@@ -22,10 +22,10 @@ Neutryx Core provides a complete JAX-first quantitative finance platform with:
 | [`models`](#models) | Stochastic models (Heston, SABR, Hull-White, etc.) |
 | [`products`](#products) | Multi-asset class derivatives products |
 | [`risk`](#risk-management) | VaR, stress testing, Greeks, P&L attribution |
-| [`valuations`](#valuations--xva) | XVA, margin, collateral, regulatory capital |
+| [`valuations`](#valuations-xva) | XVA, margin, collateral, regulatory capital |
 | [`calibration`](#calibration) | Model calibration, regularization, diagnostics |
 | [`market`](#market-data) | Market data adapters, storage, validation |
-| [`research`](#research--analytics) | Backtesting, factor analysis, performance |
+| [`research`](#research-analytics) | Backtesting, factor analysis, performance |
 | [`analytics`](#analytics) | Factor models, PCA, style attribution |
 | [`infrastructure`](#infrastructure) | Observability, governance, authentication |
 | [`regulatory`](#regulatory-compliance) | FRTB, SA-CCR, SIMM, Basel III/IV |
@@ -1927,7 +1927,7 @@ Key changes:
 - FRTB IMA, DRC, RRAO modules added
 - Backtesting and factor analysis modules added
 
-See [CHANGELOG.md](../CHANGELOG.md) for complete details.
+For complete release history, refer to the git commit log or GitHub releases.
 
 ---
 

@@ -6,8 +6,8 @@ This document captures the key architectural and implementation decisions that s
 
 1. [Core Technology Choices](#core-technology-choices)
 2. [Architectural Patterns](#architectural-patterns)
-3. [Performance & Scalability](#performance--scalability)
-4. [Security & Governance](#security--governance)
+3. [Performance & Scalability](#performance-scalability)
+4. [Security & Governance](#security-governance)
 5. [Data Management](#data-management)
 6. [Regulatory Compliance](#regulatory-compliance)
 7. [API Design](#api-design)
@@ -48,8 +48,8 @@ Modern quantitative finance requires high-performance computing with automatic d
 - Reproducible PRNG with `jax.random.PRNGKey`
 
 **References:**
-- [Core Engine Implementation](../src/neutryx/core/engine.py)
 - [Performance Benchmarks](performance_tuning.md)
+- [API Reference](api_reference.md)
 
 ---
 
