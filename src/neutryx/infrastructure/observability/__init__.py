@@ -21,6 +21,7 @@ from .metrics import (
     configure_metrics,
     create_metrics_endpoint,
     get_metrics_recorder,
+    reset_metrics_recorder,
 )
 from .profiling import ProfilingMiddleware
 from .tracing import setup_tracing
@@ -97,5 +98,6 @@ __all__ = [
     "PrometheusConfig",
     "TracingConfig",
     "get_metrics_recorder",
+    "reset_metrics_recorder",
     "setup_observability",
 ]

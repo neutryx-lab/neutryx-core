@@ -254,30 +254,55 @@ class FXHestonModel:
         def objective(params):
             v0, kappa, theta, sigma, rho = params
 
-            # Create temp model
-            temp_model = FXHestonModel(
-                v0=v0, kappa=kappa, theta=theta, sigma=sigma, rho=rho,
-                r_domestic=self.r_domestic,
-                r_foreign=self.r_foreign
-            )
+            # Penalize parameters that violate constraints
+            # Feller condition: 2*kappa*theta >= sigma^2 (relaxed to avoid strict boundary)
+            feller_violation = max(0.0, sigma**2 - 2*kappa*theta)
+            if feller_violation > sigma**2 * 0.9:  # Allow moderate violations during optimization
+                return 1e6 + feller_violation * 1e3
 
-            # Compute model vols
-            model_vols = jnp.array([
-                temp_model.implied_vol(S, K, T, is_call=True)
-                for K in strikes
-            ])
+            try:
+                # Create temp model
+                temp_model = FXHestonModel(
+                    v0=v0, kappa=kappa, theta=theta, sigma=sigma, rho=rho,
+                    r_domestic=self.r_domestic,
+                    r_foreign=self.r_foreign
+                )
 
-            # Weighted RMSE
-            errors = (model_vols - market_vols) ** 2
-            return jnp.sqrt(jnp.sum(weights * errors))
+                # Compute model vols
+                model_vols = jnp.array([
+                    temp_model.implied_vol(S, K, T, is_call=True)
+                    for K in strikes
+                ])
+
+                # Check for invalid results (nan, inf, negative)
+                if not jnp.all(jnp.isfinite(model_vols)) or jnp.any(model_vols <= 0):
+                    return 1e6
+
+                # Weighted RMSE
+                errors = (model_vols - market_vols) ** 2
+                return float(jnp.sqrt(jnp.sum(weights * errors)))
+            except Exception:
+                # Return large penalty for any pricing failures
+                return 1e6
 
         # Initial guess from ATM vol
         atm_vol = market_vols[len(market_vols) // 2]
+        v0_init = atm_vol ** 2
+        kappa_init = 2.0
+        theta_init = atm_vol ** 2
+        sigma_init = 0.3
+
+        # Ensure initial guess satisfies Feller condition: 2*kappa*theta >= sigma^2
+        # Adjust sigma downward if needed
+        feller_rhs = 2 * kappa_init * theta_init
+        if sigma_init**2 >= feller_rhs:
+            sigma_init = jnp.sqrt(feller_rhs * 0.8)  # 80% of limit for safety
+
         x0 = [
-            atm_vol ** 2,  # v0
-            2.0,           # kappa
-            atm_vol ** 2,  # theta
-            0.3,           # sigma
+            v0_init,       # v0
+            kappa_init,    # kappa
+            theta_init,    # theta
+            sigma_init,    # sigma
             -0.5           # rho (negative for FX)
         ]
 
@@ -295,8 +320,29 @@ class FXHestonModel:
             x0,
             method='L-BFGS-B',
             bounds=bounds,
-            options={'maxiter': 500}
+            options={'maxiter': 1000, 'ftol': 1e-9}
         )
+
+        # If first attempt didn't converge well, try with different initial guess
+        if not result.success or result.fun > 0.15:
+            # Try with higher vol of vol (sigma) as alternate starting point
+            x0_alt = [
+                v0_init,
+                kappa_init,
+                theta_init,
+                min(0.5, jnp.sqrt(feller_rhs * 0.7)),  # Higher sigma, still satisfies Feller
+                -0.3  # Less negative correlation
+            ]
+            result_alt = minimize(
+                objective,
+                x0_alt,
+                method='L-BFGS-B',
+                bounds=bounds,
+                options={'maxiter': 1000, 'ftol': 1e-9}
+            )
+            # Use better result
+            if result_alt.fun < result.fun:
+                result = result_alt
 
         # Update model parameters
         object.__setattr__(self, 'v0', result.x[0])

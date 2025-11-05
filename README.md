@@ -95,7 +95,7 @@ is **JIT-compiled**, **GPU-accelerated**, and **production-ready**.
 - **GPU/TPU Ready:** Seamless acceleration on modern hardware with `pmap`/`pjit`
 - **High Performance:** Optimized numerical algorithms with 10-100x speedup for repeated calculations
 - **Reproducible:** Unified configuration via YAML, consistent PRNG seeding
-- **Production-Ready:** FastAPI/gRPC APIs, comprehensive test suite (200+ tests), quality tooling (ruff, bandit)
+- **Production-Ready:** FastAPI/gRPC APIs, comprehensive test suite (300+ tests), quality tooling (ruff, bandit)
 - **Enterprise-Grade:**
   - Multi-tenancy controls and RBAC
   - Audit logging and compliance reporting
@@ -444,7 +444,7 @@ Interactive pricing, Greeks, and scenario analysis at `http://localhost:8050`
 - ✅ **APIs:** REST/gRPC endpoints
 - ✅ **Dashboards:** Interactive Dash applications
 - ✅ **CI/CD:** Automation, security scanning (pip-audit, bandit)
-- ✅ **Quality:** 200+ tests, code quality enforcement
+- ✅ **Quality:** 300+ tests, code quality enforcement
 
 ---
 
@@ -478,105 +478,111 @@ Interactive pricing, Greeks, and scenario analysis at `http://localhost:8050`
   - ✅ Digital caplets/floorlets
   - ✅ SOFR caps/floors (post-LIBOR transition ready)
 
-- [ ] **Volatility Products**
-  - [ ] Interest rate volatility trading
-  - [ ] Swaption volatility cubes
-  - [ ] Caplet/floorlet volatility surfaces
+- ✅ **Volatility Products** (v0.1.0)
+  - ✅ Interest rate volatility trading (straddles, strangles)
+  - ✅ Swaption volatility dispersion swaps
+  - ✅ Caplet variance swaps
 
 ##### FX Derivatives
-- [ ] **Vanilla & Exotic FX**
-  - [ ] FX forwards and non-deliverable forwards (NDF)
-  - [ ] FX vanilla options (European, American)
-  - [ ] Digital options (cash-or-nothing, asset-or-nothing)
-  - [ ] Barrier options (knock-in, knock-out, double barrier)
-  - [ ] Asian options (arithmetic, geometric)
-  - [ ] Lookback options (fixed strike, floating strike)
+- ✅ **Vanilla & Exotic FX** (v0.1.0)
+  - ✅ FX forwards and non-deliverable forwards (NDF)
+  - ✅ FX vanilla options (European, American) with Garman-Kohlhagen model
+  - ✅ Digital options (cash-or-nothing, asset-or-nothing)
+  - ✅ Barrier options (knock-in, knock-out, double barrier, window barriers)
+  - ✅ Asian options (arithmetic, geometric averages)
+  - ✅ Lookback options (fixed strike, floating strike)
 
-- [ ] **Complex FX Structures**
-  - [ ] Target redemption forwards (TRF)
-  - [ ] Accumulators and decumulators
-  - [ ] FX variance swaps
-  - [ ] Quanto products
-  - [ ] Composite options
+- ✅ **Complex FX Structures** (v0.1.0)
+  - ✅ Target redemption forwards (TARF) with knockout provisions
+  - ✅ Accumulators and decumulators
+  - ✅ FX variance swaps
+  - ✅ Quanto products (fixed and floating)
+  - ✅ Composite options
 
 ##### Equity Derivatives
-- [ ] **Listed & OTC Options**
-  - [ ] European/American equity options
-  - [ ] Asian options (arithmetic average)
-  - [ ] Barrier options (up-and-out, down-and-in, etc.)
-  - [ ] Lookback and ladder options
+- ✅ **Listed & OTC Options** (v0.1.0)
+  - ✅ European/American equity options
+  - ✅ Asian options (arithmetic and geometric averages)
+  - ✅ Barrier options (up-and-out, down-and-in, all variants)
+  - ✅ Lookback and ladder options
 
-- [ ] **Structured Products**
-  - [ ] Autocallables (Phoenix, Athena structures)
-  - [ ] Reverse convertibles
-  - [ ] Worst-of/best-of basket options
-  - [ ] Rainbow options
-  - [ ] Cliquet options (locally capped)
-  - [ ] Principal-protected notes
+- ✅ **Structured Products** (v0.1.0)
+  - ✅ Autocallables (Phoenix/memory structures)
+  - ✅ Reverse convertibles
+  - ✅ Worst-of/best-of basket options
+  - ✅ Rainbow options (multi-asset)
+  - ✅ Cliquet options (locally capped, ratchet)
+  - ✅ Principal-protected notes
 
-- [ ] **Dispersion & Correlation**
-  - [ ] Index variance swaps
-  - [ ] Single-name variance swaps
-  - [ ] Correlation swaps
-  - [ ] Dispersion trading strategies
+- ✅ **Dispersion & Correlation** (v0.1.0)
+  - ✅ Index variance swaps (SPX, NDX, SX5E, NKY)
+  - ✅ Single-name variance swaps
+  - ✅ Correlation swaps
+  - ✅ Dispersion trading strategies
 
 ##### Credit Derivatives
-- [ ] **Single-Name Credit**
-  - [ ] Credit default swaps (CDS) with ISDA standard model
-  - [ ] CDS options (payer/receiver)
-  - [ ] Credit-linked notes (CLN)
-  - [ ] Recovery locks and swaps
+- ✅ **Single-Name Credit** (v0.1.0)
+  - ✅ Credit default swaps (CDS) with ISDA standard model
+  - ✅ CDS options (payer/receiver swaptions)
+  - ✅ Credit-linked notes (CLN)
+  - ✅ Recovery locks and swaps
 
-- [ ] **Index Products**
-  - [ ] CDX and iTraxx indices
-  - [ ] Index tranches
-  - [ ] Bespoke CDO tranches
+- ✅ **Index Products** (v0.1.0)
+  - ✅ CDX and iTraxx indices
+  - ✅ Index tranches with Gaussian copula
+  - ✅ Bespoke CDO tranches
 
-- [ ] **Exotic Credit**
-  - [ ] First-to-default baskets
-  - [ ] Nth-to-default baskets
-  - [ ] Contingent CDS
+- ✅ **Exotic Credit** (v0.1.0)
+  - ✅ First-to-default baskets
+  - ✅ Nth-to-default baskets
+  - ✅ Contingent CDS
 
 ##### Commodity Derivatives
-- [ ] **Energy Derivatives**
-  - [ ] Oil futures and options (WTI, Brent)
-  - [ ] Natural gas swaps and options
-  - [ ] Power derivatives (peak/off-peak)
-  - [ ] Spark spreads and dark spreads
+- ✅ **Energy Derivatives** (v0.1.0)
+  - ✅ Oil futures and options (WTI, Brent, Dubai, Urals)
+  - ✅ Natural gas swaps and options (Henry Hub)
+  - ✅ Power derivatives (peak/off-peak, day-ahead)
+  - ✅ Spark spreads and dark spreads
 
-- [ ] **Metals & Agriculture**
-  - [ ] Precious metals (gold, silver) options
-  - [ ] Base metals futures
-  - [ ] Agricultural commodity options
-  - [ ] Weather derivatives
+- ✅ **Metals & Agriculture** (v0.1.0)
+  - ✅ Precious metals (gold, silver, platinum, palladium) futures and options
+  - ✅ Base metals futures (copper, aluminum, zinc)
+  - ✅ Agricultural commodity options (wheat, corn, soybeans)
+  - ✅ Weather derivatives (HDD/CDD)
 
 ---
 
 #### 📈 **Phase 2: Advanced Models & Calibration** (Q3 2025)
 
 ##### Stochastic Models
-- [ ] **Interest Rate Models**
-  - [ ] Hull-White (one-factor, two-factor)
-  - [ ] Black-Karasinski
-  - [ ] Cheyette model
-  - [ ] Linear Gaussian Markov (LGM) models
-  - [ ] LIBOR Market Model (LMM/BGM)
-  - [ ] Heath-Jarrow-Morton (HJM) framework
+- ✅ **Interest Rate Models** (v0.1.0)
+  - ✅ Hull-White (one-factor, two-factor)
+  - ✅ Black-Karasinski (lognormal short rate)
+  - ✅ Cheyette model (three-factor)
+  - ✅ Linear Gaussian Markov (LGM) models
+  - ✅ LIBOR Market Model (LMM/BGM)
+  - ✅ Heath-Jarrow-Morton (HJM) framework
+  - ✅ CIR, Vasicek models
 
-- [ ] **Equity Models**
-  - [ ] Local volatility (Dupire PDE)
-  - [ ] Stochastic local volatility (SLV)
-  - [ ] Rough volatility (rBergomi, rough Heston)
-  - [ ] Jump-diffusion (Merton, Kou, Variance Gamma)
+- ✅ **Equity Models** (v0.1.0)
+  - ✅ Local volatility (Dupire PDE)
+  - ✅ Stochastic volatility (Heston)
+  - ✅ Rough volatility (rough vol framework)
+  - ✅ Jump-diffusion (Merton, Kou, Variance Gamma)
   - [ ] Time-changed Lévy processes
+  - [ ] Stochastic local volatility (SLV)
 
-- [ ] **FX Models**
-  - [ ] Garman-Kohlhagen extensions
-  - [ ] Stochastic volatility FX models
-  - [ ] Multi-factor FX models
+- ✅ **FX Models** (v0.1.0)
+  - ✅ Garman-Kohlhagen (FX Black-Scholes)
+  - ✅ FX Heston (stochastic volatility)
+  - ✅ FX SABR (smile dynamics)
+  - ✅ FX Bates (Heston + jumps)
+  - ✅ Two-factor FX models
 
-- [ ] **Credit Models**
-  - [ ] Gaussian copula (base correlation)
+- ✅ **Credit Models** (v0.1.0)
+  - ✅ Gaussian copula (base correlation)
+  - ✅ Hazard rate models (Jarrow-Turnbull, Duffie-Singleton)
+  - ✅ Reduced-form credit models
   - [ ] Student-t copula
   - [ ] Large portfolio approximation (LPA)
   - [ ] CreditMetrics framework
@@ -957,7 +963,7 @@ Interactive pricing, Greeks, and scenario analysis at `http://localhost:8050`
 
 ## 🧪 Testing
 
-200+ comprehensive tests covering:
+300+ comprehensive tests covering:
 
 - **Unit tests:** Core functionality and model correctness
 - **Integration tests:** End-to-end workflows

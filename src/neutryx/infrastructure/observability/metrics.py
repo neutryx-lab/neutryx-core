@@ -432,6 +432,12 @@ def get_metrics_recorder() -> MetricsRecorder:
     return _RECORDER
 
 
+def reset_metrics_recorder() -> None:
+    """Reset the global metrics recorder. Primarily for testing."""
+    global _RECORDER  # noqa: PLW0603
+    _RECORDER = None
+
+
 __all__ = [
     "MetricsRecorder",
     "ObservationTimer",
@@ -439,4 +445,5 @@ __all__ = [
     "configure_metrics",
     "create_metrics_endpoint",
     "get_metrics_recorder",
+    "reset_metrics_recorder",
 ]

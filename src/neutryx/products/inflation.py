@@ -589,10 +589,10 @@ def inflation_swaption_price(
 
     from jax.scipy.stats import norm
 
-    if is_payer:
-        value = forward_inflation * norm.cdf(d1) - strike_inflation * norm.cdf(d2)
-    else:
-        value = strike_inflation * norm.cdf(-d2) - forward_inflation * norm.cdf(-d1)
+    # Use jnp.where for JIT compatibility instead of Python if/else
+    payer_value = forward_inflation * norm.cdf(d1) - strike_inflation * norm.cdf(d2)
+    receiver_value = strike_inflation * norm.cdf(-d2) - forward_inflation * norm.cdf(-d1)
+    value = jnp.where(is_payer, payer_value, receiver_value)
 
     return notional * discount_factor * value
 
