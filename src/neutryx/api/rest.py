@@ -31,6 +31,9 @@ from neutryx.valuations.xva.fva import fva
 from neutryx.valuations.xva.mva import mva
 from neutryx.infrastructure.observability import setup_observability
 
+# Import authentication components
+from neutryx.api.auth.endpoints import router as auth_router
+
 
 def _to_array(values: Sequence[float] | float, *, match: int) -> jnp.ndarray:
     """Convert scalar or sequence to JAX array with length checking."""
@@ -198,6 +201,9 @@ def create_app() -> FastAPI:
     app = FastAPI(title="Neutryx Pricing API", version="0.1.0")
     observability = setup_observability(app)
     metrics = observability.metrics
+
+    # Include authentication router
+    app.include_router(auth_router)
 
     # In-memory portfolio storage (for demo purposes)
     # In production, this would be a database or cache
