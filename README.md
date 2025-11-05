@@ -406,8 +406,20 @@ Interactive pricing, Greeks, and scenario analysis at `http://localhost:8050`
 - ✅ **Interest Rate Derivatives:**
   - ✅ Linear Products: IRS (multi-curve), OIS (SOFR/ESTR/SONIA), CCS with FX reset, basis swaps, FRAs, caps/floors/collars (39 tests)
   - ✅ Swaptions & Exotic IR: European/American/Bermudan swaptions, CMS products, range accruals, TARN, snowball/autocallable notes
-- ✅ **Equity:** Forwards, dividend/variance swaps, TRS, ELN
-- ✅ **Commodities:** Forwards, options, swaps, spread options
+  - ✅ Volatility Products: Swaption straddles/strangles, caplet variance swaps
+- ✅ **FX Derivatives:**
+  - ✅ Vanilla & Exotic: Forwards, NDFs, vanilla options (European/American), digitals, barriers (single/double), Asians, lookbacks
+  - ✅ Complex Structures: TARFs, accumulators, FX variance swaps, quanto products, composites
+- ✅ **Equity Derivatives:**
+  - ✅ Listed & OTC Options: European/American, Asians, barriers, lookbacks, ladders
+  - ✅ Structured Products: Autocallables (Phoenix), reverse convertibles, basket options (worst-of, best-of, rainbow), cliquets
+  - ✅ Dispersion & Correlation: Index/single-name variance swaps, correlation swaps, dispersion strategies
+- ✅ **Credit Derivatives:**
+  - ✅ Single-Name: CDS (ISDA model), CDS options, CLNs, recovery locks/swaps
+  - ✅ Index & Portfolio: CDX/iTraxx, index tranches, bespoke CDOs, nth-to-default baskets
+- ✅ **Commodity Derivatives:**
+  - ✅ Energy: Oil (WTI/Brent), natural gas, power derivatives, spark/dark spreads
+  - ✅ Metals & Agriculture: Precious metals (gold/silver/platinum/palladium), base metals, agricultural commodities, weather derivatives
 - ✅ **Fixed Income:** Bonds, FRN, duration/convexity
 - ✅ **Inflation:** TIPS, inflation swaps/caps/floors
 - ✅ **Volatility:** VIX futures/options, variance swaps, VVIX
@@ -430,15 +442,21 @@ Interactive pricing, Greeks, and scenario analysis at `http://localhost:8050`
 - ✅ **Profiling:** Automatic request profiling with cProfile
 - ✅ **Alerting:** Error rate, latency, quality score monitoring
 
+#### Advanced Models & Calibration (v0.1.0)
+- ✅ **Interest Rate Models:** Hull-White (1F/2F), Black-Karasinski, Cheyette, LGM, LMM/BGM, HJM, CIR, Vasicek
+- ✅ **Equity Models:** Local vol (Dupire), Heston, rough vol, jump-diffusion (Merton, Kou, Variance Gamma)
+- ✅ **FX Models:** Garman-Kohlhagen, FX Heston, FX SABR, FX Bates (Heston+jumps), two-factor FX
+- ✅ **Credit Models:** Gaussian copula, hazard rate models (Jarrow-Turnbull, Duffie-Singleton)
+- ✅ **Calibration Framework:** Differentiable calibration with diagnostics and identifiability checks
+- ✅ **Model Selection:** Information criteria (AIC/BIC/AICc/HQIC), k-fold and time-series cross-validation
+- ✅ **Sensitivity Analysis:** Local sensitivity (finite differences), global Sobol indices with Saltelli sampling
+
 #### XVA & Risk
 - ✅ **XVA Suite:** CVA, DVA, FVA, MVA implementation
-- ✅ **Credit:** CDS pricing, hazard models, structural models
 - ✅ **Risk:** Stress testing, scenario generation, capital metrics
 - ✅ **VaR Methodologies:** Historical, Monte Carlo, parametric VaR, ES/CVaR, incremental VaR, component VaR
 - ✅ **Position Limits:** Notional, VaR, concentration, issuer exposure limits with hierarchical thresholds
 - ✅ **Pre-Trade Controls:** Real-time limit checking, what-if scenario analysis, approval workflows
-- ✅ **Calibration:** Differentiable framework with diagnostics
-- ✅ **Model Selection:** Information criteria (AIC/BIC/AICc/HQIC), cross-validation, sensitivity analysis
 
 #### APIs & Infrastructure
 - ✅ **APIs:** REST/gRPC endpoints
@@ -1022,11 +1040,15 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 - Database connectors (PostgreSQL, MongoDB, TimescaleDB)
 - Comprehensive observability stack (Prometheus, Grafana, Jaeger)
 - Data validation and quality framework
-- Interest rate derivatives: Linear products (IRS, OIS, CCS, basis swaps, FRAs, caps/floors/collars) and exotic IR
-- VaR methodologies: Historical, Monte Carlo, parametric, ES/CVaR, incremental/component VaR
-- Position limits & pre-trade controls: Notional, VaR, concentration, issuer limits with real-time checking
-- Model selection tools: Information criteria (AIC/BIC/AICc/HQIC), cross-validation, sensitivity analysis
-- 200+ tests, production-ready APIs
+- **Interest Rate Derivatives:** Linear products (IRS, OIS, CCS, basis swaps, FRAs, caps/floors/collars), swaptions, exotic IR, volatility products
+- **FX Derivatives:** Vanilla & exotic FX (forwards, NDFs, options, digitals, barriers, Asians, lookbacks), complex structures (TARFs, accumulators, FX variance swaps, quantos)
+- **Equity Derivatives:** Listed & OTC options, structured products (autocallables, reverse convertibles, basket options, cliquets), dispersion & correlation products
+- **Credit Derivatives:** Single-name CDS, CDS options, CDX/iTraxx indices, index tranches, bespoke CDOs, nth-to-default baskets
+- **Commodity Derivatives:** Energy (oil, natural gas, power, spreads), metals & agriculture (precious/base metals, agricultural commodities, weather derivatives)
+- **Advanced Models:** IR models (Hull-White, Black-Karasinski, Cheyette, LGM, LMM, HJM), equity models (local vol, Heston, rough vol, jump-diffusion), FX models (Garman-Kohlhagen, FX Heston, FX SABR, FX Bates), credit models (Gaussian copula, hazard rate)
+- **Risk Management:** VaR methodologies (historical, Monte Carlo, parametric, ES/CVaR, incremental/component), position limits & pre-trade controls
+- **Calibration & Model Selection:** Information criteria (AIC/BIC/AICc/HQIC), cross-validation, sensitivity analysis
+- 300+ tests, production-ready APIs
 
 **v0.2** (Q2 2025) - Interest Rate Derivatives
 - IRS, swaptions, CMS products
