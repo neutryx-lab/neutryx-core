@@ -18,6 +18,22 @@ from .analytics import (
     run_stress_tests,
     scenario_expected_shortfall,
 )
+from .limits import (
+    BreachSeverity,
+    ConcentrationLimit,
+    IssuerLimit,
+    Limit,
+    LimitBreach,
+    LimitManager,
+    LimitStatus,
+    LimitType,
+    NotionalLimit,
+    PreTradeCheck,
+    VaRLimit,
+    WhatIfScenario,
+    pre_trade_control,
+    what_if_analysis,
+)
 from neutryx.valuations.pnl_attribution import (
     AttributionMethod,
     MarketState,
@@ -55,4 +71,19 @@ __all__ = [
     "scenario_expected_shortfall",
     "risk_factor_attribution",
     "explain_pnl",
+    # Limits and Controls
+    "LimitType",
+    "LimitStatus",
+    "BreachSeverity",
+    "Limit",
+    "NotionalLimit",
+    "VaRLimit",
+    "ConcentrationLimit",
+    "IssuerLimit",
+    "LimitBreach",
+    "LimitManager",
+    "PreTradeCheck",
+    "pre_trade_control",
+    "WhatIfScenario",
+    "what_if_analysis",
 ]
