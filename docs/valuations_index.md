@@ -31,7 +31,6 @@ Complete documentation for the Neutryx Valuations framework - a comprehensive su
 #### XVA Framework
 - [XVA Overview](valuations_comprehensive.md#xva-framework)
 - [CVA Calculation](valuations_comprehensive.md#1-credit-valuation-adjustment-cva)
-- [Multi-Currency CVA](valuations_comprehensive.md#multi-currency-cva)
 - [FVA, MVA, KVA](valuations_comprehensive.md#3-funding-valuation-adjustment-fva)
 - [Exposure Calculations](valuations_comprehensive.md#exposure-calculations)
 
@@ -39,7 +38,7 @@ Complete documentation for the Neutryx Valuations framework - a comprehensive su
 - [Risk Metrics Overview](valuations_comprehensive.md#risk-metrics)
 - [Value at Risk (VaR)](valuations_comprehensive.md#value-at-risk-var)
 - [VaR Methodologies](valuations_comprehensive.md#var-methodologies)
-- [Conditional VaR / Expected Shortfall](valuations_comprehensive.md#conditional-var-cvar--expected-shortfall)
+- [Conditional VaR / Expected Shortfall](valuations_comprehensive.md#conditional-var-cvar-expected-shortfall)
 - [Portfolio Risk](valuations_comprehensive.md#portfolio-risk-metrics)
 - [VaR Backtesting](valuations_comprehensive.md#var-backtesting)
 
@@ -51,7 +50,7 @@ Complete documentation for the Neutryx Valuations framework - a comprehensive su
 
 #### SIMM and Margin
 - [SIMM Overview](valuations_comprehensive.md#isda-simm-standard-initial-margin-model)
-- [SIMM Architecture](valuations_comprehensive.md#architecture-1)
+- [SIMM Workflow](valuations_comprehensive.md#workflow)
 - [SIMM Calculation](valuations_comprehensive.md#workflow)
 - [Initial Margin](valuations_comprehensive.md#initial-margin-non-simm)
 - [Variation Margin](valuations_comprehensive.md#variation-margin)
@@ -74,10 +73,10 @@ Complete documentation for the Neutryx Valuations framework - a comprehensive su
 - [WWR Engine](valuations_comprehensive.md#comprehensive-wwr-engine)
 
 #### P&L Attribution
-- [P&L Attribution Overview](valuations_comprehensive.md#pnl-attribution)
+- [P&L Attribution Overview](valuations_comprehensive.md#pl-attribution)
 - [Attribution Methods](valuations_comprehensive.md#attribution-methods)
-- [Daily Tracking](valuations_comprehensive.md#daily-pnl-tracking)
-- [Driver Analysis](valuations_comprehensive.md#analyzing-pnl-drivers)
+- [Daily Tracking](valuations_comprehensive.md#daily-pl-tracking)
+- [Driver Analysis](valuations_comprehensive.md#analyzing-pl-drivers)
 
 ### 🔧 Practical Guides
 
@@ -97,7 +96,6 @@ Complete documentation for the Neutryx Valuations framework - a comprehensive su
 ### 📋 Reference
 
 #### API Documentation
-- [Core Classes](valuations_api_summary.md#core-classes)
 - [XVA Module](valuations_api_summary.md#xva-module)
 - [Risk Metrics Module](valuations_api_summary.md#risk-metrics-module)
 - [SIMM Module](valuations_api_summary.md#simm-module)
@@ -105,7 +103,7 @@ Complete documentation for the Neutryx Valuations framework - a comprehensive su
 - [Scenarios Module](valuations_api_summary.md#scenarios-module)
 - [Stress Test Module](valuations_api_summary.md#stress-test-module)
 - [Wrong-Way Risk Module](valuations_api_summary.md#wrong-way-risk-module)
-- [P&L Attribution Module](valuations_api_summary.md#pnl-attribution-module)
+- [P&L Attribution Module](valuations_api_summary.md#pl-attribution-module)
 - [Greeks Module](valuations_api_summary.md#greeks-module)
 
 #### Module Structure
@@ -149,12 +147,12 @@ neutryx.valuations/
 #### Derivatives Pricing
 - [Clean Price Calculation](valuations_comprehensive.md#overview)
 - [XVA Adjustments](valuations_comprehensive.md#xva-framework)
-- [Multi-Currency Portfolios](valuations_comprehensive.md#multi-currency-cva)
+- [XVA Framework](valuations_comprehensive.md#xva-framework)
 
 #### Risk Management
 - [Portfolio VaR](valuations_quickstart.md#2-calculate-portfolio-var)
 - [Stress Testing](valuations_quickstart.md#3-run-stress-tests)
-- [Risk Limits](valuations_comprehensive.md#implement-risk-limits)
+- [Risk Management Best Practices](valuations_comprehensive.md#4-risk-management)
 
 #### Regulatory Compliance
 - [SIMM Initial Margin](valuations_quickstart.md#4-calculate-simm-initial-margin)
@@ -162,7 +160,7 @@ neutryx.valuations/
 - [FRTB](valuations_comprehensive.md#risk-metrics)
 
 #### Trading Desk Operations
-- [Daily P&L Attribution](valuations_comprehensive.md#daily-pnl-tracking)
+- [Daily P&L Attribution](valuations_comprehensive.md#daily-pl-tracking)
 - [Greeks Calculation](valuations_comprehensive.md#greeks-and-sensitivities)
 - [What-If Analysis](valuations_comprehensive.md#scenario-analysis)
 
@@ -210,7 +208,7 @@ neutryx.valuations/
 
 ### Advanced
 1. Deep dive into [Wrong-Way Risk](valuations_comprehensive.md#wrong-way-risk)
-2. Master [P&L Attribution](valuations_comprehensive.md#pnl-attribution)
+2. Master [P&L Attribution](valuations_comprehensive.md#pl-attribution)
 3. Study [Best Practices](valuations_comprehensive.md#best-practices)
 4. Implement custom scenarios
 5. Optimize performance with JAX
@@ -278,9 +276,9 @@ results = run_historical_stress_tests(base_params, valuation_fn)
 - [Can I use custom stress scenarios?](valuations_quickstart.md#faq)
 
 ### Performance
-- [How do I optimize for GPU?](valuations_comprehensive.md#use-jax-jit-compilation)
-- [What about memory usage?](valuations_comprehensive.md#performance-optimization)
-- [Can I parallelize calculations?](valuations_comprehensive.md#vectorize-operations)
+- [How do I optimize for GPU?](valuations_comprehensive.md#1-performance-optimization)
+- [What about memory usage?](valuations_comprehensive.md#1-performance-optimization)
+- [Can I parallelize calculations?](valuations_comprehensive.md#1-performance-optimization)
 
 ### Integration
 - How do I integrate with existing systems?

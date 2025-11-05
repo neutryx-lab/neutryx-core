@@ -856,7 +856,7 @@ This document covered:
 
 All methods are rigorously implemented in Neutryx with extensive validation.
 
-**Next**: [Calibration Theory](calibration_theory.md) | [Risk Metrics Theory](risk_theory.md)
+**Next**: [Calibration Theory](calibration_theory.md)
 
 ---
 

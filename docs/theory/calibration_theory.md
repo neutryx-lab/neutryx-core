@@ -656,7 +656,7 @@ This document covered:
 
 All calibration methods are implemented in `src/neutryx/calibration/` with extensive diagnostics and validation.
 
-**Next**: [Risk Metrics Theory](risk_theory.md) | [XVA Theory](xva_theory.md)
+**See also**: [Pricing Models Theory](pricing_models.md) | [Numerical Methods](numerical_methods.md)
 
 ---
 

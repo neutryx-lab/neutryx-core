@@ -100,7 +100,7 @@ where $\phi(\cdot)$ is the standard normal PDF.
 
 #### Implementation
 
-**File**: [`src/neutryx/models/bs.py`](../../src/neutryx/models/bs.py)
+**File**: `src/neutryx/models/bs.py`
 
 **Key Functions**:
 - `price_european_call(S, K, T, r, sigma)`: Analytical call price
@@ -220,7 +220,7 @@ $$
 
 #### Implementation
 
-**File**: [`src/neutryx/models/heston.py`](../../src/neutryx/models/heston.py)
+**File**: `src/neutryx/models/heston.py`
 
 **Key Functions**:
 - `characteristic_function(u, S0, v0, r, T, kappa, theta, sigma_v, rho)`: CF for FFT pricing
@@ -228,7 +228,7 @@ $$
 - `simulate(S0, v0, T, r, kappa, theta, sigma_v, rho, n_steps, scheme='qe')`: Path simulation
 - `calibrate(market_data, initial_guess)`: Calibration routine
 
-**Calibration File**: [`src/neutryx/calibration/heston.py`](../../src/neutryx/calibration/heston.py)
+**Calibration File**: `src/neutryx/calibration/heston.py`
 
 **Validation**:
 - Characteristic function verified against [Heston, 1993] Appendix A
@@ -300,13 +300,13 @@ $$
 
 #### Implementation
 
-**File**: [`src/neutryx/models/sabr.py`](../../src/neutryx/models/sabr.py)
+**File**: `src/neutryx/models/sabr.py`
 
 **Key Functions**:
 - `implied_volatility(F, K, T, alpha, beta, rho, nu)`: Hagan's approximation
 - `calibrate(market_strikes, market_vols, F, T, beta_fixed)`: Calibration to smile
 
-**Calibration File**: [`src/neutryx/calibration/sabr.py`](../../src/neutryx/calibration/sabr.py)
+**Calibration File**: `src/neutryx/calibration/sabr.py`
 
 **Validation**:
 - Hagan's formula implementation tested against reference (QuantLib, original paper)
@@ -368,7 +368,7 @@ $$
 
 #### Implementation
 
-**File**: [`src/neutryx/models/rough_vol.py`](../../src/neutryx/models/rough_vol.py)
+**File**: `src/neutryx/models/rough_vol.py`
 
 **Key Functions**:
 - `simulate_fractional_brownian_motion(T, n_steps, hurst, n_paths)`: fBm generation
@@ -429,14 +429,14 @@ $$
 
 #### Implementation
 
-**File**: [`src/neutryx/models/local_vol.py`](../../src/neutryx/models/local_vol.py), [`src/neutryx/models/dupire.py`](../../src/neutryx/models/dupire.py)
+**File**: `src/neutryx/models/local_vol.py`, `src/neutryx/models/dupire.py`
 
 **Key Functions**:
 - `dupire_local_vol(K, T, implied_vol_surface, S0, r)`: Dupire formula application
 - `simulate_local_vol(S0, T, n_steps, local_vol_func)`: Monte Carlo with local vol
 - `price_european_pde(S0, K, T, r, local_vol_surface)`: PDE pricing
 
-**Calibration File**: [`src/neutryx/calibration/local_vol.py`](../../src/neutryx/calibration/local_vol.py)
+**Calibration File**: `src/neutryx/calibration/local_vol.py`
 
 **Validation**:
 - Perfect fit to market by construction (within interpolation accuracy)
@@ -472,7 +472,7 @@ where $J_t = \sum_{i=1}^{N_t} (Y_i - 1)$, $N_t \sim \text{Poisson}(\lambda)$, $Y
 - [Cont & Tankov, 2004] *Financial Modelling with Jump Processes*, Chapter 9
 - See [Theory: Merton Jump-Diffusion](../../theory/pricing_models.md#merton-jump-diffusion)
 
-**Implementation**: [`src/neutryx/models/jump_diffusion.py`](../../src/neutryx/models/jump_diffusion.py)
+**Implementation**: `src/neutryx/models/jump_diffusion.py`
 
 ---
 
@@ -497,7 +497,7 @@ $$
 - [Kou, 2002] "A Jump-Diffusion Model for Option Pricing"
 - See [Theory: Kou Double Exponential](../../theory/pricing_models.md#kou-double-exponential)
 
-**Implementation**: [`src/neutryx/models/kou.py`](../../src/neutryx/models/kou.py)
+**Implementation**: `src/neutryx/models/kou.py`
 
 ---
 
@@ -525,7 +525,7 @@ $$
 - [Cont & Tankov, 2004], Section 8.4
 - See [Theory: Variance Gamma](../../theory/pricing_models.md#variance-gamma)
 
-**Implementation**: [`src/neutryx/models/variance_gamma.py`](../../src/neutryx/models/variance_gamma.py)
+**Implementation**: `src/neutryx/models/variance_gamma.py`
 
 ---
 
@@ -583,7 +583,7 @@ $$
 
 #### Implementation
 
-**File**: [`src/neutryx/models/vasicek.py`](../../src/neutryx/models/vasicek.py)
+**File**: `src/neutryx/models/vasicek.py`
 
 **Key Functions**:
 - `bond_price(r, t, T, kappa, theta, sigma)`: Zero-coupon bond pricing
@@ -655,7 +655,7 @@ where $\gamma = \sqrt{\kappa^2 + 2\sigma^2}$.
 
 #### Implementation
 
-**File**: [`src/neutryx/models/cir.py`](../../src/neutryx/models/cir.py)
+**File**: `src/neutryx/models/cir.py`
 
 **Key Functions**:
 - `bond_price(r, t, T, kappa, theta, sigma)`: Zero-coupon bond pricing
@@ -724,7 +724,7 @@ $$
 
 #### Implementation
 
-**File**: [`src/neutryx/models/hull_white.py`](../../src/neutryx/models/hull_white.py)
+**File**: `src/neutryx/models/hull_white.py`
 
 **Key Functions**:
 - `calibrate_theta(forward_curve, kappa, sigma)`: Fit $\theta(t)$ to market
@@ -749,4 +749,4 @@ $$
 - [Calibration Theory](../../theory/calibration_theory.md)
 - [Bibliography and References](../../references.md)
 
-**Implementation files**: [`src/neutryx/models/`](../../src/neutryx/models/) and [`src/neutryx/calibration/`](../../src/neutryx/calibration/)
+**Implementation files**: `src/neutryx/models/` and `src/neutryx/calibration/`

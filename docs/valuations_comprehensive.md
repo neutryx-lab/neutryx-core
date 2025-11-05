@@ -12,7 +12,7 @@
 8. [Scenario Analysis](#scenario-analysis)
 9. [Stress Testing](#stress-testing)
 10. [Wrong-Way Risk](#wrong-way-risk)
-11. [P&L Attribution](#pnl-attribution)
+11. [P&L Attribution](#pl-attribution)
 12. [API Reference](#api-reference)
 13. [Usage Examples](#usage-examples)
 14. [Best Practices](#best-practices)
