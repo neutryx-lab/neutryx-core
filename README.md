@@ -451,10 +451,13 @@ Interactive pricing, Greeks, and scenario analysis at `http://localhost:8050`
 - ✅ **Model Selection:** Information criteria (AIC/BIC/AICc/HQIC), k-fold and time-series cross-validation
 - ✅ **Sensitivity Analysis:** Local sensitivity (finite differences), global Sobol indices with Saltelli sampling
 
-#### XVA & Risk
-- ✅ **XVA Suite:** CVA, DVA, FVA, MVA implementation
-- ✅ **Risk:** Stress testing, scenario generation, capital metrics
+#### Risk Management & P&L (v0.1.0)
 - ✅ **VaR Methodologies:** Historical, Monte Carlo, parametric VaR, ES/CVaR, incremental VaR, component VaR
+- ✅ **Stress Testing:** Historical scenarios (25+ events), hypothetical scenarios, reverse stress testing, concentration risk (Herfindahl, Gini, Top-N, Entropy)
+- ✅ **Sensitivity Analysis (Greeks):** DV01, CS01, vega by tenor/strike, FX delta/gamma, higher-order Greeks (vanna, volga, charm, veta, speed, zomma, color)
+- ✅ **P&L Attribution:** Daily P&L explain (carry, delta, gamma, vega, theta, rho), unexplained P&L tracking, risk factor attribution, model risk quantification, FRTB attribution test
+- ✅ **CCR & Exposure:** EE/PFE/EPE/ENE profiles, effective EPE for Basel, time-averaged EPE, peak exposure
+- ✅ **XVA Enhancements:** KVA (capital cost), multi-netting set aggregation, collateral optimization, wrong-way risk (WWR) modeling
 - ✅ **Position Limits:** Notional, VaR, concentration, issuer exposure limits with hierarchical thresholds
 - ✅ **Pre-Trade Controls:** Real-time limit checking, what-if scenario analysis, approval workflows
 
@@ -637,51 +640,55 @@ Interactive pricing, Greeks, and scenario analysis at `http://localhost:8050`
   - ✅ Incremental VaR (IVaR)
   - ✅ Component VaR
 
-- [ ] **Stress Testing**
-  - [ ] Historical scenario analysis
-  - [ ] Hypothetical scenarios
-  - [ ] Reverse stress testing
-  - [ ] Concentration risk metrics
+- ✅ **Stress Testing** (v0.1.0)
+  - ✅ Historical scenario analysis (25+ major market events: crashes, crises, sovereign defaults)
+  - ✅ Hypothetical scenario builder
+  - ✅ Reverse stress testing with optimization
+  - ✅ Concentration risk metrics (Herfindahl, Gini, Top-N, Entropy)
 
-- [ ] **Sensitivity Analysis**
-  - [ ] DV01 (dollar value of 01 bp)
-  - [ ] CS01 (credit spread 01)
-  - [ ] Vega by tenor/strike
-  - [ ] FX delta and gamma
-  - [ ] Higher-order Greeks (vanna, volga, vomma)
+- ✅ **Sensitivity Analysis** (v0.1.0)
+  - ✅ DV01 (dollar value of 01 bp) for interest rate products
+  - ✅ CS01 (credit spread 01) for credit products
+  - ✅ Vega by tenor/strike with bucketing
+  - ✅ FX delta and gamma for currency derivatives
+  - ✅ Higher-order Greeks (vanna, volga/vomma, charm, veta, speed, zomma, color)
 
 ##### P&L Attribution
-- [ ] **Daily P&L Explain**
-  - [ ] Carry P&L
-  - [ ] Delta P&L
-  - [ ] Gamma P&L
-  - [ ] Vega P&L
-  - [ ] Theta decay
-  - [ ] Unexplained P&L tracking
+- ✅ **Daily P&L Explain** (v0.1.0)
+  - ✅ Carry P&L (funding costs, accrued interest, dividends)
+  - ✅ Delta P&L (first-order price moves)
+  - ✅ Gamma P&L (convexity effects)
+  - ✅ Vega P&L (volatility changes)
+  - ✅ Theta decay (pure time decay)
+  - ✅ Rho P&L (interest rate sensitivity)
+  - ✅ Unexplained P&L tracking and analysis
+  - ✅ FRTB P&L attribution test (Basel regulatory compliance)
 
-- [ ] **Risk Factor Attribution**
-  - [ ] Interest rate risk attribution
-  - [ ] Credit spread attribution
-  - [ ] FX and equity attribution
-  - [ ] Basis risk attribution
+- ✅ **Risk Factor Attribution** (v0.1.0)
+  - ✅ Interest rate risk attribution (DV01 decomposition)
+  - ✅ Credit spread attribution (CS01 decomposition)
+  - ✅ FX and equity attribution
+  - ✅ Basis risk attribution
 
-- [ ] **Model Risk**
-  - [ ] Mark-to-model reserves
-  - [ ] Parameter uncertainty
-  - [ ] Model replacement impact
+- ✅ **Model Risk** (v0.1.0)
+  - ✅ Mark-to-model reserves calculation
+  - ✅ Parameter uncertainty quantification
+  - ✅ Model replacement impact assessment
 
 ##### Counterparty Credit Risk
-- [ ] **Exposure Metrics**
-  - [ ] Expected exposure (EE) profiles
-  - [ ] Potential future exposure (PFE)
-  - [ ] Expected positive exposure (EPE)
-  - [ ] Effective EPE for Basel
+- ✅ **Exposure Metrics** (v0.1.0)
+  - ✅ Expected exposure (EE) profiles with full simulation paths
+  - ✅ Potential future exposure (PFE) at 95th, 97.5th, and 99th percentiles
+  - ✅ Expected positive exposure (EPE) and Expected negative exposure (ENE)
+  - ✅ Effective EPE for Basel capital calculation (time-weighted, non-decreasing)
+  - ✅ Time-averaged EPE and peak exposure identification
 
-- [ ] **XVA Enhancements**
-  - [ ] KVA (Capital Valuation Adjustment)
-  - [ ] Multi-netting set aggregation
-  - [ ] Collateral optimization
-  - [ ] Wrong-way risk modeling
+- ✅ **XVA Enhancements** (v0.1.0)
+  - ✅ KVA (Capital Valuation Adjustment) with after-tax hurdle rate
+  - ✅ Multi-netting set aggregation with hierarchy support
+  - ✅ Collateral optimization (CSA threshold and independent amount)
+  - ✅ Wrong-way risk modeling (general and specific WWR, correlated defaults)
+  - ✅ CSA-adjusted exposure with threshold, MTA, and independent amount
 
 ##### Limits & Controls
 - ✅ **Position Limits** (v0.1.0)
@@ -1046,7 +1053,15 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 - **Credit Derivatives:** Single-name CDS, CDS options, CDX/iTraxx indices, index tranches, bespoke CDOs, nth-to-default baskets
 - **Commodity Derivatives:** Energy (oil, natural gas, power, spreads), metals & agriculture (precious/base metals, agricultural commodities, weather derivatives)
 - **Advanced Models:** IR models (Hull-White, Black-Karasinski, Cheyette, LGM, LMM, HJM), equity models (local vol, Heston, rough vol, jump-diffusion), FX models (Garman-Kohlhagen, FX Heston, FX SABR, FX Bates), credit models (Gaussian copula, hazard rate)
-- **Risk Management:** VaR methodologies (historical, Monte Carlo, parametric, ES/CVaR, incremental/component), position limits & pre-trade controls
+- **Risk Management & P&L:**
+  - VaR methodologies (historical, Monte Carlo, parametric, ES/CVaR, incremental/component)
+  - Stress testing (25+ historical scenarios, hypothetical scenarios, reverse stress testing)
+  - Concentration risk metrics (Herfindahl, Gini, Top-N, Entropy)
+  - Sensitivity analysis (DV01, CS01, vega bucketing, FX delta/gamma, higher-order Greeks: vanna, volga, charm, veta, speed, zomma, color)
+  - P&L attribution (daily P&L explain with carry/delta/gamma/vega/theta/rho, unexplained P&L, risk factor attribution, model risk, FRTB test)
+  - CCR analytics (EE/PFE/EPE/ENE, effective EPE for Basel, time-averaged EPE)
+  - XVA enhancements (KVA, multi-netting sets, collateral optimization, wrong-way risk)
+  - Position limits & pre-trade controls
 - **Calibration & Model Selection:** Information criteria (AIC/BIC/AICc/HQIC), cross-validation, sensitivity analysis
 - 300+ tests, production-ready APIs
 
