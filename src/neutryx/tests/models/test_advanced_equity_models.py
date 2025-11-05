@@ -18,9 +18,16 @@ from neutryx.models.levy_processes import (
 )
 from neutryx.models.jump_clustering import (
     HawkesJumpParams,
+    IntensityDependentJumpParams,
+    MultivariateHawkesParams,
+    RegimeSwitchingHawkesParams,
     SelfExcitingLevyParams,
+    calibrate_hawkes_from_jumps,
     price_vanilla_hawkes_mc,
     simulate_hawkes_jump_diffusion,
+    simulate_intensity_dependent_hawkes,
+    simulate_multivariate_hawkes,
+    simulate_regime_switching_hawkes,
     simulate_self_exciting_levy,
 )
 from neutryx.models.equity_models import (
@@ -656,6 +663,403 @@ class TestSelfExcitingLevy:
 
         assert paths.shape[1] == mc_config.steps + 1
         assert jnp.all(paths > 0)
+
+
+# ==============================================================================
+# Multivariate Hawkes Tests
+# ==============================================================================
+
+
+class TestMultivariateHawkes:
+    """Test suite for multivariate Hawkes processes."""
+
+    def test_multivariate_hawkes_params_validation(self):
+        """Test parameter validation for multivariate Hawkes."""
+        # Valid parameters
+        params = MultivariateHawkesParams(
+            n_assets=2,
+            sigma=jnp.array([0.15, 0.20]),
+            lambda0=jnp.array([5.0, 3.0]),
+            alpha=jnp.array([[1.5, 0.8], [1.2, 1.0]]),
+            beta=jnp.ones((2, 2)) * 2.0,
+            mu_jump=jnp.array([-0.05, -0.03]),
+            sigma_jump=jnp.array([0.1, 0.08]),
+        )
+        assert params.n_assets == 2
+
+        # Invalid: wrong shape for sigma
+        with pytest.raises(ValueError, match="sigma shape"):
+            MultivariateHawkesParams(
+                n_assets=2,
+                sigma=jnp.array([0.15]),  # Should be [2]
+                lambda0=jnp.array([5.0, 3.0]),
+                alpha=jnp.ones((2, 2)),
+                beta=jnp.ones((2, 2)),
+                mu_jump=jnp.array([-0.05, -0.03]),
+                sigma_jump=jnp.array([0.1, 0.08]),
+            )
+
+        # Invalid: negative sigma
+        with pytest.raises(ValueError, match="sigma must be non-negative"):
+            MultivariateHawkesParams(
+                n_assets=2,
+                sigma=jnp.array([0.15, -0.20]),
+                lambda0=jnp.array([5.0, 3.0]),
+                alpha=jnp.ones((2, 2)),
+                beta=jnp.ones((2, 2)),
+                mu_jump=jnp.array([-0.05, -0.03]),
+                sigma_jump=jnp.array([0.1, 0.08]),
+            )
+
+    def test_multivariate_hawkes_stability(self):
+        """Test stability check via spectral radius."""
+        # Subcritical (stable)
+        params_stable = MultivariateHawkesParams(
+            n_assets=2,
+            sigma=jnp.array([0.15, 0.20]),
+            lambda0=jnp.array([5.0, 3.0]),
+            alpha=jnp.array([[0.5, 0.2], [0.3, 0.4]]),  # Weak coupling
+            beta=jnp.ones((2, 2)) * 2.0,
+            mu_jump=jnp.array([-0.05, -0.03]),
+            sigma_jump=jnp.array([0.1, 0.08]),
+        )
+        assert params_stable.spectral_radius() < 1.0
+
+    def test_multivariate_hawkes_simulation(self, key, market_params):
+        """Test multivariate Hawkes simulation."""
+        params = MultivariateHawkesParams(
+            n_assets=2,
+            sigma=jnp.array([0.15, 0.20]),
+            lambda0=jnp.array([5.0, 3.0]),
+            alpha=jnp.array([[1.5, 0.8], [1.2, 1.0]]),
+            beta=jnp.ones((2, 2)) * 2.0,
+            mu_jump=jnp.array([-0.05, -0.03]),
+            sigma_jump=jnp.array([0.1, 0.08]),
+        )
+
+        S0 = jnp.array([100.0, 50.0])
+        q = jnp.array([0.01, 0.02])
+        cfg = MCConfig(paths=100, steps=50, dtype=jnp.float32)
+
+        paths = simulate_multivariate_hawkes(
+            key, S0, market_params['T'], market_params['r'], q, params, cfg
+        )
+
+        # Check shape: [paths, steps+1, n_assets]
+        assert paths.shape == (100, 51, 2)
+
+        # Check initial values
+        assert jnp.allclose(paths[:, 0, 0], 100.0)
+        assert jnp.allclose(paths[:, 0, 1], 50.0)
+
+        # Check all positive
+        assert jnp.all(paths > 0)
+
+    def test_multivariate_hawkes_correlation(self, key, market_params):
+        """Test multivariate Hawkes with correlation matrix."""
+        correlation = jnp.array([[1.0, 0.5], [0.5, 1.0]])
+
+        params = MultivariateHawkesParams(
+            n_assets=2,
+            sigma=jnp.array([0.15, 0.20]),
+            lambda0=jnp.array([5.0, 3.0]),
+            alpha=jnp.array([[1.5, 0.8], [1.2, 1.0]]),
+            beta=jnp.ones((2, 2)) * 2.0,
+            mu_jump=jnp.array([-0.05, -0.03]),
+            sigma_jump=jnp.array([0.1, 0.08]),
+            correlation=correlation,
+        )
+
+        S0 = jnp.array([100.0, 50.0])
+        q = jnp.array([0.01, 0.02])
+        cfg = MCConfig(paths=100, steps=50, dtype=jnp.float32)
+
+        paths = simulate_multivariate_hawkes(
+            key, S0, market_params['T'], market_params['r'], q, params, cfg
+        )
+
+        # Should produce valid paths
+        assert paths.shape == (100, 51, 2)
+        assert jnp.all(paths > 0)
+
+
+# ==============================================================================
+# Regime-Switching Hawkes Tests
+# ==============================================================================
+
+
+class TestRegimeSwitchingHawkes:
+    """Test suite for regime-switching Hawkes processes."""
+
+    def test_regime_switching_params_validation(self):
+        """Test parameter validation for regime-switching Hawkes."""
+        # Valid parameters
+        params = RegimeSwitchingHawkesParams(
+            sigma=jnp.array([0.15, 0.30]),
+            lambda0=jnp.array([2.0, 8.0]),
+            alpha=jnp.array([0.5, 3.0]),
+            beta=jnp.array([2.0, 2.0]),
+            mu_jump=jnp.array([-0.02, -0.08]),
+            sigma_jump=jnp.array([0.05, 0.15]),
+            q_matrix=jnp.array([[-0.5, 0.5], [2.0, -2.0]]),
+        )
+        assert params.branching_ratios()[0] == 0.25
+        assert params.branching_ratios()[1] == 1.5
+
+        # Invalid: wrong shape
+        with pytest.raises(ValueError, match="must have shape \\(2,\\)"):
+            RegimeSwitchingHawkesParams(
+                sigma=jnp.array([0.15]),  # Should be [2]
+                lambda0=jnp.array([2.0, 8.0]),
+                alpha=jnp.array([0.5, 3.0]),
+                beta=jnp.array([2.0, 2.0]),
+                mu_jump=jnp.array([-0.02, -0.08]),
+                sigma_jump=jnp.array([0.05, 0.15]),
+                q_matrix=jnp.array([[-0.5, 0.5], [2.0, -2.0]]),
+            )
+
+        # Invalid: Q-matrix not valid (rows don't sum to zero)
+        with pytest.raises(ValueError, match="Q-matrix row"):
+            RegimeSwitchingHawkesParams(
+                sigma=jnp.array([0.15, 0.30]),
+                lambda0=jnp.array([2.0, 8.0]),
+                alpha=jnp.array([0.5, 3.0]),
+                beta=jnp.array([2.0, 2.0]),
+                mu_jump=jnp.array([-0.02, -0.08]),
+                sigma_jump=jnp.array([0.05, 0.15]),
+                q_matrix=jnp.array([[-0.5, 0.6], [2.0, -2.0]]),  # Row 0 doesn't sum to 0
+            )
+
+    def test_regime_switching_simulation(self, key, market_params):
+        """Test regime-switching Hawkes simulation."""
+        params = RegimeSwitchingHawkesParams(
+            sigma=jnp.array([0.15, 0.30]),
+            lambda0=jnp.array([2.0, 8.0]),
+            alpha=jnp.array([0.5, 3.0]),
+            beta=jnp.array([2.0, 2.0]),
+            mu_jump=jnp.array([-0.02, -0.08]),
+            sigma_jump=jnp.array([0.05, 0.15]),
+            q_matrix=jnp.array([[-0.5, 0.5], [2.0, -2.0]]),
+        )
+
+        cfg = MCConfig(paths=100, steps=50, dtype=jnp.float32)
+
+        paths, regimes = simulate_regime_switching_hawkes(
+            key,
+            market_params['S0'],
+            market_params['T'],
+            market_params['r'],
+            market_params['q'],
+            params,
+            cfg,
+            initial_regime=0,
+        )
+
+        # Check paths shape
+        assert paths.shape == (100, 51)
+        assert regimes.shape == (100, 51)
+
+        # Check initial values
+        assert jnp.allclose(paths[:, 0], market_params['S0'])
+
+        # Check regimes are 0 or 1
+        assert jnp.all((regimes == 0) | (regimes == 1))
+
+        # Check all paths positive
+        assert jnp.all(paths > 0)
+
+    def test_regime_switching_initial_regime(self, key, market_params):
+        """Test that initial regime is respected."""
+        params = RegimeSwitchingHawkesParams(
+            sigma=jnp.array([0.15, 0.30]),
+            lambda0=jnp.array([2.0, 8.0]),
+            alpha=jnp.array([0.5, 3.0]),
+            beta=jnp.array([2.0, 2.0]),
+            mu_jump=jnp.array([-0.02, -0.08]),
+            sigma_jump=jnp.array([0.05, 0.15]),
+            q_matrix=jnp.array([[-0.5, 0.5], [2.0, -2.0]]),
+        )
+
+        cfg = MCConfig(paths=10, steps=50, dtype=jnp.float32)
+
+        # Start in regime 1
+        _, regimes = simulate_regime_switching_hawkes(
+            key,
+            market_params['S0'],
+            market_params['T'],
+            market_params['r'],
+            market_params['q'],
+            params,
+            cfg,
+            initial_regime=1,
+        )
+
+        # All paths should start in regime 1
+        assert jnp.all(regimes[:, 0] == 1)
+
+
+# ==============================================================================
+# Intensity-Dependent Jump Size Tests
+# ==============================================================================
+
+
+class TestIntensityDependentJumps:
+    """Test suite for intensity-dependent jump sizes."""
+
+    def test_intensity_dependent_params_validation(self):
+        """Test parameter validation."""
+        # Valid parameters
+        params = IntensityDependentJumpParams(
+            sigma=0.15,
+            lambda0=5.0,
+            alpha=1.5,
+            beta=2.0,
+            mu_jump_base=-0.03,
+            sigma_jump_base=0.08,
+            intensity_sensitivity=0.2,
+        )
+        assert params.intensity_sensitivity == 0.2
+
+        # Invalid: negative intensity_sensitivity
+        with pytest.raises(ValueError, match="intensity_sensitivity must be non-negative"):
+            IntensityDependentJumpParams(
+                sigma=0.15,
+                lambda0=5.0,
+                alpha=1.5,
+                beta=2.0,
+                mu_jump_base=-0.03,
+                sigma_jump_base=0.08,
+                intensity_sensitivity=-0.2,
+            )
+
+    def test_intensity_dependent_jump_size_scaling(self):
+        """Test that jump sizes scale with intensity."""
+        params = IntensityDependentJumpParams(
+            sigma=0.15,
+            lambda0=5.0,
+            alpha=1.5,
+            beta=2.0,
+            mu_jump_base=-0.03,
+            sigma_jump_base=0.08,
+            intensity_sensitivity=0.2,
+        )
+
+        # At baseline intensity
+        mu_base, sigma_base = params.jump_size_params(5.0)
+        assert jnp.isclose(mu_base, -0.03)
+
+        # At double intensity
+        mu_double, sigma_double = params.jump_size_params(10.0)
+        # mu should increase: mu = -0.03 + 0.2 * log(2)
+        expected_mu = -0.03 + 0.2 * jnp.log(2.0)
+        assert jnp.isclose(mu_double, expected_mu)
+
+    def test_intensity_dependent_simulation(self, key, market_params):
+        """Test simulation with intensity-dependent jump sizes."""
+        params = IntensityDependentJumpParams(
+            sigma=0.15,
+            lambda0=5.0,
+            alpha=1.5,
+            beta=2.0,
+            mu_jump_base=-0.03,
+            sigma_jump_base=0.08,
+            intensity_sensitivity=0.2,
+        )
+
+        cfg = MCConfig(paths=100, steps=50, dtype=jnp.float32)
+
+        paths = simulate_intensity_dependent_hawkes(
+            key,
+            market_params['S0'],
+            market_params['T'],
+            market_params['r'],
+            market_params['q'],
+            params,
+            cfg,
+        )
+
+        # Check shape
+        assert paths.shape == (100, 51)
+
+        # Check initial value
+        assert jnp.allclose(paths[:, 0], market_params['S0'])
+
+        # Check all positive
+        assert jnp.all(paths > 0)
+
+    def test_intensity_dependent_vs_standard(self, key, market_params):
+        """Test that zero sensitivity recovers standard Hawkes."""
+        # Standard Hawkes via intensity-dependent with sensitivity=0
+        params_standard = IntensityDependentJumpParams(
+            sigma=0.15,
+            lambda0=5.0,
+            alpha=1.5,
+            beta=2.0,
+            mu_jump_base=-0.03,
+            sigma_jump_base=0.08,
+            intensity_sensitivity=0.0,  # Zero sensitivity
+        )
+
+        cfg = MCConfig(paths=100, steps=50, dtype=jnp.float32)
+
+        paths_standard = simulate_intensity_dependent_hawkes(
+            key,
+            market_params['S0'],
+            market_params['T'],
+            market_params['r'],
+            market_params['q'],
+            params_standard,
+            cfg,
+        )
+
+        # Should produce valid paths
+        assert paths_standard.shape == (100, 51)
+        assert jnp.all(paths_standard > 0)
+
+
+# ==============================================================================
+# Hawkes Calibration Tests
+# ==============================================================================
+
+
+class TestHawkesCalibration:
+    """Test suite for Hawkes parameter calibration."""
+
+    def test_calibrate_from_jumps_moments(self):
+        """Test method of moments calibration."""
+        # Generate synthetic jump times
+        jump_times = jnp.array([0.1, 0.15, 0.2, 0.5, 0.51, 0.52, 1.0, 1.5, 2.0])
+
+        params = calibrate_hawkes_from_jumps(jump_times, method="moments")
+
+        # Should return valid parameters
+        assert params.lambda0 > 0
+        assert params.alpha >= 0
+        assert params.beta > 0
+
+    def test_calibrate_from_jumps_mle(self):
+        """Test MLE calibration."""
+        # Generate synthetic jump times with clustering
+        jump_times = jnp.array(
+            [0.1, 0.12, 0.13, 0.5, 0.52, 0.55, 1.0, 1.02, 1.5, 2.0]
+        )
+
+        params = calibrate_hawkes_from_jumps(jump_times, method="mle")
+
+        # Should return valid parameters
+        assert params.lambda0 > 0
+        assert params.alpha >= 0
+        assert params.beta > 0
+
+        # With clustering, should have alpha > 0
+        assert params.alpha > 0
+
+    def test_calibrate_invalid_method(self):
+        """Test that invalid method raises error."""
+        jump_times = jnp.array([0.1, 0.2, 0.5, 1.0])
+
+        with pytest.raises(ValueError, match="Unknown calibration method"):
+            calibrate_hawkes_from_jumps(jump_times, method="invalid")
 
 
 if __name__ == "__main__":
