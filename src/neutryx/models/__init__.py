@@ -14,6 +14,15 @@ from .vasicek import VasicekParams
 from .heston import HestonParams
 from .sabr import SABRParams
 from .dupire import DupireParams
+from .equity_models import (
+    SLVParams,
+    RoughHestonParams,
+    TimeChangedLevyParams,
+    simulate_slv,
+    simulate_rough_heston,
+    simulate_time_changed_levy,
+    get_model_characteristics,
+)
 # Workflow utilities moved to core.infrastructure.workflows
 from neutryx.infrastructure.workflows import CheckpointManager, ModelWorkflow
 
@@ -25,6 +34,9 @@ __all__ = [
     "HestonParams",
     "HullWhiteParams",
     "SABRParams",
+    "SLVParams",
+    "RoughHestonParams",
+    "TimeChangedLevyParams",
     "cir",
     "dupire",
     "heston",
@@ -40,5 +52,9 @@ __all__ = [
     "sabr",
     "sde",
     "simulate_rough_bergomi",
+    "simulate_slv",
+    "simulate_rough_heston",
+    "simulate_time_changed_levy",
+    "get_model_characteristics",
     "vasicek",
 ]
