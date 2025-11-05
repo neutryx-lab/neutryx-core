@@ -323,8 +323,8 @@ class FXHestonModel:
             options={'maxiter': 1000, 'ftol': 1e-9}
         )
 
-        # If first attempt didn't converge well, try with different initial guess
-        if not result.success or result.fun > 0.15:
+        # If first attempt didn't converge well, try with different initial guesses
+        if not result.success or result.fun > 0.12:
             # Try with higher vol of vol (sigma) as alternate starting point
             x0_alt = [
                 v0_init,
@@ -343,6 +343,25 @@ class FXHestonModel:
             # Use better result
             if result_alt.fun < result.fun:
                 result = result_alt
+
+        # Third attempt with faster mean reversion
+        if not result.success or result.fun > 0.12:
+            x0_alt2 = [
+                v0_init * 0.8,     # Lower initial variance
+                kappa_init * 2.5,  # Faster mean reversion
+                theta_init,
+                min(0.4, jnp.sqrt(2 * kappa_init * 2.5 * theta_init * 0.7)),
+                -0.7               # Stronger negative correlation
+            ]
+            result_alt2 = minimize(
+                objective,
+                x0_alt2,
+                method='L-BFGS-B',
+                bounds=bounds,
+                options={'maxiter': 1000, 'ftol': 1e-9}
+            )
+            if result_alt2.fun < result.fun:
+                result = result_alt2
 
         # Update model parameters
         object.__setattr__(self, 'v0', result.x[0])
