@@ -4,12 +4,16 @@ import pytest
 
 from neutryx.products.credit_derivatives import (
     CDSIndex,
+    CDSOption,
     CollateralizedLoanObligation,
     ContingentCDS,
     CreditDefaultSwap,
     CreditLinkedNote,
+    FirstToDefaultBasket,
     LoanCDS,
     NthToDefaultBasket,
+    RecoveryLock,
+    RecoverySwap,
     SyntheticCDO,
     TotalReturnSwap,
 )
@@ -629,3 +633,390 @@ class TestCollateralizedLoanObligation:
 
         # Return should be reasonable
         assert isinstance(expected_return, jnp.ndarray) or isinstance(expected_return, float)
+
+
+class TestCDSOption:
+    """Test CDS options (payer and receiver swaptions)."""
+
+    def test_cds_option_creation(self):
+        """Test CDS option instantiation."""
+        cds_option = CDSOption(
+            T=1.0,
+            cds_maturity=5.0,
+            strike_spread=100.0,  # 100 bps
+            notional=10_000_000,
+            option_type='payer',
+            volatility=0.50,
+        )
+        assert cds_option.T == 1.0
+        assert cds_option.cds_maturity == 5.0
+        assert cds_option.strike_spread == 100.0
+        assert cds_option.option_type == 'payer'
+        assert cds_option.volatility == 0.50
+
+    def test_payer_option_payoff(self):
+        """Test payer CDS option payoff (right to buy protection)."""
+        payer_option = CDSOption(
+            T=1.0,
+            cds_maturity=5.0,
+            strike_spread=100.0,
+            notional=10_000_000,
+            option_type='payer',
+            volatility=0.50,
+        )
+
+        # Forward spread = 150 bps (higher than strike)
+        # Should have positive value
+        params = jnp.array([150.0, 0.97, 0.98])  # forward_spread, discount, survival
+        payoff = payer_option.payoff_terminal(params)
+
+        # Payer option should have positive value when forward > strike
+        assert payoff > 0
+
+    def test_receiver_option_payoff(self):
+        """Test receiver CDS option payoff (right to sell protection)."""
+        receiver_option = CDSOption(
+            T=1.0,
+            cds_maturity=5.0,
+            strike_spread=100.0,
+            notional=10_000_000,
+            option_type='receiver',
+            volatility=0.50,
+        )
+
+        # Forward spread = 50 bps (lower than strike)
+        # Should have positive value
+        params = jnp.array([50.0, 0.97, 0.98])  # forward_spread, discount, survival
+        payoff = receiver_option.payoff_terminal(params)
+
+        # Receiver option should have positive value when forward < strike
+        assert payoff > 0
+
+    def test_at_the_money_option(self):
+        """Test ATM CDS option."""
+        atm_option = CDSOption(
+            T=1.0,
+            cds_maturity=5.0,
+            strike_spread=100.0,
+            notional=10_000_000,
+            option_type='payer',
+            volatility=0.50,
+        )
+
+        # Forward spread equals strike
+        params = jnp.array([100.0, 0.97, 0.98])
+        payoff = atm_option.payoff_terminal(params)
+
+        # ATM option should still have time value
+        assert payoff > 0
+
+    def test_knockout_feature(self):
+        """Test knockout feature when default occurs before expiry."""
+        knockout_option = CDSOption(
+            T=1.0,
+            cds_maturity=5.0,
+            strike_spread=100.0,
+            notional=10_000_000,
+            option_type='payer',
+            is_knockout=True,
+            volatility=0.50,
+        )
+
+        # Low survival probability (high chance of default before expiry)
+        params = jnp.array([150.0, 0.97, 0.50])  # survival_prob = 0.5
+        payoff_knockout = knockout_option.payoff_terminal(params)
+
+        # Non-knockout version for comparison
+        no_knockout_option = CDSOption(
+            T=1.0,
+            cds_maturity=5.0,
+            strike_spread=100.0,
+            notional=10_000_000,
+            option_type='payer',
+            is_knockout=False,
+            volatility=0.50,
+        )
+        payoff_no_knockout = no_knockout_option.payoff_terminal(params)
+
+        # Knockout option should have lower value
+        assert payoff_knockout < payoff_no_knockout
+
+    def test_volatility_impact(self):
+        """Test that higher volatility increases option value."""
+        low_vol_option = CDSOption(
+            T=1.0,
+            cds_maturity=5.0,
+            strike_spread=100.0,
+            notional=10_000_000,
+            option_type='payer',
+            volatility=0.30,
+        )
+
+        high_vol_option = CDSOption(
+            T=1.0,
+            cds_maturity=5.0,
+            strike_spread=100.0,
+            notional=10_000_000,
+            option_type='payer',
+            volatility=0.70,
+        )
+
+        params = jnp.array([100.0, 0.97, 0.98])
+
+        payoff_low_vol = low_vol_option.payoff_terminal(params)
+        payoff_high_vol = high_vol_option.payoff_terminal(params)
+
+        # Higher volatility should give higher option value
+        assert payoff_high_vol > payoff_low_vol
+
+
+class TestRecoveryLock:
+    """Test recovery lock contracts."""
+
+    def test_recovery_lock_creation(self):
+        """Test recovery lock instantiation."""
+        recovery_lock = RecoveryLock(
+            T=5.0,
+            notional=10_000_000,
+            locked_recovery=0.40,
+            reference_entity="ACME Corp",
+        )
+        assert recovery_lock.T == 5.0
+        assert recovery_lock.notional == 10_000_000
+        assert recovery_lock.locked_recovery == 0.40
+        assert recovery_lock.reference_entity == "ACME Corp"
+
+    def test_recovery_lock_no_default(self):
+        """Test recovery lock payoff when no default occurs."""
+        recovery_lock = RecoveryLock(
+            T=5.0,
+            notional=10_000_000,
+            locked_recovery=0.40,
+        )
+
+        # No default occurred
+        params = jnp.array([0.0, 0.30])  # default_indicator=0, realized_recovery=0.30
+        payoff = recovery_lock.payoff_terminal(params)
+
+        # Should pay zero (no default, so recovery lock not triggered)
+        assert jnp.allclose(payoff, 0.0)
+
+    def test_recovery_lock_positive_payoff(self):
+        """Test recovery lock payoff when realized recovery < locked recovery."""
+        recovery_lock = RecoveryLock(
+            T=5.0,
+            notional=10_000_000,
+            locked_recovery=0.40,
+        )
+
+        # Default occurred, realized recovery = 30%
+        params = jnp.array([1.0, 0.30])  # default_indicator=1, realized_recovery=0.30
+        payoff = recovery_lock.payoff_terminal(params)
+
+        # Payoff = notional * (locked - realized) = 10M * (0.40 - 0.30) = 1M
+        expected = 10_000_000 * (0.40 - 0.30)
+        assert jnp.allclose(payoff, expected)
+
+    def test_recovery_lock_negative_payoff(self):
+        """Test recovery lock payoff when realized recovery > locked recovery."""
+        recovery_lock = RecoveryLock(
+            T=5.0,
+            notional=10_000_000,
+            locked_recovery=0.40,
+        )
+
+        # Default occurred, realized recovery = 50%
+        params = jnp.array([1.0, 0.50])  # default_indicator=1, realized_recovery=0.50
+        payoff = recovery_lock.payoff_terminal(params)
+
+        # Payoff = notional * (locked - realized) = 10M * (0.40 - 0.50) = -1M
+        expected = 10_000_000 * (0.40 - 0.50)
+        assert jnp.allclose(payoff, expected)
+
+
+class TestRecoverySwap:
+    """Test recovery swap contracts."""
+
+    def test_recovery_swap_creation(self):
+        """Test recovery swap instantiation."""
+        recovery_swap = RecoverySwap(
+            T=5.0,
+            notional=10_000_000,
+            fixed_recovery=0.40,
+            payment_freq=4,
+            reference_entities=["Entity1", "Entity2", "Entity3"],
+        )
+        assert recovery_swap.T == 5.0
+        assert recovery_swap.notional == 10_000_000
+        assert recovery_swap.fixed_recovery == 0.40
+        assert recovery_swap.payment_freq == 4
+
+    def test_recovery_swap_no_defaults(self):
+        """Test recovery swap payoff when no defaults occur."""
+        recovery_swap = RecoverySwap(
+            T=5.0,
+            notional=10_000_000,
+            fixed_recovery=0.40,
+            payment_freq=4,
+        )
+
+        # No defaults
+        params = jnp.array([0.0, 0.40, 0.03])  # num_defaults=0, avg_recovery=0.40, discount=0.03
+        payoff = recovery_swap.payoff_terminal(params)
+
+        # No defaults means no payments on either leg
+        assert jnp.allclose(payoff, 0.0)
+
+    def test_recovery_swap_positive_value(self):
+        """Test recovery swap with realized recovery > fixed recovery."""
+        recovery_swap = RecoverySwap(
+            T=5.0,
+            notional=10_000_000,
+            fixed_recovery=0.40,
+            payment_freq=4,
+        )
+
+        # 2 defaults, average recovery = 50%
+        params = jnp.array([2.0, 0.50, 0.03])
+        payoff = recovery_swap.payoff_terminal(params)
+
+        # Receive floating (0.50) - pay fixed (0.40) = positive
+        assert payoff > 0
+
+    def test_recovery_swap_negative_value(self):
+        """Test recovery swap with realized recovery < fixed recovery."""
+        recovery_swap = RecoverySwap(
+            T=5.0,
+            notional=10_000_000,
+            fixed_recovery=0.40,
+            payment_freq=4,
+        )
+
+        # 2 defaults, average recovery = 30%
+        params = jnp.array([2.0, 0.30, 0.03])
+        payoff = recovery_swap.payoff_terminal(params)
+
+        # Receive floating (0.30) - pay fixed (0.40) = negative
+        assert payoff < 0
+
+    def test_recovery_swap_multiple_defaults(self):
+        """Test recovery swap value scales with number of defaults."""
+        recovery_swap = RecoverySwap(
+            T=5.0,
+            notional=10_000_000,
+            fixed_recovery=0.40,
+            payment_freq=4,
+        )
+
+        # 1 default
+        params_1 = jnp.array([1.0, 0.50, 0.03])
+        payoff_1 = recovery_swap.payoff_terminal(params_1)
+
+        # 3 defaults
+        params_3 = jnp.array([3.0, 0.50, 0.03])
+        payoff_3 = recovery_swap.payoff_terminal(params_3)
+
+        # More defaults should scale the payoff
+        assert abs(payoff_3) > abs(payoff_1)
+
+
+class TestFirstToDefaultBasket:
+    """Test first-to-default basket (convenience wrapper)."""
+
+    def test_first_to_default_creation(self):
+        """Test FTD basket instantiation."""
+        ftd = FirstToDefaultBasket(
+            T=5.0,
+            notional=10_000_000,
+            num_names=5,
+            recovery_rate=0.40,
+            correlation=0.30,
+        )
+        assert ftd.T == 5.0
+        assert ftd.notional == 10_000_000
+        assert ftd.n == 1  # First default
+        assert ftd.num_names == 5
+        assert ftd.recovery_rate == 0.40
+        assert ftd.correlation == 0.30
+
+    def test_ftd_no_defaults_before_maturity(self):
+        """Test FTD payoff when no defaults occur before maturity."""
+        ftd = FirstToDefaultBasket(
+            T=5.0,
+            notional=10_000_000,
+            num_names=5,
+            recovery_rate=0.40,
+        )
+
+        # All defaults after maturity
+        default_times = jnp.array([6.0, 7.0, 8.0, 9.0, 10.0])
+        payoff = ftd.payoff_terminal(default_times)
+
+        # Should pay zero
+        assert jnp.allclose(payoff, 0.0)
+
+    def test_ftd_first_default_before_maturity(self):
+        """Test FTD payoff when first default occurs before maturity."""
+        ftd = FirstToDefaultBasket(
+            T=5.0,
+            notional=10_000_000,
+            num_names=5,
+            recovery_rate=0.40,
+        )
+
+        # First default at 2 years
+        default_times = jnp.array([2.0, 6.0, 7.0, 8.0, 9.0])
+        payoff = ftd.payoff_terminal(default_times)
+
+        # Should pay (1 - recovery_rate) * notional
+        expected = 10_000_000 * (1.0 - 0.40)
+        assert jnp.allclose(payoff, expected)
+
+    def test_ftd_multiple_defaults(self):
+        """Test FTD pays on first default even if multiple defaults occur."""
+        ftd = FirstToDefaultBasket(
+            T=5.0,
+            notional=10_000_000,
+            num_names=5,
+            recovery_rate=0.40,
+        )
+
+        # Multiple defaults before maturity
+        default_times = jnp.array([1.0, 2.0, 3.0, 6.0, 7.0])
+        payoff = ftd.payoff_terminal(default_times)
+
+        # Should still pay based on first default only
+        expected = 10_000_000 * (1.0 - 0.40)
+        assert jnp.allclose(payoff, expected)
+
+    def test_ftd_equivalence_to_nth_with_n1(self):
+        """Test that FTD is equivalent to NthToDefaultBasket with n=1."""
+        ftd = FirstToDefaultBasket(
+            T=5.0,
+            notional=10_000_000,
+            num_names=5,
+            recovery_rate=0.40,
+            correlation=0.30,
+        )
+
+        nth = NthToDefaultBasket(
+            T=5.0,
+            notional=10_000_000,
+            n=1,
+            num_names=5,
+            recovery_rate=0.40,
+            correlation=0.30,
+        )
+
+        # Test with various default scenarios
+        default_times_1 = jnp.array([2.0, 6.0, 7.0, 8.0, 9.0])
+        default_times_2 = jnp.array([6.0, 7.0, 8.0, 9.0, 10.0])
+
+        assert jnp.allclose(
+            ftd.payoff_terminal(default_times_1),
+            nth.payoff_terminal(default_times_1)
+        )
+        assert jnp.allclose(
+            ftd.payoff_terminal(default_times_2),
+            nth.payoff_terminal(default_times_2)
+        )
