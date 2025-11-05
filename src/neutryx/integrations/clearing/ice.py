@@ -20,6 +20,7 @@ import json
 import uuid
 from datetime import datetime, timedelta
 from decimal import Decimal
+from enum import Enum
 from typing import Any, Dict, List, Optional
 
 import httpx
@@ -65,9 +66,6 @@ class ICEClearConfig(CCPConfig):
     class Config:
         """Pydantic config."""
         extra = "allow"
-
-
-from enum import Enum
 
 
 class ICECreditProduct(str, Enum):
