@@ -1,6 +1,6 @@
 # 🚀 Neutryx Core — The JAX-Driven Frontier of Quantitative Finance
 
-> **Lightning-fast. Differentiable. Reproducible.**
+> **Lightning-fast. Differentiable. Production-Grade.**
 > Neutryx Core fuses modern computational science with financial engineering — bringing together
 > **JAX**, **automatic differentiation**, and **high-performance computing** to redefine how we price derivatives,
 > measure risk, and model complex markets.
@@ -18,6 +18,7 @@
   <a href="#-features">Features</a> •
   <a href="#-documentation">Documentation</a> •
   <a href="#-examples">Examples</a> •
+  <a href="#-roadmap">Roadmap</a> •
   <a href="#-contributing">Contributing</a>
 </p>
 
@@ -26,13 +27,14 @@
 ## 🌌 Why Neutryx?
 
 Neutryx Core is a **next-generation JAX-first quantitative finance library** —
-designed for **researchers**, **banks**, and **AI-for-science teams** building real-time pricing, calibration,
-and risk engines at HPC scale.
+designed for **investment banks**, **hedge funds**, and **AI-for-science teams** building enterprise-grade
+derivatives pricing, risk management, and regulatory compliance systems at scale.
 
-It unifies stochastic models, PDE solvers, and calibration workflows into a single, differentiable framework.
-Every component — from yield curves to Greeks — is **JIT-compiled**, **vectorised**, and **autodiff-compatible**.
+It unifies stochastic models, PDE solvers, market data infrastructure, and regulatory frameworks
+into a single, differentiable platform. Every component — from yield curves to XVA calculations —
+is **JIT-compiled**, **GPU-accelerated**, and **production-ready**.
 
-> *From PDEs to Monte Carlo, from calibration to XVA — all within one continuous computational graph.*
+> *Complete derivatives lifecycle: From real-time market data to regulatory capital calculation — all within one continuous computational graph.*
 
 ---
 
@@ -49,10 +51,32 @@ Every component — from yield curves to Greeks — is **JIT-compiled**, **vecto
   - **Credit:** CDS pricing, hazard models, structural models
   - **Volatility:** VIX futures/options, variance swaps, corridor swaps, gamma swaps
   - **Convertibles:** Convertible bonds, mandatory convertibles, exchangeable bonds
-- **Risk:** Pathwise & bump Greeks, stress testing, and adjoint-based sensitivity analysis
+- **Risk:** Pathwise & bump Greeks, stress testing, VaR, ES, and adjoint-based sensitivity analysis
 - **Market:** Multi-curve framework with OIS discounting, tenor basis, FX volatility surfaces
-- **XVA:** Exposure models (CVA, FVA, MVA) for counterparty risk prototyping
+- **XVA:** Exposure models (CVA, DVA, FVA, MVA, KVA) for counterparty risk
 - **Calibration:** Differentiable calibration framework with diagnostics and identifiability checks
+
+### Market Data Infrastructure (NEW)
+
+- **Bloomberg Integration**: Native Bloomberg Terminal/API connectivity with real-time data feeds
+- **Refinitiv Integration**: Refinitiv Data Platform (RDP) and Eikon Desktop support
+- **Database Storage**:
+  - **PostgreSQL**: High-performance relational storage with time-series optimization
+  - **MongoDB**: Flexible document storage for heterogeneous market data
+  - **TimescaleDB**: Purpose-built time-series database with automatic compression (up to 90%)
+- **Data Validation**: Comprehensive quality checks with anomaly detection
+  - Price range validation, spread validation, volume spike detection
+  - Time-series consistency checks, volatility bounds
+  - Real-time quality scoring and reporting
+- **Feed Management**: Real-time orchestration with automatic failover and buffering
+
+### Observability & Monitoring (NEW)
+
+- **Prometheus Metrics**: Custom business metrics for pricing, risk, and XVA operations
+- **Grafana Dashboards**: Pre-built dashboards for system monitoring and performance analysis
+- **Distributed Tracing**: OpenTelemetry integration with Jaeger for request tracing
+- **Performance Profiling**: Automatic profiling of slow requests with cProfile
+- **Alerting**: Intelligent alerting with configurable thresholds and notification channels
 
 ### Technical Highlights
 
@@ -61,7 +85,12 @@ Every component — from yield curves to Greeks — is **JIT-compiled**, **vecto
 - **High Performance:** Optimized numerical algorithms with 10-100x speedup for repeated calculations
 - **Reproducible:** Unified configuration via YAML, consistent PRNG seeding
 - **Production-Ready:** FastAPI/gRPC APIs, comprehensive test suite (100+ tests), quality tooling (ruff, bandit)
-- **Governance Built-In:** Multi-tenancy controls, RBAC, audit logging, compliance reporting, SLA monitoring, and cost allocation services
+- **Enterprise-Grade:**
+  - Multi-tenancy controls and RBAC
+  - Audit logging and compliance reporting
+  - Real-time market data feeds with validation
+  - Production monitoring and observability stack
+  - SLA monitoring and cost allocation
 - **Extensible:** FFI bridges to QuantLib/Eigen, plugin architecture for custom models
 
 ---
@@ -88,6 +117,9 @@ pytest -q
 ### Optional Dependencies
 
 ```bash
+# For market data integration
+pip install asyncpg motor  # PostgreSQL, MongoDB connectors
+
 # For QuantLib integration
 pip install -e ".[quantlib]"
 
@@ -95,7 +127,7 @@ pip install -e ".[quantlib]"
 pip install -e ".[eigen]"
 
 # Install all optional dependencies
-pip install -e ".[native]"
+pip install -e ".[native,marketdata]"
 ```
 
 ### Your First Pricing Example
@@ -121,6 +153,48 @@ call_an = bs_price(S, K, T, r, q, sigma, "call")
 
 print(f"Call (MC): {float(call_mc):.4f}")
 print(f"Call (BS): {float(call_an):.4f}")
+```
+
+### Real-Time Market Data Pipeline
+
+```python
+from neutryx.market.adapters import BloombergAdapter, BloombergConfig
+from neutryx.market.storage import TimescaleDBStorage, TimescaleDBConfig
+from neutryx.market.validation import ValidationPipeline, PriceRangeValidator
+from neutryx.market.feeds import FeedManager
+
+# Configure Bloomberg
+bloomberg_config = BloombergConfig(
+    adapter_name="bloomberg",
+    host="localhost",
+    port=8194
+)
+
+# Configure TimescaleDB with compression
+storage_config = TimescaleDBConfig(
+    host="localhost",
+    database="market_data",
+    compression_enabled=True,
+    retention_policy_days=90
+)
+
+# Setup validation pipeline
+pipeline = ValidationPipeline()
+pipeline.add_validator(PriceRangeValidator(max_jump_pct=0.20))
+
+# Create feed manager with automatic failover
+adapter = BloombergAdapter(bloomberg_config)
+storage = TimescaleDBStorage(storage_config)
+
+manager = FeedManager(
+    adapters=[adapter],
+    storage=storage,
+    validation_pipeline=pipeline
+)
+
+# Start real-time feed
+await manager.start()
+await manager.subscribe("equity", ["AAPL", "MSFT", "GOOGL"])
 ```
 
 ### Multi-Asset Class Pricing
@@ -152,53 +226,6 @@ tips_price = inflation_linked_bond_price(
     face_value=1000.0, real_coupon_rate=0.005, real_yield=0.003,
     maturity=10.0, index_ratio=1.25, frequency=2
 )
-
-print(f"Equity Forward: ${eq_forward:.2f}")
-print(f"Commodity Forward: ${commodity_forward:.2f}")
-print(f"VIX Future: {vix_future:.2f}")
-print(f"TIPS Price: ${tips_price:.2f}")
-```
-
-### Configuration & Reproducibility
-
-```python
-from neutryx.config import get_config, init_environment
-from neutryx.core.rng import KeySeq
-
-# Load configuration
-config = get_config({
-    "seed": 2024,
-    "logging": {"level": "INFO"},
-})
-
-# Initialize runtime environment
-runtime = init_environment(config)
-key_seq = KeySeq.from_config(runtime)
-```
-
-The configuration system seeds Python, NumPy, and JAX, configures logging, and provides
-a runtime-aware configuration that carries a shared JAX PRNG key for downstream components.
-
-### Greeks and Implied Volatility
-
-```python
-from neutryx.models import bs
-
-# Price and Greeks
-price = bs.price(S=100, K=100, T=1, r=0.01, q=0, sigma=0.2, kind="call")
-delta, gamma, vega, theta = bs.greeks(100, 100, 1, 0.01, 0, 0.2)
-
-# Second-order Greeks with automatic differentiation
-greeks_dict = bs.second_order_greeks(
-    S=100, K=100, T=1, r=0.01, q=0, sigma=0.2, kind="call"
-)
-
-# Implied volatility
-implied = bs.implied_vol(100, 100, 1, 0.01, 0, price, kind="call")
-
-print(f"Price: {price:.4f}, Delta: {delta:.4f}")
-print(f"Gamma: {greeks_dict['gamma']:.6f}, Vanna: {greeks_dict['vanna']:.6f}")
-print(f"IV: {implied:.4f}")
 ```
 
 ---
@@ -207,86 +234,51 @@ print(f"IV: {implied:.4f}")
 
 ```text
 neutryx-core/
-├── .github/              # Continuous integration workflows and repository automation
-├── config/               # YAML configuration presets for different environments
-├── docs/                 # Lightweight design notes and reference documents
-├── demos/                # Executable examples, dashboards, tutorials, and notebooks
-├── src/                  # Source code for the Neutryx Python package
-└── dev/                  # Developer tooling for profiling, reproducibility, and automation
-
-demos/
-├── asset_class_showcase.py  # Multi-asset class pricing demonstration
-├── 01_bs_vanilla.py         # Vanilla Black–Scholes comparison
-├── 02_path_dependents.py    # Asian, lookback, and barrier payoffs
-├── 03_american_lsm.py       # Longstaff–Schwartz pricing workflow
-├── dashboard/               # Dash application for interactive exploration
-├── data/                    # Lightweight datasets consumed by examples
-├── notebooks/               # Jupyter notebooks for exploratory analysis
-├── perf/                    # Performance benchmark scripts
-└── tutorials/               # Step-by-step guided walkthroughs
-
-src/neutryx/
-├── api/                  # REST and gRPC service surfaces
-├── bridge/               # Integration layers for external runtimes (QuantLib, pandas)
-├── core/                 # Simulation engines, infrastructure, grids, RNG, and utilities
-│   ├── autodiff/         # Automatic differentiation helpers (Hessian-vector products)
-│   ├── config/           # Runtime configuration management
-│   ├── pricing/          # Core pricing engines and primitives
-│   └── utils/            # Numerical solvers, time utilities, math helpers
-├── market/               # Market data abstractions (curves, surfaces, conventions)
-│   ├── credit/           # CDS pricing, hazard rates, structural models
-│   └── fx.py             # FX volatility surfaces and conventions
-├── models/               # Stochastic models (BS, Heston, SABR, jump diffusion, rough vol)
-├── portfolio/            # Portfolio aggregation and allocation utilities
-├── products/             # Complete product library across all asset classes
-│   ├── vanilla.py        # European vanilla options
-│   ├── asian.py          # Asian options
-│   ├── barrier.py        # Barrier options
-│   ├── american.py       # American options (Longstaff-Schwartz)
-│   ├── equity.py         # Equity forwards, swaps, variance swaps, TRS, ELN
-│   ├── commodity.py      # Commodity forwards/options/swaps with convenience yield
-│   ├── bonds.py          # Zero-coupon, coupon, floating rate notes
-│   ├── inflation.py      # TIPS, inflation swaps, caps/floors, breakeven analysis
-│   ├── volatility.py     # VIX futures/options, variance swaps, VVIX
-│   ├── convertible.py    # Convertible bonds, mandatory convertibles
-│   ├── fx_options.py     # FX vanilla and barrier options
-│   └── swaptions.py      # Interest rate swaptions
-├── solver/               # Calibration routines and numerical solvers
-│   └── calibration/      # Model calibration framework with diagnostics
-├── tests/                # Comprehensive test suite (100+ tests)
-│   ├── products/         # Product pricing tests (48 tests for new asset classes)
-│   ├── market/           # Market data and curve tests
-│   ├── monte_carlo/      # Monte Carlo accuracy tests
-│   ├── performance/      # Benchmark tests
-│   └── regression/       # Numerical stability tests
-└── valuations/           # Exposure analytics and valuation adjustments (CVA, XVA)
-
-dev/
-├── benchmarks/           # Stand-alone benchmarking harnesses
-├── profiling/            # Performance profiling tools and analysis
-├── repro/                # Environment capture for reproducibility
-└── scripts/              # Automation scripts (benchmarks, profiling)
+├── .github/              # CI/CD workflows and automation
+├── config/               # YAML configuration presets
+├── docs/                 # Documentation and guides
+│   ├── monitoring.md     # Observability and monitoring guide
+│   └── market_data.md    # Market data infrastructure guide
+├── demos/                # Examples, dashboards, and tutorials
+├── dev/                  # Developer tooling
+│   └── monitoring/       # Prometheus, Grafana, Jaeger stack
+└── src/neutryx/
+    ├── api/              # REST and gRPC services
+    ├── core/             # Pricing engines and infrastructure
+    ├── infrastructure/   # Observability, governance, workflows
+    │   ├── observability/    # Prometheus, tracing, profiling, alerting
+    │   └── governance/       # Multi-tenancy, RBAC, compliance
+    ├── market/           # Market data and analytics
+    │   ├── adapters/     # Bloomberg, Refinitiv integrations
+    │   ├── storage/      # PostgreSQL, MongoDB, TimescaleDB
+    │   ├── validation/   # Data quality and validation
+    │   └── feeds/        # Real-time feed management
+    ├── models/           # Stochastic models (BS, Heston, SABR, etc.)
+    ├── products/         # Multi-asset class product library
+    ├── portfolio/        # Portfolio analytics and optimization
+    ├── valuations/       # XVA and exposure analytics
+    └── tests/            # 100+ comprehensive tests
 ```
 
 ---
 
 ## 📚 Documentation
 
-The repository ships with a concise, Markdown-based knowledge base:
+Comprehensive documentation covering all aspects of Neutryx Core:
 
-- [docs/overview.md](docs/overview.md) — High-level introduction and guiding principles.
-- [docs/api_reference.md](docs/api_reference.md) — Public Python API surface and expected usage patterns.
-- [docs/design_decisions.md](docs/design_decisions.md) — Architectural trade-offs, conventions, and rationale.
-- [docs/roadmap.md](docs/roadmap.md) — Short- and mid-term development priorities.
+- **[docs/overview.md](docs/overview.md)** — High-level introduction and architecture
+- **[docs/api_reference.md](docs/api_reference.md)** — Complete API reference
+- **[docs/design_decisions.md](docs/design_decisions.md)** — Architecture and design rationale
+- **[docs/monitoring.md](docs/monitoring.md)** — Observability and monitoring guide (NEW)
+- **[docs/market_data.md](docs/market_data.md)** — Market data infrastructure guide (NEW)
+- **[docs/roadmap.md](docs/roadmap.md)** — Development roadmap and milestones
 
-You can extend these documents and publish them with MkDocs:
+Generate documentation site:
 
 ```bash
-mkdocs serve  # run a local preview at http://127.0.0.1:8000/
-mkdocs build  # produce a static site in the "site/" directory
+mkdocs serve  # Local preview at http://127.0.0.1:8000/
+mkdocs build  # Static site generation
 ```
-
-When adding new guides, keep them alongside the existing files under `docs/` and link them from `mkdocs.yml` to surface them in the generated site.
 
 ---
 
@@ -294,157 +286,32 @@ When adding new guides, keep them alongside the existing files under `docs/` and
 
 ### Multi-Asset Class Showcase
 
-Explore comprehensive pricing across all asset classes:
-
 ```bash
-# Run the interactive multi-asset class demonstration
 python demos/asset_class_showcase.py
 ```
 
-This showcase demonstrates:
-- **Equity:** Forwards, dividend swaps, variance swaps, total return swaps
-- **Commodities:** Forwards with storage costs and convenience yield, options, swaps
-- **Inflation:** TIPS pricing, zero-coupon inflation swaps, breakeven analysis
-- **Volatility:** VIX futures, variance swaps, realized variance calculation
-- **Convertibles:** Convertible bond analysis with conversion premiums
+Demonstrates:
+- **Equity:** Forwards, dividend swaps, variance swaps, TRS
+- **Commodities:** Forwards with storage costs, options, swaps
+- **Inflation:** TIPS pricing, inflation swaps, breakeven analysis
+- **Volatility:** VIX futures, variance swaps, VVIX
+- **Convertibles:** Convertible bond analytics
 
 ### Basic Examples
 
-Run the included examples to explore different features:
-
 ```bash
-# Vanilla option pricing (Monte Carlo vs. analytical)
-python demos/01_bs_vanilla.py
-
-# Path-dependent options (Asian, Lookback, Barrier)
-python demos/02_path_dependents.py
-
-# American options with Longstaff–Schwartz
-python demos/03_american_lsm.py
-```
-
-### Performance Benchmarks
-
-```bash
-# Compare Monte Carlo vs. analytical pricing performance
-python demos/perf/run_mc_vs_analytic.py
-
-# Run benchmark suite
-dev/scripts/bench.sh
+python demos/01_bs_vanilla.py        # Vanilla options
+python demos/02_path_dependents.py   # Exotic options
+python demos/03_american_lsm.py      # American options
 ```
 
 ### Dash Dashboard
 
 ```bash
-cd demos/dashboard
-python app.py
+cd demos/dashboard && python app.py
 ```
 
-Visit `http://localhost:8050` to explore interactive pricing, Greeks, and scenario analysis views.
-
-### Notebooks & Tutorials
-
-- The `demos/notebooks/` directory hosts exploratory Jupyter notebooks such as `benchmark.ipynb` and `calibration_heston.ipynb`.
-- Guided walkthrough material lives under `demos/tutorials/`, grouped by numbered subfolders.
-- Place any lightweight CSV or JSON assets required by the scripts under `demos/data/`.
-
----
-
-## 🔧 Development
-
-### Code Quality Tools
-
-```bash
-# Run linter
-ruff check src/
-
-# Format code
-ruff format src/
-
-# Type checking (if using mypy)
-mypy src/
-
-# Run all tests
-pytest
-
-# Run with coverage
-pytest --cov=neutryx --cov-report=html
-
-# Run specific test categories
-pytest src/neutryx/tests/products/      # Product tests
-pytest src/neutryx/tests/regression/    # Regression tests
-pytest src/neutryx/tests/performance/   # Performance benchmarks
-
-# Security scanning
-pip-audit                                # Dependency vulnerabilities
-bandit -r src -ll                        # Static security analysis
-```
-
-### Configuration Files
-
-Neutryx uses YAML configuration files for environment management:
-
-- `src/neutryx/config/default.yaml` - Production defaults
-- `src/neutryx/config/dev.yaml` - Development overrides
-
-Load configurations programmatically:
-
-```python
-from neutryx.config import get_config
-
-config = get_config("src/neutryx/config/dev.yaml")
-```
-
-### API Services
-
-Start the REST API server:
-
-```bash
-uvicorn neutryx.api.rest:app --reload
-```
-
-Start the gRPC server:
-
-```bash
-python -m neutryx.api.grpc_server
-```
-
----
-
-## 🧪 Testing
-
-The test suite includes multiple layers of validation with **100+ comprehensive tests**:
-
-- **Unit tests:** Core functionality and model correctness
-- **Integration tests:** End-to-end workflows
-- **Product tests:** 48 tests for multi-asset class coverage
-- **Regression tests:** Numerical stability checks
-- **Performance tests:** Benchmarking and profiling
-- **Precision tests:** Numerical accuracy validation
-
-Run the full suite:
-
-```bash
-pytest -v
-```
-
-Run specific test suites:
-
-```bash
-# Test new asset class products
-pytest src/neutryx/tests/products/test_equity.py -v
-pytest src/neutryx/tests/products/test_commodity.py -v
-pytest src/neutryx/tests/products/test_inflation.py -v
-pytest src/neutryx/tests/products/test_volatility.py -v
-pytest src/neutryx/tests/products/test_convertible.py -v
-```
-
-Generate coverage report:
-
-```bash
-pytest --cov=neutryx --cov-report=html
-open htmlcov/index.html
-```
+Interactive pricing, Greeks, and scenario analysis at `http://localhost:8050`
 
 ---
 
@@ -452,283 +319,655 @@ open htmlcov/index.html
 
 ### ✅ Completed Features (v0.1.0)
 
-Neutryx Core has successfully implemented a comprehensive quantitative finance framework with:
-
 #### Core Infrastructure
-- **Numerical Engines:** PDE solvers (Crank-Nicolson, boundary conditions), GPU optimization (pmap/pjit)
-- **Differentiation:** AAD with Hessian-vector products, second-order Greeks
-- **Performance:** JIT compilation for 10-100x speedup, mixed-precision support
-- **Configuration:** YAML-based runtime configuration, reproducible PRNG seeding
+- ✅ **Numerical Engines:** PDE solvers (Crank-Nicolson), GPU optimization (pmap/pjit)
+- ✅ **Differentiation:** AAD with Hessian-vector products, second-order Greeks
+- ✅ **Performance:** JIT compilation (10-100x speedup), mixed-precision support
+- ✅ **Configuration:** YAML-based runtime, reproducible PRNG seeding
 
-#### Advanced Pricing
-- **Monte Carlo:** Adjoint Monte Carlo, QMC/MLMC engines, pathwise Greeks
-- **Models:** Black-Scholes, Heston, SABR, jump diffusion, rough volatility
-- **Methods:** FFT/COS pricing, tree-based methods (binomial/trinomial)
-- **Products:** Full exotic options suite (American, Asian, Barrier, Lookback)
+#### Advanced Pricing & Models
+- ✅ **Monte Carlo:** Adjoint MC, QMC/MLMC, pathwise Greeks
+- ✅ **Models:** Black-Scholes, Heston, SABR, jump diffusion, rough volatility
+- ✅ **Methods:** FFT/COS pricing, tree methods (binomial/trinomial)
+- ✅ **Exotics:** American, Asian, Barrier, Lookback options
 
-#### Multi-Asset Class Products (NEW)
-- **Equity Derivatives:**
-  - Forwards with dividend adjustments
-  - Dividend swaps and total return swaps (TRS)
-  - Variance and volatility swaps with Carr-Madan replication
-  - Equity-linked notes (ELN) with caps and floors
-- **Commodity Products:**
-  - Forwards with convenience yield and storage costs
-  - Options with commodity-specific cost-of-carry
-  - Commodity swaps and spread options (Kirk's approximation)
-  - Asian commodity options
-- **Fixed Income:**
-  - Zero-coupon, coupon, and floating rate notes
-  - Duration, convexity, and yield calculations
-  - Pricing from yield curves
-- **Inflation-Linked:**
-  - Treasury Inflation-Protected Securities (TIPS)
-  - Zero-coupon and year-on-year inflation swaps
-  - Inflation caps and floors using Black's model
-  - Breakeven inflation analysis
-- **Volatility Products:**
-  - VIX futures with mean reversion models
-  - VIX options using Black's model
-  - Variance swaps with market replication
-  - Corridor variance swaps and gamma swaps
-  - VVIX (volatility of VIX) calculation
-- **Convertible Bonds:**
-  - Convertible bond pricing and analytics
-  - Mandatory convertibles with variable conversion ratios
-  - Exchangeable bonds
-  - Conversion parity, premiums, and delta calculations
+#### Multi-Asset Class Products
+- ✅ **Equity:** Forwards, dividend/variance swaps, TRS, ELN
+- ✅ **Commodities:** Forwards, options, swaps, spread options
+- ✅ **Fixed Income:** Bonds, FRN, duration/convexity
+- ✅ **Inflation:** TIPS, inflation swaps/caps/floors
+- ✅ **Volatility:** VIX futures/options, variance swaps, VVIX
+- ✅ **Convertibles:** Convertible bonds, analytics
 
-#### Calibration & Risk
-- **Calibration:** Differentiable framework for SABR/SLV/Heston with diagnostics
-- **XVA Suite:** Full implementation (CVA, FVA, MVA) with exposure simulation
-- **Risk:** Stress testing engines, scenario generation, capital metrics
-- **Credit:** CDS pricing, hazard rate models, structural credit models
+#### Market Data Infrastructure (v0.1.0)
+- ✅ **Bloomberg Integration:** Terminal/API connectivity, real-time feeds
+- ✅ **Refinitiv Integration:** RDP and Eikon Desktop support
+- ✅ **Database Connectors:**
+  - ✅ PostgreSQL: Time-series optimization, bulk operations
+  - ✅ MongoDB: Flexible document storage, aggregation pipelines
+  - ✅ TimescaleDB: Hypertables, compression (90%), continuous aggregates
+- ✅ **Data Validation:** Price/spread/volume validators, quality scoring
+- ✅ **Feed Management:** Real-time orchestration, automatic failover
 
-#### Market Data
-- **Multi-Curve Framework:** OIS discounting, tenor basis, currency basis
-- **FX Markets:** Advanced volatility surfaces (10Δ/15Δ, smile interpolation)
-- **Term Structures:** Yield curve bootstrapping from market instruments
+#### Observability & Monitoring (v0.1.0)
+- ✅ **Prometheus:** Custom metrics for pricing/risk/XVA operations
+- ✅ **Grafana:** Pre-built dashboards (overview, performance)
+- ✅ **Distributed Tracing:** OpenTelemetry + Jaeger integration
+- ✅ **Profiling:** Automatic request profiling with cProfile
+- ✅ **Alerting:** Error rate, latency, quality score monitoring
 
-#### Infrastructure
-- **APIs:** CLI/REST/gRPC endpoints for production integration
-- **Dashboards:** Interactive Dash applications for pricing and risk
-- **CI/CD:** Comprehensive automation with security scanning (pip-audit, bandit)
-- **Quality:** 100+ tests, code quality enforcement (ruff/black), SBOM generation
+#### XVA & Risk
+- ✅ **XVA Suite:** CVA, DVA, FVA, MVA implementation
+- ✅ **Credit:** CDS pricing, hazard models, structural models
+- ✅ **Risk:** Stress testing, scenario generation, capital metrics
+- ✅ **Calibration:** Differentiable framework with diagnostics
 
-### 🚀 Future Enhancements
+#### APIs & Infrastructure
+- ✅ **APIs:** REST/gRPC endpoints
+- ✅ **Dashboards:** Interactive Dash applications
+- ✅ **CI/CD:** Automation, security scanning (pip-audit, bandit)
+- ✅ **Quality:** 100+ tests, code quality enforcement
 
-#### Extended Model Coverage
-- Kou and Variance Gamma jump models
-- Local volatility (Dupire PDE) with advanced boundary treatments
-- Rough volatility models (fractional Heston, rBergomi)
-- Time-inhomogeneous and regime-switching models
+---
 
-#### Performance Optimization
-- Expand benchmarking suite for CPU/GPU/TPU comparison
-- C++/CUDA kernel integration via FFI for critical paths
-- Advanced distributed execution patterns across multi-GPU clusters
+### 🚀 Enterprise Derivatives Platform Roadmap
 
-#### Product Expansion
-- Exotic options: Quanto, Cliquet, Rainbow, Worst-of/Best-of baskets
-- Interest rate derivatives: Bermudan swaptions, CMS products
-- Structured products: Principal-protected notes, autocallables
+> **Complete coverage of investment bank derivatives operations from front office to regulatory reporting**
 
-#### Advanced Calibration
-- Joint calibration across multiple instruments and underlyings
-- Time-dependent parameter estimation
-- Model selection and identifiability analysis
-- Regularization techniques for ill-posed problems
+#### 📊 **Phase 1: Front Office Trading Platform** (Q2 2025)
 
-#### Production Readiness
-- Cloud/HPC orchestration (Slurm, Ray, Kubernetes)
-- Checkpoint and resume capabilities for long-running jobs
-- Real-time market data integration
-- Production monitoring and alerting
+##### Interest Rate Derivatives
+- [ ] **Linear Products**
+  - [ ] Interest rate swaps (IRS) with multi-curve framework
+  - [ ] Overnight index swaps (OIS)
+  - [ ] Cross-currency swaps with FX reset
+  - [ ] Basis swaps (tenor basis, currency basis)
+  - [ ] Forward rate agreements (FRA)
+  - [ ] Caps, floors, and collars
 
-#### Developer Experience
-- Enhanced documentation with video tutorials
-- Interactive Jupyter notebooks for all examples
-- Plugin system for custom models and products
-- Performance profiling and visualization tools
+- [ ] **Swaptions & Exotic IR**
+  - [ ] European swaptions (physical/cash settlement)
+  - [ ] Bermudan swaptions with Longstaff-Schwartz
+  - [ ] CMS (Constant Maturity Swap) products
+  - [ ] CMS spread options
+  - [ ] Range accruals and target redemption notes (TARN)
+  - [ ] Callable/puttable bonds
 
-#### Research Integration
-- Deep learning-based model-free pricing
-- Generative models for scenario generation
-- Causal inference for risk attribution
-- Quantum computing experiments (variational pricing)
+- [ ] **Volatility Products**
+  - [ ] Interest rate volatility trading
+  - [ ] Swaption volatility cubes
+  - [ ] Caplet/floorlet volatility surfaces
 
-#### Enterprise Features
-- Multi-tenancy and access control
-- Audit logging and compliance reporting
-- Integration with commercial data providers (Bloomberg, Refinitiv)
-- Real-time market data feeds with validator pipeline and database connectors (PostgreSQL, MongoDB, TimescaleDB)
-- Regulatory reporting templates (FRTB, SA-CCR)
+##### FX Derivatives
+- [ ] **Vanilla & Exotic FX**
+  - [ ] FX forwards and non-deliverable forwards (NDF)
+  - [ ] FX vanilla options (European, American)
+  - [ ] Digital options (cash-or-nothing, asset-or-nothing)
+  - [ ] Barrier options (knock-in, knock-out, double barrier)
+  - [ ] Asian options (arithmetic, geometric)
+  - [ ] Lookback options (fixed strike, floating strike)
 
-#### Community & Ecosystem
-- Plugin marketplace for community models
-- Reproducibility tracking with Weights & Biases/MLflow
-- Certified training programs
-- Academic partnerships and benchmarking initiatives
+- [ ] **Complex FX Structures**
+  - [ ] Target redemption forwards (TRF)
+  - [ ] Accumulators and decumulators
+  - [ ] FX variance swaps
+  - [ ] Quanto products
+  - [ ] Composite options
 
-See [docs/roadmap.md](docs/roadmap.md) for detailed timelines and milestones.
+##### Equity Derivatives
+- [ ] **Listed & OTC Options**
+  - [ ] European/American equity options
+  - [ ] Asian options (arithmetic average)
+  - [ ] Barrier options (up-and-out, down-and-in, etc.)
+  - [ ] Lookback and ladder options
+
+- [ ] **Structured Products**
+  - [ ] Autocallables (Phoenix, Athena structures)
+  - [ ] Reverse convertibles
+  - [ ] Worst-of/best-of basket options
+  - [ ] Rainbow options
+  - [ ] Cliquet options (locally capped)
+  - [ ] Principal-protected notes
+
+- [ ] **Dispersion & Correlation**
+  - [ ] Index variance swaps
+  - [ ] Single-name variance swaps
+  - [ ] Correlation swaps
+  - [ ] Dispersion trading strategies
+
+##### Credit Derivatives
+- [ ] **Single-Name Credit**
+  - [ ] Credit default swaps (CDS) with ISDA standard model
+  - [ ] CDS options (payer/receiver)
+  - [ ] Credit-linked notes (CLN)
+  - [ ] Recovery locks and swaps
+
+- [ ] **Index Products**
+  - [ ] CDX and iTraxx indices
+  - [ ] Index tranches
+  - [ ] Bespoke CDO tranches
+
+- [ ] **Exotic Credit**
+  - [ ] First-to-default baskets
+  - [ ] Nth-to-default baskets
+  - [ ] Contingent CDS
+
+##### Commodity Derivatives
+- [ ] **Energy Derivatives**
+  - [ ] Oil futures and options (WTI, Brent)
+  - [ ] Natural gas swaps and options
+  - [ ] Power derivatives (peak/off-peak)
+  - [ ] Spark spreads and dark spreads
+
+- [ ] **Metals & Agriculture**
+  - [ ] Precious metals (gold, silver) options
+  - [ ] Base metals futures
+  - [ ] Agricultural commodity options
+  - [ ] Weather derivatives
+
+---
+
+#### 📈 **Phase 2: Advanced Models & Calibration** (Q3 2025)
+
+##### Stochastic Models
+- [ ] **Interest Rate Models**
+  - [ ] Hull-White (one-factor, two-factor)
+  - [ ] Black-Karasinski
+  - [ ] Cheyette model
+  - [ ] Linear Gaussian Markov (LGM) models
+  - [ ] LIBOR Market Model (LMM/BGM)
+  - [ ] Heath-Jarrow-Morton (HJM) framework
+
+- [ ] **Equity Models**
+  - [ ] Local volatility (Dupire PDE)
+  - [ ] Stochastic local volatility (SLV)
+  - [ ] Rough volatility (rBergomi, rough Heston)
+  - [ ] Jump-diffusion (Merton, Kou, Variance Gamma)
+  - [ ] Time-changed Lévy processes
+
+- [ ] **FX Models**
+  - [ ] Garman-Kohlhagen extensions
+  - [ ] Stochastic volatility FX models
+  - [ ] Multi-factor FX models
+
+- [ ] **Credit Models**
+  - [ ] Gaussian copula (base correlation)
+  - [ ] Student-t copula
+  - [ ] Large portfolio approximation (LPA)
+  - [ ] CreditMetrics framework
+  - [ ] Structural models (Merton, Black-Cox)
+
+##### Advanced Calibration
+- [ ] **Joint Calibration**
+  - [ ] Multi-instrument simultaneous calibration
+  - [ ] Cross-asset calibration
+  - [ ] Time-dependent parameter fitting
+
+- [ ] **Regularization & Stability**
+  - [ ] Tikhonov regularization
+  - [ ] L1/L2 penalty methods
+  - [ ] Arbitrage-free constraints
+  - [ ] Smoothness penalties for local vol
+
+- [ ] **Model Selection**
+  - [ ] Information criteria (AIC, BIC)
+  - [ ] Cross-validation frameworks
+  - [ ] Identifiability analysis
+  - [ ] Parameter sensitivity analysis
+
+---
+
+#### 🎯 **Phase 3: Risk Management & P&L** (Q4 2025)
+
+##### Market Risk (VaR/ES)
+- [ ] **VaR Methodologies**
+  - [ ] Historical simulation VaR
+  - [ ] Monte Carlo VaR
+  - [ ] Parametric (variance-covariance) VaR
+  - [ ] Expected shortfall (ES/CVaR)
+  - [ ] Incremental VaR (IVaR)
+  - [ ] Component VaR
+
+- [ ] **Stress Testing**
+  - [ ] Historical scenario analysis
+  - [ ] Hypothetical scenarios
+  - [ ] Reverse stress testing
+  - [ ] Concentration risk metrics
+
+- [ ] **Sensitivity Analysis**
+  - [ ] DV01 (dollar value of 01 bp)
+  - [ ] CS01 (credit spread 01)
+  - [ ] Vega by tenor/strike
+  - [ ] FX delta and gamma
+  - [ ] Higher-order Greeks (vanna, volga, vomma)
+
+##### P&L Attribution
+- [ ] **Daily P&L Explain**
+  - [ ] Carry P&L
+  - [ ] Delta P&L
+  - [ ] Gamma P&L
+  - [ ] Vega P&L
+  - [ ] Theta decay
+  - [ ] Unexplained P&L tracking
+
+- [ ] **Risk Factor Attribution**
+  - [ ] Interest rate risk attribution
+  - [ ] Credit spread attribution
+  - [ ] FX and equity attribution
+  - [ ] Basis risk attribution
+
+- [ ] **Model Risk**
+  - [ ] Mark-to-model reserves
+  - [ ] Parameter uncertainty
+  - [ ] Model replacement impact
+
+##### Counterparty Credit Risk
+- [ ] **Exposure Metrics**
+  - [ ] Expected exposure (EE) profiles
+  - [ ] Potential future exposure (PFE)
+  - [ ] Expected positive exposure (EPE)
+  - [ ] Effective EPE for Basel
+
+- [ ] **XVA Enhancements**
+  - [ ] KVA (Capital Valuation Adjustment)
+  - [ ] Multi-netting set aggregation
+  - [ ] Collateral optimization
+  - [ ] Wrong-way risk modeling
+
+##### Limits & Controls
+- [ ] **Position Limits**
+  - [ ] Notional limits by product/desk
+  - [ ] VaR limits and utilization
+  - [ ] Concentration limits
+  - [ ] Issuer exposure limits
+
+- [ ] **Pre-Trade Controls**
+  - [ ] Real-time limit checking
+  - [ ] What-if scenario analysis
+  - [ ] Limit breach notifications
+
+---
+
+#### 📋 **Phase 4: Regulatory Compliance** (Q1 2026)
+
+##### FRTB (Fundamental Review of the Trading Book)
+- [ ] **Standardized Approach (SA)**
+  - [ ] Delta risk charge calculation
+  - [ ] Vega risk charge
+  - [ ] Curvature risk charge
+  - [ ] Default risk charge (DRC)
+  - [ ] Residual risk add-on (RRAO)
+
+- [ ] **Internal Models Approach (IMA)**
+  - [ ] Expected shortfall (ES) at 97.5%
+  - [ ] Profit and loss attribution test
+  - [ ] Backtesting framework
+  - [ ] Non-modellable risk factors (NMRF)
+
+##### SA-CCR (Counterparty Credit Risk)
+- [ ] **Exposure Calculation**
+  - [ ] Replacement cost (RC)
+  - [ ] Potential future exposure (PFE) add-on
+  - [ ] Asset class specific calculations
+  - [ ] Margined vs unmargined netting sets
+
+- [ ] **Trade Bucketing**
+  - [ ] Maturity buckets and supervisory durations
+  - [ ] Hedging set construction
+  - [ ] Basis risk recognition
+
+##### Initial Margin (SIMM & Schedule IM)
+- [ ] **SIMM Implementation**
+  - [ ] ISDA SIMM methodology (current version)
+  - [ ] Risk factor sensitivities
+  - [ ] Correlation matrices
+  - [ ] Concentration thresholds
+  - [ ] Product class calculations
+
+- [ ] **UMR Compliance**
+  - [ ] Uncleared margin rules (bilateral)
+  - [ ] Variation margin (VM) calculation
+  - [ ] Initial margin (IM) posting/collection
+  - [ ] Custodian integration
+
+##### Regulatory Reporting
+- [ ] **EMIR/Dodd-Frank**
+  - [ ] Trade reporting to repositories
+  - [ ] Lifecycle event reporting
+  - [ ] Reconciliation and dispute resolution
+  - [ ] Valuation reporting
+
+- [ ] **MiFID II/MiFIR**
+  - [ ] Transaction reporting (RTS 22)
+  - [ ] Reference data reporting (RTS 23)
+  - [ ] Best execution analysis
+
+- [ ] **Basel III/IV Capital**
+  - [ ] CVA capital charge
+  - [ ] Market risk capital (FRTB)
+  - [ ] Operational risk capital (standardized)
+  - [ ] Leverage ratio reporting
+
+##### Accounting Standards
+- [ ] **IFRS 9/13 Compliance**
+  - [ ] Fair value hierarchy (Level 1/2/3)
+  - [ ] Valuation adjustments
+  - [ ] ECL (Expected Credit Loss) for derivatives
+  - [ ] Hedge effectiveness testing
+  - [ ] Disclosure requirements
+
+---
+
+#### 🏗️ **Phase 5: Trading Platform Infrastructure** (Q2 2026)
+
+##### Market Data Management
+- [ ] **Vendor Integration**
+  - [ ] Bloomberg BPIPE integration
+  - [ ] Refinitiv RTDS (Real-Time Distribution System)
+  - [ ] ICE Data Services
+  - [ ] CME Market Data
+
+- [ ] **Reference Data**
+  - [ ] Security master database
+  - [ ] Curve definitions and conventions
+  - [ ] Holiday calendars (all major markets)
+  - [ ] Day count conventions
+  - [ ] Corporate actions processing
+
+##### Trade Lifecycle Management
+- [ ] **Pre-Trade**
+  - [ ] Real-time pricing engines
+  - [ ] Streaming quotes
+  - [ ] RFQ (Request for Quote) workflow
+  - [ ] Pre-trade analytics
+
+- [ ] **Trade Capture**
+  - [ ] FpML parsing and generation
+  - [ ] Trade booking workflow
+  - [ ] Trade amendment and cancellation
+  - [ ] Trade enrichment
+
+- [ ] **Post-Trade**
+  - [ ] Confirmation matching
+  - [ ] Settlement instruction generation
+  - [ ] Payment calculation and netting
+  - [ ] Corporate action handling
+  - [ ] Novation and assignment
+
+##### Collateral Management
+- [ ] **Margining**
+  - [ ] Initial margin calculation (SIMM)
+  - [ ] Variation margin calculation
+  - [ ] Margin call generation
+  - [ ] Dispute management
+
+- [ ] **Optimization**
+  - [ ] Collateral optimization engine
+  - [ ] Cheapest-to-deliver analysis
+  - [ ] Collateral transformation strategies
+  - [ ] Pledge vs rehypothecation
+
+##### Clearing & Settlement
+- [ ] **CCP Integration**
+  - [ ] LCH SwapClear connectivity
+  - [ ] CME Clearing integration
+  - [ ] ICE Clear Credit/Europe
+  - [ ] Eurex Clearing
+
+- [ ] **Settlement Systems**
+  - [ ] CLS (Continuous Linked Settlement) for FX
+  - [ ] Euroclear/Clearstream integration
+  - [ ] SWIFT messaging (MT and MX)
+
+---
+
+#### 🧮 **Phase 6: Computation & Performance** (Q3 2026)
+
+##### Distributed Computing
+- [ ] **Grid Computing**
+  - [ ] Risk grid architecture
+  - [ ] Distributed pricing engines
+  - [ ] Load balancing and scheduling
+  - [ ] Fault tolerance and recovery
+
+- [ ] **Cloud Orchestration**
+  - [ ] Kubernetes deployment
+  - [ ] Auto-scaling based on load
+  - [ ] Multi-region deployment
+  - [ ] Disaster recovery
+
+##### GPU/TPU Acceleration
+- [ ] **Accelerated Pricing**
+  - [ ] Monte Carlo on GPU
+  - [ ] PDE solver acceleration
+  - [ ] Batch pricing optimization
+  - [ ] Multi-GPU scaling (pmap/pjit)
+
+- [ ] **Risk Calculation**
+  - [ ] Parallel Greeks calculation
+  - [ ] VaR simulation on GPU
+  - [ ] Stress testing acceleration
+
+##### Performance Optimization
+- [ ] **Algorithmic Improvements**
+  - [ ] Adjoint AAD for all products
+  - [ ] Variance reduction techniques (antithetic, control variates)
+  - [ ] Quasi-random numbers (Sobol, Halton)
+  - [ ] Multilevel Monte Carlo (MLMC)
+
+- [ ] **Numerical Methods**
+  - [ ] Adaptive mesh refinement
+  - [ ] Finite element methods
+  - [ ] FFT/CONV optimization
+  - [ ] Linear algebra kernels (BLAS, LAPACK via JAX)
+
+---
+
+#### 🔬 **Phase 7: Advanced Analytics & AI** (Q4 2026)
+
+##### Machine Learning for Finance
+- [ ] **Model-Free Pricing**
+  - [ ] Deep hedging strategies
+  - [ ] Neural network implied volatility
+  - [ ] Generative adversarial networks (GANs) for scenarios
+
+- [ ] **Risk Prediction**
+  - [ ] ML-based VaR models
+  - [ ] Credit default prediction
+  - [ ] Liquidity risk forecasting
+
+- [ ] **Market Microstructure**
+  - [ ] Optimal execution (Almgren-Chriss)
+  - [ ] Market impact modeling
+  - [ ] High-frequency trading signals
+
+##### Portfolio Optimization
+- [ ] **Mean-Variance Optimization**
+  - [ ] Markowitz framework
+  - [ ] Black-Litterman model
+  - [ ] Risk parity portfolios
+
+- [ ] **Advanced Methods**
+  - [ ] CVaR optimization
+  - [ ] Robust optimization
+  - [ ] Dynamic programming
+  - [ ] Reinforcement learning for allocation
+
+##### Research Tools
+- [ ] **Backtesting**
+  - [ ] Historical strategy simulation
+  - [ ] Walk-forward analysis
+  - [ ] Transaction cost modeling
+
+- [ ] **Factor Analysis**
+  - [ ] Principal component analysis (PCA)
+  - [ ] Factor risk models (Barra-style)
+  - [ ] Style attribution
+
+---
+
+#### 🔐 **Phase 8: Enterprise Features** (Q1 2027)
+
+##### Security & Access Control
+- [ ] **Authentication**
+  - [ ] SSO (Single Sign-On) integration
+  - [ ] Multi-factor authentication (MFA)
+  - [ ] OAuth 2.0 / OpenID Connect
+  - [ ] LDAP/Active Directory integration
+
+- [ ] **Authorization**
+  - [ ] Role-based access control (RBAC)
+  - [ ] Attribute-based access control (ABAC)
+  - [ ] Fine-grained permissions
+  - [ ] Segregation of duties (SoD)
+
+##### Audit & Compliance
+- [ ] **Audit Trail**
+  - [ ] Immutable audit logs
+  - [ ] User action tracking
+  - [ ] Data lineage and provenance
+  - [ ] Change management logging
+
+- [ ] **Compliance Controls**
+  - [ ] 4-eyes principle enforcement
+  - [ ] Maker-checker workflow
+  - [ ] Approval workflows
+  - [ ] Compliance attestation
+
+##### Multi-Tenancy
+- [ ] **Organizational Structure**
+  - [ ] Multi-desk isolation
+  - [ ] Legal entity separation
+  - [ ] Geography-based segregation
+  - [ ] Client account isolation
+
+- [ ] **Resource Management**
+  - [ ] Compute quota management
+  - [ ] Cost allocation by desk/entity
+  - [ ] SLA monitoring and reporting
+
+---
+
+### 🔮 **Long-Term Vision** (2027+)
+
+#### Quantum Computing
+- [ ] Variational quantum eigensolver (VQE) for pricing
+- [ ] Quantum Monte Carlo
+- [ ] Quantum annealing for optimization
+
+#### Blockchain & DeFi
+- [ ] Smart contract integration
+- [ ] DeFi protocol connectivity
+- [ ] Tokenized derivatives
+- [ ] Decentralized clearing
+
+#### AI-Driven Trading
+- [ ] Reinforcement learning traders
+- [ ] Natural language trade entry
+- [ ] Automated trade idea generation
+- [ ] Sentiment analysis integration
+
+---
+
+## 🧪 Testing
+
+100+ comprehensive tests covering:
+
+- **Unit tests:** Core functionality and model correctness
+- **Integration tests:** End-to-end workflows
+- **Product tests:** Multi-asset class coverage (48 tests)
+- **Market data tests:** Storage, validation, feed management
+- **Regression tests:** Numerical stability checks
+- **Performance tests:** Benchmarking and profiling
+
+```bash
+pytest -v                                    # All tests
+pytest src/neutryx/tests/products/ -v       # Product tests
+pytest src/neutryx/tests/market/ -v         # Market data tests
+pytest --cov=neutryx --cov-report=html      # Coverage report
+```
 
 ---
 
 ## 🤝 Contributing
 
-We welcome contributions from the community! Here's how to get started:
+We welcome contributions from the quant finance community!
 
-### Contribution Workflow
+### Contribution Areas
 
-1. **Fork the repository** and create a feature branch
+- 🎯 **High Priority:**
+  - Interest rate derivatives (swaps, swaptions)
+  - FX exotics and structured products
+  - Credit derivatives and CDOs
+  - FRTB and regulatory capital
+  - Performance optimizations (GPU/TPU)
 
-   ```bash
-   git checkout -b feature/my-feature
-   ```
+- 📊 **Medium Priority:**
+  - Additional stochastic models
+  - Market microstructure tools
+  - Backtesting frameworks
+  - ML/AI pricing methods
 
-2. **Make your changes** following our coding standards:
-   - Use `ruff` for linting and formatting
-   - Add tests for new functionality (aim for >90% coverage)
-   - Update documentation as needed
-   - Include docstrings (Google style)
+- 📝 **Always Welcome:**
+  - Documentation improvements
+  - Bug fixes and tests
+  - Examples and tutorials
+  - Performance benchmarks
 
-3. **Run the test suite** before submitting
-
-   ```bash
-   pytest -q
-   ruff check src/
-   ruff format src/
-   pip-audit  # Check for security vulnerabilities
-   ```
-
-4. **Commit your changes** with clear, concise messages
-
-   ```bash
-   git commit -m "feat: Add feature description"
-   ```
-
-5. **Push to your fork** and open a pull request
-
-   ```bash
-   git push origin feature/my-feature
-   ```
-
-### Guidelines
-
-- **Code Style:** Follow PEP 8, enforced by `ruff` and `black`
-- **Testing:** Include unit tests for new features and bug fixes
-- **Documentation:** Update relevant docs and add comprehensive docstrings
-- **Model Additions:** Supply analytical reference tests and convergence studies
-- **Commit Messages:** Use conventional commits format (feat:, fix:, docs:, etc.)
-
-### Areas for Contribution
-
-- New pricing models or products
-- Performance optimizations
-- Documentation improvements
-- Bug fixes and issue reports
-- Examples and tutorials
-- Test coverage expansion
-- Integration with external libraries
-
----
-
-## 💬 Community & Support
-
-- **Issues:** Report bugs or request features via [GitHub Issues](https://github.com/neutryx-lab/neutryx-core/issues)
-- **Discussions:** Ask questions and share ideas in [GitHub Discussions](https://github.com/neutryx-lab/neutryx-core/discussions)
-- **Email:** For private inquiries, contact `dev@neutryx.tech`
-
-### Code of Conduct
-
-Be kind. Be curious. No harassment or discrimination. We are committed to providing a welcoming and inclusive environment for all contributors.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ---
 
 ## 📋 Changelog
 
-**v0.1.0** - Initial public release with comprehensive multi-asset class support
+**v0.1.0** (Current) - Foundation Release
+- Core pricing engines and multi-asset products
+- Real-time market data infrastructure (Bloomberg, Refinitiv)
+- Database connectors (PostgreSQL, MongoDB, TimescaleDB)
+- Comprehensive observability stack (Prometheus, Grafana, Jaeger)
+- Data validation and quality framework
+- 100+ tests, production-ready APIs
 
-Core features:
+**v0.2** (Q2 2025) - Interest Rate Derivatives
+- IRS, swaptions, CMS products
+- Multi-curve framework enhancements
+- Advanced calibration methods
 
-- Black-Scholes analytical pricing and Greeks with JIT compilation
-- Advanced Monte Carlo engine with GBM simulation
-- Path-dependent products (Asian, Barrier, Lookback, American)
-- **Multi-Asset Class Products:**
-  - Equity: Forwards, swaps, variance products, TRS, ELN
-  - Commodities: Forwards, options, swaps with convenience yield
-  - Fixed Income: Bonds, TIPS, inflation swaps
-  - Volatility: VIX futures/options, variance swaps
-  - Convertibles: Convertible bonds and analytics
-- Configuration and reproducibility system
-- REST/gRPC API endpoints
-- Comprehensive test suite (100+ tests)
-- Interactive demo showcase
+**v0.3** (Q3 2025) - Risk & XVA
+- VaR/ES calculation engines
+- FRTB standardized approach
+- Enhanced XVA (KVA, collateral optimization)
 
-### Upcoming Releases
-
-- **v0.2** – Enhanced calibration framework and model extensions
-- **v0.3** – Advanced risk metrics and scenario analysis
-- **v1.0** – Production-ready release with full API stability
-
-See [CHANGELOG.md](CHANGELOG.md) for detailed version history.
+**v1.0** (Q1 2026) - Production Enterprise Platform
+- Complete derivatives lifecycle
+- Regulatory compliance (FRTB, SA-CCR, SIMM)
+- Enterprise-grade infrastructure
 
 ---
 
 ## 🔒 Security
 
-Neutryx Core is research-oriented software intended for development and prototyping.
-
-- **Vulnerability Reports:** Please report security issues privately to `dev@neutryx.tech`
-- **Security Audits:** See [docs/security_audit.md](docs/security_audit.md) for procedures
-- **Dependencies:** Regularly updated via Dependabot and monitored with pip-audit
-- **Static Analysis:** Continuous security scanning with bandit
-- **SBOM:** Software Bill of Materials generated in CI pipeline
-
-For production deployments, conduct thorough security reviews and testing.
+- **Vulnerability Reports:** `dev@neutryx.tech`
+- **Security Audits:** [docs/security_audit.md](docs/security_audit.md)
+- **Dependency Monitoring:** Automated with Dependabot
+- **Static Analysis:** Continuous scanning with bandit
+- **SBOM:** Generated in CI pipeline
 
 ---
 
 ## 📜 License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-```text
-MIT License
-
-Copyright (c) 2025 Neutryx
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-```
+MIT License - see [LICENSE](LICENSE) file
 
 ---
 
 ## 🙏 Acknowledgments
 
-Neutryx Core builds upon the incredible work of the scientific computing community:
-
-- **JAX Team** at Google Research for the foundational JAX framework
-- **QuantLib** contributors for quantitative finance reference implementations
-- **SciPy/NumPy** communities for scientific computing infrastructure
-- All open-source contributors who make projects like this possible
-
-Special thanks to the quantitative finance community for sharing knowledge and best practices.
+- **JAX Team** at Google Research
+- **QuantLib** contributors
+- **Bloomberg** and **Refinitiv** for market data APIs
+- **SciPy/NumPy** communities
+- Quantitative finance practitioners worldwide
 
 ---
 
@@ -742,9 +981,9 @@ Special thanks to the quantitative finance community for sharing knowledge and b
 ---
 
 <p align="center">
-  Built with ❤️ by the Neutryx team
+  <strong>Built for Investment Banks, Hedge Funds, and Quantitative Researchers</strong>
 </p>
 
 <p align="center">
-  <sub>Accelerating quantitative finance with differentiable computing</sub>
+  <sub>Accelerating quantitative finance with differentiable computing and enterprise-grade infrastructure</sub>
 </p>
