@@ -62,6 +62,20 @@ class PLAMetrics:
     spearman_threshold: float = 0.85
     ks_threshold: float = 0.09
 
+    # Individual test results (for backward compatibility and detailed diagnostics)
+    passes_spearman: bool = False
+    passes_ks: bool = False
+
+    @property
+    def passes_attribution(self) -> bool:
+        """Check if PLA passes attribution test (GREEN zone only)."""
+        return self.test_result == PLATestResult.GREEN
+
+    @property
+    def zone(self) -> PLATestResult:
+        """Get zone classification (alias for test_result)."""
+        return self.test_result
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary."""
         return {
@@ -133,15 +147,17 @@ def calculate_pla_metrics(
     spearman_corr, _ = stats.spearmanr(hpl, rtpl)
 
     # 2. Kolmogorov-Smirnov test
-    # Tests if unexplained P&L follows a symmetric distribution around zero
+    # Per Basel III, tests if HPL and RTPL have similar distributions
+    # Two-sample KS test compares the empirical distributions of HPL and RTPL
     unexplained_pnl = hpl - rtpl
 
-    # Standardize unexplained P&L
-    std_unexplained = unexplained_pnl / np.std(hpl) if np.std(hpl) > 0 else unexplained_pnl
-
-    # KS test against standard normal distribution
-    # We want the distribution to be centered at zero with small deviations
-    ks_stat, _ = stats.kstest(std_unexplained, 'norm', args=(0, 1))
+    # Handle special case: if unexplained P&L is constant (all zeros or all same value),
+    # the distributions match perfectly
+    if np.std(unexplained_pnl) == 0:
+        ks_stat = 0.0
+    else:
+        # Two-sample KS test: compare HPL and RTPL distributions directly
+        ks_stat, _ = stats.ks_2samp(hpl, rtpl)
 
     # 3. Mean Absolute Difference
     mad = float(np.mean(np.abs(unexplained_pnl)))
@@ -157,22 +173,24 @@ def calculate_pla_metrics(
     var_ratio = float(np.var(unexplained_pnl) / np.var(hpl)) if np.var(hpl) > 0 else 0.0
 
     # Determine test result based on thresholds
-    # Green zone: Spearman ≥ 0.85 AND KS < 0.09
-    # Amber zone: Either threshold not met (but close)
-    # Red zone: Both thresholds not met or far from thresholds
+    # Per Basel III/FRTB:
+    # Green zone: Spearman ≥ 0.85 AND KS < 0.09 (both tests pass)
+    # Amber zone: Spearman ≥ 0.85 OR KS < 0.09 (at least one test passes)
+    # Red zone: Both tests fail
 
     passes_spearman = spearman_corr >= spearman_threshold
     passes_ks = ks_stat < ks_threshold
 
     if passes_spearman and passes_ks:
+        # Both tests pass - green zone
         test_result = PLATestResult.GREEN
         passes_test = True
-    elif (spearman_corr >= spearman_threshold * 0.9 or
-          ks_stat < ks_threshold * 1.2):
-        # Close to thresholds - amber zone
+    elif passes_spearman or passes_ks:
+        # At least one test passes - amber zone
         test_result = PLATestResult.AMBER
         passes_test = False
     else:
+        # Both tests fail - red zone
         test_result = PLATestResult.RED
         passes_test = False
 
@@ -188,6 +206,8 @@ def calculate_pla_metrics(
         num_observations=n_obs,
         spearman_threshold=spearman_threshold,
         ks_threshold=ks_threshold,
+        passes_spearman=passes_spearman,
+        passes_ks=passes_ks,
     )
 
     return metrics
@@ -331,6 +351,11 @@ def diagnose_pla_failures(
         if np.sum(unexplained**2) > 0 else np.nan,
     }
 
+    # Calculate additional top-level metrics
+    std_difference = float(np.std(unexplained))
+    rmse = float(np.sqrt(np.mean(unexplained ** 2)))
+    max_unexplained_pnl = float(np.max(np.abs(unexplained)))
+
     diagnosis = {
         "largest_discrepancies": largest_discrepancies[:10],  # Top 10
         "systematic_bias": systematic_bias,
@@ -338,6 +363,12 @@ def diagnose_pla_failures(
         "time_series_properties": time_series_properties,
         "outlier_threshold": float(threshold),
         "num_outliers": len(outlier_indices),
+        # Top-level metrics for convenience
+        "mean_difference": systematic_bias["mean_difference"],
+        "std_difference": std_difference,
+        "mean_unexplained_pnl": systematic_bias["mean_difference"],
+        "max_unexplained_pnl": max_unexplained_pnl,
+        "rmse": rmse,
     }
 
     return diagnosis
