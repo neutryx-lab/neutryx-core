@@ -75,6 +75,7 @@ markers = [
     "integration: marks integration tests that test multiple components",
     "unit: marks unit tests for isolated components",
 ]
+asyncio_mode = "auto"
 
 [tool.isort]
 profile = "black"
