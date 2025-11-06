@@ -21,16 +21,17 @@ class TestModellabilityTester:
 
     def test_modellable_risk_factor(self):
         """Test risk factor that passes modellability test."""
-        # 24+ observations over 12 months with no large gaps
+        # 24+ observations over 12+ months with no large gaps
         start_date = date(2024, 1, 1)
-        observation_dates = [start_date + timedelta(days=i * 15) for i in range(25)]
+        # Use 26 observations over ~13 months to ensure >= 365 days
+        observation_dates = [start_date + timedelta(days=i * 15) for i in range(26)]
 
         tester = ModellabilityTester()
         result = tester.test_risk_factor("USD.JPY", observation_dates)
 
         assert result.status == ModellabilityStatus.MODELLABLE
         assert result.is_modellable
-        assert result.observation_count == 25
+        assert result.observation_count == 26
         assert len(result.gaps_exceeding_threshold) == 0
 
     def test_insufficient_observations(self):
@@ -159,8 +160,8 @@ class TestStressScenarioCalibrator:
         assert stress_period.duration_days <= 200
         # Severity should be high
         assert stress_period.severity_score > 0
-        # Should have stressed ES
-        assert stress_period.stressed_es < 0
+        # Should have stressed ES (positive value for loss)
+        assert stress_period.stressed_es > 0
 
     def test_stress_period_severity_metrics(self):
         """Test that stress period captures high volatility and losses."""
@@ -326,8 +327,8 @@ class TestIdentifyNMRFs:
         start_date = date(2024, 1, 1)
 
         risk_factors = {
-            # Modellable: good data
-            "USD.EUR": [start_date + timedelta(days=i * 15) for i in range(25)],
+            # Modellable: good data (>= 365 days, >= 24 observations)
+            "USD.EUR": [start_date + timedelta(days=i * 15) for i in range(26)],
             "US.10Y": [start_date + timedelta(days=i * 14) for i in range(27)],
             # Non-modellable: insufficient data
             "EXOTIC.OPTION": [start_date + timedelta(days=i * 20) for i in range(10)],
@@ -361,7 +362,7 @@ class TestIdentifyNMRFs:
         start_date = date(2024, 1, 1)
 
         risk_factors = {
-            f"RF{i}": [start_date + timedelta(days=j * 15) for j in range(25)]
+            f"RF{i}": [start_date + timedelta(days=j * 15) for j in range(26)]
             for i in range(5)
         }
 

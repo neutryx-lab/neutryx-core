@@ -166,36 +166,36 @@ def _simulate_hawkes_jumps(
     jump_times = jnp.full(max_jumps, T, dtype=jnp.float32)
     intensity_history = jnp.zeros(max_jumps, dtype=jnp.float32)
 
-    t = 0.0
+    t = jnp.float32(0.0)
     n_jumps = 0
-    current_intensity = params.lambda0
+    current_intensity = jnp.float32(params.lambda0)
 
     # Thinning algorithm (JAX-compatible version using scan)
     def thinning_step(carry, _):
         t, n_jumps, current_intensity, jump_times, intensity_history, key = carry
 
         # Generate candidate jump using upper bound on intensity
-        lambda_max = current_intensity + params.alpha  # Upper bound after potential jump
+        lambda_max = current_intensity + jnp.float32(params.alpha)  # Upper bound after potential jump
         key, subkey = jax.random.split(key)
-        dt = jax.random.exponential(subkey) / lambda_max
+        dt = jax.random.exponential(subkey, dtype=jnp.float32) / lambda_max
         t_candidate = t + dt
 
         # Check if within time horizon
-        within_horizon = t_candidate < T
+        within_horizon = t_candidate < jnp.float32(T)
 
         # Compute intensity at candidate time (decay from previous jumps)
         # λ(t) = λ₀ + Σ α*exp(-β*(t - tᵢ))
         # For all previous jumps (use masking to handle dynamic n_jumps)
         valid_mask = jnp.arange(max_jumps) < n_jumps
         time_diffs = t_candidate - jump_times
-        decay_factors = jnp.exp(-params.beta * time_diffs)
+        decay_factors = jnp.exp(-jnp.float32(params.beta) * time_diffs)
         # Sum only valid decay factors (mask out invalid jumps)
-        intensity_from_past = jnp.sum(jnp.where(valid_mask, params.alpha * decay_factors, 0.0))
-        intensity_candidate = params.lambda0 + intensity_from_past
+        intensity_from_past = jnp.sum(jnp.where(valid_mask, jnp.float32(params.alpha) * decay_factors, jnp.float32(0.0)))
+        intensity_candidate = jnp.float32(params.lambda0) + intensity_from_past
 
         # Thinning: accept with probability λ(t)/λ_max
         key, subkey = jax.random.split(key)
-        u = jax.random.uniform(subkey)
+        u = jax.random.uniform(subkey, dtype=jnp.float32)
         accept = u <= (intensity_candidate / lambda_max)
 
         # Update if accepted and within horizon
@@ -212,9 +212,9 @@ def _simulate_hawkes_jumps(
             intensity_history,
         )
 
-        t = jnp.where(should_add, t_candidate, jnp.where(within_horizon, t + dt, T))
+        t = jnp.where(should_add, t_candidate, jnp.where(within_horizon, t + dt, jnp.float32(T)))
         n_jumps = jnp.where(should_add, n_jumps + 1, n_jumps)
-        current_intensity = jnp.where(should_add, intensity_candidate + params.alpha, current_intensity)
+        current_intensity = jnp.where(should_add, intensity_candidate + jnp.float32(params.alpha), current_intensity)
 
         return (t, n_jumps, current_intensity, jump_times, intensity_history, key), None
 

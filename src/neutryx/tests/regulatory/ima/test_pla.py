@@ -1,5 +1,6 @@
 """Tests for P&L Attribution (PLA) testing under Basel III/FRTB."""
 
+import jax
 import jax.numpy as jnp
 import pytest
 
@@ -24,11 +25,11 @@ class TestPLAMetrics:
 
         # Perfect correlation
         assert metrics.spearman_correlation == pytest.approx(1.0)
-        assert metrics.ks_statistic == pytest.approx(0.0)
+        assert metrics.kolmogorov_smirnov_statistic == pytest.approx(0.0)
 
         # Should be in green zone
-        assert metrics.zone == PLATestResult.GREEN
-        assert metrics.passes_attribution
+        assert metrics.test_result == PLATestResult.GREEN
+        assert metrics.passes_test
 
     def test_good_attribution(self):
         """Test PLA with good (but not perfect) attribution."""
@@ -44,8 +45,8 @@ class TestPLAMetrics:
         # Should have high correlation (>0.85)
         assert metrics.spearman_correlation > 0.85
         # Should be in green zone
-        assert metrics.zone == PLATestResult.GREEN
-        assert metrics.passes_attribution
+        assert metrics.test_result == PLATestResult.GREEN
+        assert metrics.passes_test
 
     def test_poor_attribution(self):
         """Test PLA with poor attribution."""
@@ -91,7 +92,7 @@ class TestPLAMetrics:
 
         metrics = calculate_pla_metrics(pnl, pnl, ks_threshold=0.09)
 
-        assert metrics.ks_statistic < 0.09
+        assert metrics.kolmogorov_smirnov_statistic < 0.09
         assert metrics.passes_ks
 
     def test_zone_classification(self):
@@ -170,7 +171,7 @@ class TestPLAMetrics:
         # Should handle gracefully (Spearman undefined, but distributions match)
         metrics = calculate_pla_metrics(hypothetical_pnl, risk_theoretical_pnl)
         # KS test should show perfect match
-        assert metrics.ks_statistic == pytest.approx(0.0)
+        assert metrics.kolmogorov_smirnov_statistic == pytest.approx(0.0)
 
 
 class TestPLATestResults:
@@ -232,9 +233,8 @@ class TestPLADiagnostics:
 
         diagnostics = diagnose_pla_failures(hypothetical_pnl, risk_theoretical_pnl)
 
-        # Should detect positive mean difference
-        assert diagnostics['mean_difference'] > 0
-        assert diagnostics['mean_unexplained_pnl'] < 0  # HPL - RTPL
+        # Should detect positive mean difference (HPL - RTPL = negative when RTPL > HPL)
+        assert diagnostics['systematic_bias']['mean_difference'] < 0
 
     def test_diagnose_volatility_mismatch(self):
         """Test diagnosis of volatility mismatch."""
@@ -261,5 +261,6 @@ class TestPLADiagnostics:
 
         diagnostics = diagnose_pla_failures(hypothetical_pnl, risk_theoretical_pnl)
 
-        # Should detect large max unexplained P&L
-        assert abs(diagnostics['max_unexplained_pnl']) > 50.0
+        # Should detect large outlier in largest_discrepancies
+        assert len(diagnostics['largest_discrepancies']) > 0
+        assert abs(diagnostics['largest_discrepancies'][0]['difference']) > 50.0

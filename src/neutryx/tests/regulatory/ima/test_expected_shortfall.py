@@ -1,5 +1,6 @@
 """Tests for Expected Shortfall (ES) calculation under Basel III/FRTB."""
 
+import jax
 import jax.numpy as jnp
 import pytest
 
@@ -24,11 +25,11 @@ class TestExpectedShortfall:
             scenarios, confidence_level=0.90
         )
 
-        # At 90% confidence, VaR should be around -3.0
-        # ES should be average of worst 10% (just -5.0)
-        assert var < 0  # Negative for losses
-        assert es < var  # ES more negative than VaR
-        assert abs(es - (-5.0)) < 0.1  # ES should be close to -5.0
+        # At 90% confidence, VaR should be around 3.0 (positive for losses)
+        # ES should be average of worst 10% (around 5.0)
+        assert var > 0  # Positive values for losses
+        assert es >= var  # ES should be >= VaR (more conservative)
+        assert abs(es - 5.0) < 0.1  # ES should be close to 5.0
 
     def test_es_975_confidence(self):
         """Test ES at Basel III required 97.5% confidence level."""
@@ -51,8 +52,8 @@ class TestExpectedShortfall:
 
         for confidence in [0.90, 0.95, 0.975, 0.99]:
             es, var, _ = calculate_expected_shortfall(scenarios, confidence_level=confidence)
-            # ES should be more negative (larger loss) than VaR
-            assert es <= var, f"ES ({es}) should be <= VaR ({var}) at {confidence}"
+            # ES should be >= VaR (ES is more conservative, larger positive value)
+            assert es >= var, f"ES ({es}) should be >= VaR ({var}) at {confidence}"
 
     def test_liquidity_horizons(self):
         """Test liquidity horizon mapping."""
@@ -139,8 +140,8 @@ class TestExpectedShortfall:
         scenarios = jnp.array([-5.0])
         es, var, _ = calculate_expected_shortfall(scenarios)
 
-        # With single scenario, ES = VaR = that scenario
-        assert es == var == -5.0
+        # With single scenario, ES = VaR = absolute value of that scenario (positive)
+        assert es == var == 5.0
 
     def test_es_result_dataclass(self):
         """Test ESResult dataclass structure."""
@@ -149,8 +150,9 @@ class TestExpectedShortfall:
 
         # Check diagnostics contain expected keys
         assert 'num_scenarios' in diagnostics
-        assert 'num_tail_scenarios' in diagnostics
-        assert 'tail_mean' in diagnostics
+        assert 'tail_observations' in diagnostics
+        assert 'mean_excess_loss' in diagnostics
+        assert 'max_loss' in diagnostics
 
         # Create ESResult manually
         result = ESResult(
@@ -202,13 +204,13 @@ class TestLiquidityHorizonMapping:
         horizon = get_liquidity_horizon("unknown_asset_class", "unknown_sub")
         assert isinstance(horizon, LiquidityHorizon)
         # Should default to at least 10 days
-        assert horizon.value >= 10
+        assert horizon.to_days() >= 10
 
     def test_liquidity_horizon_enum_values(self):
         """Test LiquidityHorizon enum values are correct."""
-        assert LiquidityHorizon.DAYS_10.value == 10
-        assert LiquidityHorizon.DAYS_20.value == 20
-        assert LiquidityHorizon.DAYS_40.value == 40
-        assert LiquidityHorizon.DAYS_60.value == 60
-        assert LiquidityHorizon.DAYS_120.value == 120
-        assert LiquidityHorizon.DAYS_250.value == 250
+        assert LiquidityHorizon.DAYS_10.to_days() == 10
+        assert LiquidityHorizon.DAYS_20.to_days() == 20
+        assert LiquidityHorizon.DAYS_40.to_days() == 40
+        assert LiquidityHorizon.DAYS_60.to_days() == 60
+        assert LiquidityHorizon.DAYS_120.to_days() == 120
+        assert LiquidityHorizon.DAYS_250.to_days() == 250
