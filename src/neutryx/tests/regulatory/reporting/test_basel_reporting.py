@@ -5,7 +5,7 @@ from decimal import Decimal
 
 import pytest
 
-from neutryx.compliance.basel_reporting import (
+from neutryx.regulatory.reporting.basel_reporting import (
     BaselCapitalReport,
     BaselCapitalReporter,
     CVACapitalReport,

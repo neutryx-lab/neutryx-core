@@ -445,7 +445,7 @@ print(xla_bridge.get_backend().platform)
 
 - **Documentation**: [https://neutryx-lab.github.io/neutryx-core](https://neutryx-lab.github.io/neutryx-core)
 - **GitHub Issues**: [https://github.com/neutryx-lab/neutryx-core/issues](https://github.com/neutryx-lab/neutryx-core/issues)
-- **Examples**: Browse the `demos/` and `examples/` directories
+- **Examples**: Browse the `examples/` directory (tutorials, notebooks, applications)
 - **API Reference**: [docs/api_reference.md](api_reference.md)
 
 ## What's Next?

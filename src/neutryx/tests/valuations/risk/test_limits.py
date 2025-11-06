@@ -9,7 +9,7 @@ Tests cover:
 """
 import pytest
 
-from neutryx.risk.limits import (
+from neutryx.valuations.risk.limits import (
     BreachSeverity,
     ConcentrationLimit,
     IssuerLimit,

@@ -5,7 +5,7 @@ from decimal import Decimal
 
 import pytest
 
-from neutryx.compliance.mifid import (
+from neutryx.regulatory.reporting.mifid import (
     BestExecutionAnalyzer,
     CapacityType,
     InstrumentClassification,

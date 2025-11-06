@@ -5,7 +5,7 @@ from decimal import Decimal
 
 import pytest
 
-from neutryx.compliance.emir import (
+from neutryx.regulatory.reporting.emir import (
     ClearingStatus,
     EMIRLifecycleEvent,
     EMIRReconciliation,

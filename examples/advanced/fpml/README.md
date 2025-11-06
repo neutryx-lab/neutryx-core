@@ -21,7 +21,7 @@ Neutryx provides comprehensive FpML 5.x support, enabling seamless integration w
 ### 1. Parse an FpML Document
 
 ```python
-from neutryx.bridge import fpml
+from neutryx.integrations import fpml
 
 # Load and parse FpML XML
 with open("equity_call_option.xml") as f:
@@ -39,7 +39,7 @@ if trade.equityOption:
 ### 2. Price an FpML Trade
 
 ```python
-from neutryx.bridge.fpml_adapter import quick_price_fpml
+from neutryx.integrations.fpml_adapter import quick_price_fpml
 
 # Define market data
 market_data = {
@@ -59,7 +59,7 @@ print(f"Option Price: ${price:.2f}")
 ```python
 from datetime import date
 from neutryx.api.rest import VanillaOptionRequest
-from neutryx.bridge import fpml
+from neutryx.integrations import fpml
 
 # Create a pricing request
 request = VanillaOptionRequest(
@@ -136,7 +136,7 @@ python fpml_pricing_example.py
 ### Custom Monte Carlo Configuration
 
 ```python
-from neutryx.bridge.fpml_adapter import FpMLPricingAdapter
+from neutryx.integrations.fpml_adapter import FpMLPricingAdapter
 from neutryx.core.engine import MCConfig
 
 adapter = FpMLPricingAdapter(
@@ -150,7 +150,7 @@ result = adapter.price_from_xml(fpml_xml, market_data)
 ### Batch Pricing
 
 ```python
-from neutryx.bridge.fpml_adapter import FpMLBatchPricer
+from neutryx.integrations.fpml_adapter import FpMLBatchPricer
 
 batch_pricer = FpMLBatchPricer(seed=42)
 
@@ -164,7 +164,7 @@ results = batch_pricer.price_multiple_xml(xml_documents, market_data_list)
 
 ```python
 from datetime import date
-from neutryx.bridge.fpml import FpMLToNeutryxMapper
+from neutryx.integrations.fpml import FpMLToNeutryxMapper
 
 mapper = FpMLToNeutryxMapper(reference_date=date(2024, 6, 1))
 request = mapper.map_trade(fpml_doc.primary_trade, market_data)
@@ -214,7 +214,7 @@ request = mapper.map_trade(fpml_doc.primary_trade, market_data)
 The FpML integration provides clear error messages:
 
 ```python
-from neutryx.bridge import fpml
+from neutryx.integrations import fpml
 
 try:
     fpml_doc = fpml.parse_fpml(invalid_xml)

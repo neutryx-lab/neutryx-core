@@ -7,7 +7,7 @@ import math
 import jax.numpy as jnp
 import pytest
 
-from neutryx.risk import (
+from neutryx.valuations.risk import (
     MarketScenario,
     MarketState,
     RiskEngine,

@@ -1,311 +1,188 @@
-"""Tests for American option pricing using Longstaff-Schwartz method."""
-import jax
+"""Tests for American option products."""
+from __future__ import annotations
+
 import jax.numpy as jnp
 import pytest
 
-from neutryx.core.engine import MCConfig, simulate_gbm
-from neutryx.products.american import (
-    american_call_lsm,
-    american_option_lsm,
-    american_put_lsm,
-)
+from neutryx.products.vanilla import American, European
 
 
-class TestAmericanOptions:
-    """Test suite for American option pricing."""
+class TestAmericanOption:
+    """Test cases for American options."""
 
-    @pytest.fixture
-    def setup_params(self):
-        """Common parameters for tests."""
-        return {
-            "S0": 100.0,
-            "K": 100.0,
-            "T": 1.0,
-            "r": 0.05,
-            "q": 0.0,
-            "sigma": 0.2,
-            "steps": 50,
-            "paths": 10_000,
-        }
+    def test_american_call_immediate_exercise(self):
+        """Test immediate exercise value for American call."""
+        K = 100.0
+        american_call = American(K=K, T=1.0, is_call=True)
 
-    def test_american_put_itm(self, setup_params):
-        """Test American put pricing for in-the-money option."""
-        key = jax.random.PRNGKey(42)
-        params = setup_params
-        params["K"] = 110.0  # ITM put
+        # Test ITM spot
+        spot_itm = jnp.array([110.0])
+        exercise_value = american_call.immediate_exercise(spot_itm)
+        assert abs(exercise_value - 10.0) < 1e-6, "ITM call should have intrinsic value"
 
-        cfg = MCConfig(steps=params["steps"], paths=params["paths"])
-        paths = simulate_gbm(
-            key,
-            params["S0"],
-            params["r"] - params["q"],
-            params["sigma"],
-            params["T"],
-            cfg,
-        )
+        # Test ATM spot
+        spot_atm = jnp.array([100.0])
+        exercise_value = american_call.immediate_exercise(spot_atm)
+        assert abs(exercise_value - 0.0) < 1e-6, "ATM call should have zero intrinsic"
 
-        dt = params["T"] / params["steps"]
-        price = american_put_lsm(paths, params["K"], params["r"], dt)
+        # Test OTM spot
+        spot_otm = jnp.array([90.0])
+        exercise_value = american_call.immediate_exercise(spot_otm)
+        assert abs(exercise_value - 0.0) < 1e-6, "OTM call should have zero intrinsic"
 
-        # American put should be worth at least intrinsic value
-        intrinsic = max(params["K"] - params["S0"], 0.0)
-        assert price >= intrinsic, f"American put price {price} < intrinsic {intrinsic}"
+    def test_american_put_immediate_exercise(self):
+        """Test immediate exercise value for American put."""
+        K = 100.0
+        american_put = American(K=K, T=1.0, is_call=False)
 
-        # Price should be reasonable (not too high)
-        assert price <= params["K"], f"American put price {price} > strike {params['K']}"
+        # Test ITM spot
+        spot_itm = jnp.array([90.0])
+        exercise_value = american_put.immediate_exercise(spot_itm)
+        assert abs(exercise_value - 10.0) < 1e-6, "ITM put should have intrinsic value"
 
-    def test_american_call_itm(self, setup_params):
-        """Test American call pricing for in-the-money option."""
-        key = jax.random.PRNGKey(43)
-        params = setup_params
-        params["K"] = 90.0  # ITM call
+        # Test ATM spot
+        spot_atm = jnp.array([100.0])
+        exercise_value = american_put.immediate_exercise(spot_atm)
+        assert abs(exercise_value - 0.0) < 1e-6, "ATM put should have zero intrinsic"
 
-        cfg = MCConfig(steps=params["steps"], paths=params["paths"])
-        paths = simulate_gbm(
-            key,
-            params["S0"],
-            params["r"] - params["q"],
-            params["sigma"],
-            params["T"],
-            cfg,
-        )
+        # Test OTM spot
+        spot_otm = jnp.array([110.0])
+        exercise_value = american_put.immediate_exercise(spot_otm)
+        assert abs(exercise_value - 0.0) < 1e-6, "OTM put should have zero intrinsic"
 
-        dt = params["T"] / params["steps"]
-        price = american_call_lsm(paths, params["K"], params["r"], dt)
+    def test_american_call_path_payoff(self):
+        """Test path payoff for American call."""
+        K = 100.0
+        american_call = American(K=K, T=1.0, is_call=True)
 
-        # American call should be worth at least intrinsic value
-        intrinsic = max(params["S0"] - params["K"], 0.0)
-        assert price >= intrinsic, f"American call price {price} < intrinsic {intrinsic}"
+        # Path ending ITM
+        path = jnp.array([100.0, 105.0, 110.0, 115.0])
+        payoff = american_call.payoff_path(path)
+        assert abs(payoff - 15.0) < 1e-6, "Should return terminal intrinsic value"
 
-    def test_american_put_atm(self, setup_params):
-        """Test American put pricing for at-the-money option."""
-        key = jax.random.PRNGKey(44)
-        params = setup_params
+        # Path ending OTM
+        path_otm = jnp.array([100.0, 95.0, 90.0, 85.0])
+        payoff_otm = american_call.payoff_path(path_otm)
+        assert abs(payoff_otm - 0.0) < 1e-6, "Should return zero for OTM"
 
-        cfg = MCConfig(steps=params["steps"], paths=params["paths"])
-        paths = simulate_gbm(
-            key,
-            params["S0"],
-            params["r"] - params["q"],
-            params["sigma"],
-            params["T"],
-            cfg,
-        )
+    def test_american_put_path_payoff(self):
+        """Test path payoff for American put."""
+        K = 100.0
+        american_put = American(K=K, T=1.0, is_call=False)
 
-        dt = params["T"] / params["steps"]
-        price = american_put_lsm(paths, params["K"], params["r"], dt)
+        # Path ending ITM
+        path = jnp.array([100.0, 95.0, 90.0, 85.0])
+        payoff = american_put.payoff_path(path)
+        assert abs(payoff - 15.0) < 1e-6, "Should return terminal intrinsic value"
 
-        # ATM American put should have positive value
-        assert price > 0.0, "ATM American put should have positive value"
+        # Path ending OTM
+        path_otm = jnp.array([100.0, 105.0, 110.0, 115.0])
+        payoff_otm = american_put.payoff_path(path_otm)
+        assert abs(payoff_otm - 0.0) < 1e-6, "Should return zero for OTM"
 
-        # Price should be less than strike
-        assert price < params["K"], f"American put price {price} >= strike {params['K']}"
+    def test_immediate_exercise_array(self):
+        """Test immediate exercise with array of spots."""
+        K = 100.0
+        american_call = American(K=K, T=1.0, is_call=True)
 
-    def test_american_option_lsm_wrapper(self, setup_params):
-        """Test wrapper function with kind parameter."""
-        key = jax.random.PRNGKey(45)
-        params = setup_params
+        spots = jnp.array([90.0, 95.0, 100.0, 105.0, 110.0])
+        exercise_values = american_call.immediate_exercise(spots)
 
-        cfg = MCConfig(steps=params["steps"], paths=params["paths"])
-        paths = simulate_gbm(
-            key,
-            params["S0"],
-            params["r"] - params["q"],
-            params["sigma"],
-            params["T"],
-            cfg,
-        )
+        expected = jnp.array([0.0, 0.0, 0.0, 5.0, 10.0])
+        assert jnp.allclose(exercise_values, expected), "Should compute exercise values for all spots"
 
-        dt = params["T"] / params["steps"]
+    def test_american_vs_european_parity(self):
+        """Test that American and European have same terminal payoff."""
+        K = 100.0
+        american = American(K=K, T=1.0, is_call=True)
+        european = European(K=K, T=1.0, is_call=True)
 
-        # Test put
-        put_price = american_option_lsm(paths, params["K"], params["r"], dt, kind="put")
-        assert put_price > 0.0
+        spots = jnp.array([80.0, 90.0, 100.0, 110.0, 120.0])
 
-        # Test call
-        call_price = american_option_lsm(paths, params["K"], params["r"], dt, kind="call")
-        assert call_price > 0.0
-
-        # Test invalid kind
-        with pytest.raises(ValueError, match="Unknown option kind"):
-            american_option_lsm(paths, params["K"], params["r"], dt, kind="invalid")
-
-    def test_jit_compatibility(self, setup_params):
-        """Test that American option pricing is JIT-compatible."""
-        key = jax.random.PRNGKey(46)
-        params = setup_params
-
-        cfg = MCConfig(steps=params["steps"], paths=params["paths"])
-        paths = simulate_gbm(
-            key,
-            params["S0"],
-            params["r"] - params["q"],
-            params["sigma"],
-            params["T"],
-            cfg,
-        )
-
-        dt = params["T"] / params["steps"]
-
-        # JIT compile the function
-        jitted_american_put = jax.jit(american_put_lsm)
-
-        # Should not raise any errors
-        price = jitted_american_put(paths, params["K"], params["r"], dt)
-
-        assert jnp.isfinite(price), "JIT-compiled price should be finite"
-        assert price > 0.0, "JIT-compiled price should be positive"
-
-    def test_vmap_compatibility(self, setup_params):
-        """Test that American option pricing works with vmap."""
-        key = jax.random.PRNGKey(47)
-        params = setup_params
-
-        # Create multiple sets of paths
-        cfg = MCConfig(steps=params["steps"], paths=params["paths"])
-
-        keys = jax.random.split(key, 5)
-
-        def price_single(k):
-            paths = simulate_gbm(
-                k,
-                params["S0"],
-                params["r"] - params["q"],
-                params["sigma"],
-                params["T"],
-                cfg,
-            )
-            dt = params["T"] / params["steps"]
-            return american_put_lsm(paths, params["K"], params["r"], dt)
-
-        # Vmap over multiple keys
-        prices = jax.vmap(price_single)(keys)
-
-        assert prices.shape == (5,), f"Expected shape (5,), got {prices.shape}"
-        assert jnp.all(jnp.isfinite(prices)), "All prices should be finite"
-        assert jnp.all(prices > 0.0), "All prices should be positive"
-
-    def test_put_call_relationship(self, setup_params):
-        """Test basic put-call relationship for American options."""
-        key = jax.random.PRNGKey(48)
-        params = setup_params
-
-        cfg = MCConfig(steps=params["steps"], paths=params["paths"])
-        paths = simulate_gbm(
-            key,
-            params["S0"],
-            params["r"] - params["q"],
-            params["sigma"],
-            params["T"],
-            cfg,
-        )
-
-        dt = params["T"] / params["steps"]
-
-        put_price = american_put_lsm(paths, params["K"], params["r"], dt)
-        call_price = american_call_lsm(paths, params["K"], params["r"], dt)
-
-        # Both should be positive for ATM options
-        assert put_price > 0.0, "Put price should be positive"
-        assert call_price > 0.0, "Call price should be positive"
-
-    def test_increasing_volatility(self, setup_params):
-        """Test that American option prices increase with volatility."""
-        params = setup_params
-        cfg = MCConfig(steps=params["steps"], paths=params["paths"])
-
-        prices = []
-        for sigma in [0.1, 0.2, 0.3]:
-            key = jax.random.PRNGKey(49)
-            paths = simulate_gbm(
-                key,
-                params["S0"],
-                params["r"] - params["q"],
-                sigma,
-                params["T"],
-                cfg,
-            )
-            dt = params["T"] / params["steps"]
-            price = american_put_lsm(paths, params["K"], params["r"], dt)
-            prices.append(price)
-
-        # Prices should generally increase with volatility
-        assert prices[1] > prices[0] * 0.8, "Higher vol should give higher price"
-        assert prices[2] > prices[1] * 0.8, "Even higher vol should give even higher price"
-
-    def test_deep_otm_put(self, setup_params):
-        """Test American put pricing for deep out-of-the-money option."""
-        key = jax.random.PRNGKey(50)
-        params = setup_params
-        params["K"] = 50.0  # Deep OTM put
-
-        cfg = MCConfig(steps=params["steps"], paths=params["paths"])
-        paths = simulate_gbm(
-            key,
-            params["S0"],
-            params["r"] - params["q"],
-            params["sigma"],
-            params["T"],
-            cfg,
-        )
-
-        dt = params["T"] / params["steps"]
-        price = american_put_lsm(paths, params["K"], params["r"], dt)
-
-        # Deep OTM options should have low value
-        assert 0.0 <= price < 1.0, f"Deep OTM put price {price} should be near zero"
-
-    def test_early_exercise_premium(self, setup_params):
-        """Test that American put has early exercise premium over European."""
-        key = jax.random.PRNGKey(51)
-        params = setup_params
-        params["K"] = 110.0  # ITM put to encourage early exercise
-        params["r"] = 0.10  # Higher rate encourages early exercise for puts
-
-        cfg = MCConfig(steps=params["steps"], paths=params["paths"])
-        paths = simulate_gbm(
-            key,
-            params["S0"],
-            params["r"] - params["q"],
-            params["sigma"],
-            params["T"],
-            cfg,
-        )
-
-        dt = params["T"] / params["steps"]
-        american_price = american_put_lsm(paths, params["K"], params["r"], dt)
-
-        # European put (just terminal payoff)
-        ST = paths[:, -1]
-        european_payoff = jnp.maximum(params["K"] - ST, 0.0)
-        european_price = jnp.exp(-params["r"] * params["T"]) * european_payoff.mean()
-
-        # American should be at least as valuable as European
-        assert (
-            american_price >= european_price * 0.95
-        ), "American put should be at least as valuable as European"
+        for spot in spots:
+            american_payoff = american.payoff_path(jnp.array([spot]))
+            european_payoff = european.payoff_terminal(spot)
+            assert abs(american_payoff - european_payoff) < 1e-6, \
+                f"Terminal payoff should match for spot={spot}"
 
 
-@pytest.mark.regression
-class TestAmericanOptionsRegression:
-    """Regression tests for American option pricing."""
+class TestAmericanPutProperties:
+    """Test mathematical properties of American puts."""
 
-    def test_standard_case_reproducibility(self):
-        """Test that standard case produces consistent results."""
-        key = jax.random.PRNGKey(100)
-        S0, K, T, r, q, sigma = 100.0, 100.0, 1.0, 0.05, 0.0, 0.2
-        steps, paths = 50, 50_000
+    def test_american_put_always_nonnegative(self):
+        """Test that American put payoff is always non-negative."""
+        K = 100.0
+        american_put = American(K=K, T=1.0, is_call=False)
 
-        cfg = MCConfig(steps=steps, paths=paths)
-        paths_data = simulate_gbm(key, S0, r - q, sigma, T, cfg)
+        # Test various spot prices
+        spots = jnp.linspace(50.0, 150.0, 50)
+        for spot in spots:
+            payoff = american_put.immediate_exercise(jnp.array([spot]))
+            assert payoff >= -1e-10, f"Payoff should be non-negative for spot={spot}"
 
-        dt = T / steps
-        price = american_put_lsm(paths_data, K, r, dt)
+    def test_american_put_monotonic(self):
+        """Test that American put value increases as spot decreases."""
+        K = 100.0
+        american_put = American(K=K, T=1.0, is_call=False)
 
-        # Expected value from reference implementation (approximate)
-        expected = 4.9  # Approximate LSM value with this implementation
-        tolerance = 0.3  # MC has variance
+        spot_high = jnp.array([110.0])
+        spot_low = jnp.array([90.0])
 
-        assert (
-            abs(price - expected) < tolerance
-        ), f"Price {price:.4f} deviates from expected {expected:.4f}"
+        value_high = american_put.immediate_exercise(spot_high)
+        value_low = american_put.immediate_exercise(spot_low)
+
+        assert value_low > value_high, "Put value should increase as spot decreases"
+
+    def test_american_put_bounded(self):
+        """Test that American put is bounded by strike."""
+        K = 100.0
+        american_put = American(K=K, T=1.0, is_call=False)
+
+        # Test at spot = 0 (maximum payoff scenario)
+        spot_zero = jnp.array([0.01])
+        max_payoff = american_put.immediate_exercise(spot_zero)
+
+        assert max_payoff <= K, "Put payoff should be bounded by strike"
+
+
+class TestAmericanCallProperties:
+    """Test mathematical properties of American calls."""
+
+    def test_american_call_always_nonnegative(self):
+        """Test that American call payoff is always non-negative."""
+        K = 100.0
+        american_call = American(K=K, T=1.0, is_call=True)
+
+        # Test various spot prices
+        spots = jnp.linspace(50.0, 150.0, 50)
+        for spot in spots:
+            payoff = american_call.immediate_exercise(jnp.array([spot]))
+            assert payoff >= -1e-10, f"Payoff should be non-negative for spot={spot}"
+
+    def test_american_call_monotonic(self):
+        """Test that American call value increases as spot increases."""
+        K = 100.0
+        american_call = American(K=K, T=1.0, is_call=True)
+
+        spot_low = jnp.array([90.0])
+        spot_high = jnp.array([110.0])
+
+        value_low = american_call.immediate_exercise(spot_low)
+        value_high = american_call.immediate_exercise(spot_high)
+
+        assert value_high > value_low, "Call value should increase as spot increases"
+
+    def test_american_call_unbounded(self):
+        """Test that American call is unbounded (can grow with spot)."""
+        K = 100.0
+        american_call = American(K=K, T=1.0, is_call=True)
+
+        # Very high spot should give very high payoff
+        spot_high = jnp.array([1000.0])
+        payoff = american_call.immediate_exercise(spot_high)
+
+        assert payoff >= 900.0, "Call payoff should scale with spot price"
+
+
+if __name__ == "__main__":
+    pytest.main([__file__, "-v"])

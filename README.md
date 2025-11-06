@@ -330,7 +330,12 @@ neutryx-core/
 ├── docs/                 # Documentation and guides
 │   ├── monitoring.md     # Observability and monitoring guide
 │   └── market_data.md    # Market data infrastructure guide
-├── demos/                # Examples, dashboards, and tutorials
+├── examples/             # Examples, dashboards, and tutorials
+│   ├── tutorials/        # Step-by-step tutorials
+│   ├── notebooks/        # Jupyter notebooks
+│   ├── advanced/         # Advanced examples
+│   ├── applications/     # Full applications (dashboard, fictional_bank)
+│   └── benchmarks/       # Performance benchmarks
 ├── dev/                  # Developer tooling
 │   └── monitoring/       # Prometheus, Grafana, Jaeger stack
 └── src/neutryx/
@@ -378,7 +383,7 @@ mkdocs build  # Static site generation
 ### Multi-Asset Class Showcase
 
 ```bash
-python demos/asset_class_showcase.py
+python examples/advanced/asset_class_showcase.py
 ```
 
 Demonstrates:
@@ -408,20 +413,20 @@ Demonstrates:
 ### Basic Examples
 
 ```bash
-python demos/01_bs_vanilla.py        # Vanilla options
-python demos/02_path_dependents.py   # Exotic options
-python demos/03_american_lsm.py      # American options
-python examples/swaptions_and_exotic_ir_demo.py  # Swaptions & exotic IR (NEW)
-python examples/frtb_drc_rrao_example.py         # FRTB DRC/RRAO (NEW)
-python examples/regulatory_ima_example.py        # FRTB IMA (NEW)
-python examples/amr_pde_demo.py                  # Adaptive mesh refinement (NEW)
-python examples/factor_analysis_example.py       # Factor analysis (NEW)
+python examples/advanced/basic/01_bs_vanilla.py        # Vanilla options
+python examples/advanced/basic/02_path_dependents.py   # Exotic options
+python examples/advanced/basic/03_american_lsm.py      # American options
+python examples/swaptions_and_exotic_ir_demo.py        # Swaptions & exotic IR
+python examples/frtb_drc_rrao_example.py               # FRTB DRC/RRAO
+python examples/regulatory_ima_example.py              # FRTB IMA
+python examples/amr_pde_demo.py                        # Adaptive mesh refinement
+python examples/factor_analysis_example.py             # Factor analysis
 ```
 
 ### Dash Dashboard
 
 ```bash
-cd demos/dashboard && python app.py
+cd examples/applications/dashboard && python app.py
 ```
 
 Interactive pricing, Greeks, and scenario analysis at `http://localhost:8050`

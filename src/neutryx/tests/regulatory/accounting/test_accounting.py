@@ -5,7 +5,7 @@ from decimal import Decimal
 
 import pytest
 
-from neutryx.accounting.ifrs9 import (
+from neutryx.regulatory.accounting.ifrs9 import (
     BusinessModel,
     ECLModel,
     ECLResult,
@@ -17,7 +17,7 @@ from neutryx.accounting.ifrs9 import (
     IFRS9Classifier,
     sppi_test,
 )
-from neutryx.accounting.ifrs13 import (
+from neutryx.regulatory.accounting.ifrs13 import (
     FairValueHierarchy,
     FairValueInput,
     FairValueMeasurement,
@@ -27,7 +27,7 @@ from neutryx.accounting.ifrs13 import (
     classify_input_observability,
     determine_hierarchy_level,
 )
-from neutryx.accounting.xva import (
+from neutryx.regulatory.accounting.xva import (
     CVACalculator,
     DVACalculator,
     FVACalculator,

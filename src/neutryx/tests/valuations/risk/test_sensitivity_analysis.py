@@ -2,7 +2,7 @@
 import jax.numpy as jnp
 import pytest
 
-from neutryx.risk.sensitivity_analysis import (
+from neutryx.valuations.risk.sensitivity_analysis import (
     FiniteDiffScheme,
     PortfolioSensitivity,
     SensitivityConfig,

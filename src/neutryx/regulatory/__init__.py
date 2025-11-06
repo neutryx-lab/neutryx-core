@@ -5,8 +5,10 @@ This module implements regulatory requirements including:
 - FRTB (Fundamental Review of the Trading Book)
 - SA-CCR (Standardized Approach for Counterparty Credit Risk)
 - CVA capital requirements
+- Accounting standards (IFRS 9/13)
+- Trade reporting (EMIR, MiFID II, Basel)
 """
 
-from . import ima
+from . import accounting, ima, reporting
 
-__all__ = ["ima"]
+__all__ = ["accounting", "ima", "reporting"]

@@ -9,7 +9,7 @@ This example demonstrates:
 import jax
 import jax.numpy as jnp
 
-from neutryx.compute import (
+from neutryx.data import (
     ChunkedSimConfig,
     estimate_optimal_chunk_size,
     price_option_chunked,

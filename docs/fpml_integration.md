@@ -52,7 +52,7 @@ src/neutryx/bridge/
 ### 1. Parse FpML Document
 
 ```python
-from neutryx.bridge import fpml
+from neutryx.integrations import fpml
 
 # Load FpML XML
 with open("trade.xml") as f:
@@ -72,7 +72,7 @@ if trade.equityOption:
 ### 2. Price FpML Trade
 
 ```python
-from neutryx.bridge.fpml_adapter import quick_price_fpml
+from neutryx.integrations.fpml_adapter import quick_price_fpml
 
 # Define market data
 market_data = {
@@ -92,7 +92,7 @@ print(f"Price: ${price:.2f}")
 ```python
 from datetime import date
 from neutryx.api.rest import VanillaOptionRequest
-from neutryx.bridge import fpml
+from neutryx.integrations import fpml
 
 # Create pricing request
 request = VanillaOptionRequest(
@@ -239,7 +239,7 @@ Parse FpML XML to structured Pydantic model.
 
 **Example:**
 ```python
-from neutryx.bridge import fpml
+from neutryx.integrations import fpml
 
 doc = fpml.parse_fpml(xml_string)
 print(f"Parties: {len(doc.party)}")
@@ -264,7 +264,7 @@ Convert FpML document to Neutryx pricing request.
 
 **Example:**
 ```python
-from neutryx.bridge import fpml
+from neutryx.integrations import fpml
 
 doc = fpml.parse_fpml(xml_string)
 market_data = {"spot": 100.0, "volatility": 0.25, "rate": 0.05}
@@ -287,7 +287,7 @@ Convert Neutryx request to FpML document.
 ```python
 from datetime import date
 from neutryx.api.rest import VanillaOptionRequest
-from neutryx.bridge import fpml
+from neutryx.integrations import fpml
 
 request = VanillaOptionRequest(
     spot=100.0, strike=105.0, maturity=1.0, volatility=0.25, call=True
@@ -308,7 +308,7 @@ Serialize FpML document to XML string.
 
 **Example:**
 ```python
-from neutryx.bridge import fpml
+from neutryx.integrations import fpml
 
 xml_string = fpml.serialize_fpml(doc, pretty_print=True)
 print(xml_string)
@@ -328,7 +328,7 @@ Comprehensive adapter for end-to-end FpML workflows.
 
 **Example:**
 ```python
-from neutryx.bridge.fpml_adapter import FpMLPricingAdapter
+from neutryx.integrations.fpml_adapter import FpMLPricingAdapter
 from neutryx.core.engine import MCConfig
 
 adapter = FpMLPricingAdapter(
@@ -347,7 +347,7 @@ Batch pricer for multiple trades.
 
 **Example:**
 ```python
-from neutryx.bridge.fpml_adapter import FpMLBatchPricer
+from neutryx.integrations.fpml_adapter import FpMLBatchPricer
 
 pricer = FpMLBatchPricer(seed=42)
 results = pricer.price_multiple_xml(xml_list, market_data_list)
@@ -445,7 +445,7 @@ Validate FpML document structure.
 ### Parse Errors
 
 ```python
-from neutryx.bridge import fpml
+from neutryx.integrations import fpml
 
 try:
     doc = fpml.parse_fpml(invalid_xml)
@@ -457,7 +457,7 @@ except fpml.FpMLParseError as e:
 ### Mapping Errors
 
 ```python
-from neutryx.bridge import fpml
+from neutryx.integrations import fpml
 
 try:
     request = fpml.fpml_to_neutryx(doc, market_data)
@@ -474,7 +474,7 @@ By default, maturity is calculated from the trade date. You can specify a custom
 
 ```python
 from datetime import date
-from neutryx.bridge.fpml import FpMLToNeutryxMapper
+from neutryx.integrations.fpml import FpMLToNeutryxMapper
 
 mapper = FpMLToNeutryxMapper(reference_date=date(2024, 6, 1))
 request = mapper.map_trade(fpml_doc.primary_trade, market_data)
@@ -483,7 +483,7 @@ request = mapper.map_trade(fpml_doc.primary_trade, market_data)
 ### Custom Monte Carlo Configuration
 
 ```python
-from neutryx.bridge.fpml_adapter import FpMLPricingAdapter
+from neutryx.integrations.fpml_adapter import FpMLPricingAdapter
 from neutryx.core.engine import MCConfig
 
 # High-accuracy configuration
@@ -500,7 +500,7 @@ result = adapter.price_from_xml(fpml_xml, market_data, mc_config)
 ### Accessing Detailed Trade Information
 
 ```python
-from neutryx.bridge import fpml
+from neutryx.integrations import fpml
 
 doc = fpml.parse_fpml(fpml_xml)
 trade = doc.primary_trade
@@ -557,7 +557,7 @@ Test coverage includes:
 
 ## Examples
 
-Complete examples are available in `examples/fpml/`:
+Complete examples are available in `examples/advanced/fpml/`:
 
 - `equity_call_option.xml` - Sample equity option
 - `fx_call_option.xml` - Sample FX option
@@ -566,7 +566,7 @@ Complete examples are available in `examples/fpml/`:
 
 Run examples:
 ```bash
-cd examples/fpml
+cd examples/advanced/fpml
 python fpml_pricing_example.py
 ```
 
@@ -601,7 +601,7 @@ python fpml_pricing_example.py
 For issues or questions:
 - GitHub Issues: [neutryx-lab/neutryx-core/issues](https://github.com/neutryx-lab/neutryx-core/issues)
 - Documentation: [docs.neutryx.tech](https://docs.neutryx.tech)
-- Examples: `examples/fpml/`
+- Examples: `examples/advanced/fpml/`
 
 ## References
 

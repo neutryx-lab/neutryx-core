@@ -11,7 +11,7 @@ import pytest
 import jax.numpy as jnp
 import jax
 
-from neutryx.analytics.factor_analysis import (
+from neutryx.valuations.attribution.factor_analysis import (
     AssetRiskDecomposition,
     FactorAllocation,
     FactorAllocationOptimizer,

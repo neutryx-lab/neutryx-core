@@ -10,8 +10,8 @@ from pathlib import Path
 
 import jax
 
-from neutryx.bridge import fpml
-from neutryx.bridge.fpml_adapter import FpMLPricingAdapter, quick_price_fpml
+from neutryx.integrations import fpml
+from neutryx.integrations.fpml_adapter import FpMLPricingAdapter, quick_price_fpml
 from neutryx.core.engine import MCConfig
 
 
@@ -137,7 +137,7 @@ def main():
     print("Example 6: FpML Validation")
     print("-" * 70)
 
-    from neutryx.bridge.fpml_adapter import validate_fpml
+    from neutryx.integrations.fpml_adapter import validate_fpml
 
     valid_xml = fpml_xml
     invalid_xml = "<invalid>xml</invalid>"
@@ -150,7 +150,7 @@ def main():
     print("Example 7: Batch Pricing Multiple Trades")
     print("-" * 70)
 
-    from neutryx.bridge.fpml_adapter import FpMLBatchPricer
+    from neutryx.integrations.fpml_adapter import FpMLBatchPricer
 
     batch_pricer = FpMLBatchPricer(seed=42)
 

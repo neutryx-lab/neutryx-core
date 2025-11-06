@@ -10,16 +10,14 @@ This example demonstrates:
 import jax
 import jax.numpy as jnp
 
-from neutryx.compute import (
-    aggregate_to_counterparties,
-    compute_concentration_metrics,
-    price_portfolio_batch,
-)
 from neutryx.data import (
     MarketDataGrid,
     PortfolioBatch,
+    aggregate_to_counterparties,
     build_market_data_grid_simple,
     build_time_grid,
+    compute_concentration_metrics,
+    price_portfolio_batch,
     trades_to_portfolio_batch,
 )
 

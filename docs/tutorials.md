@@ -741,7 +741,7 @@ print("Jaeger UI at http://localhost:16686")
 
 ## Interactive Examples
 
-All tutorials are available as Jupyter notebooks in the `demos/tutorials/` directory:
+All tutorials are available as Jupyter notebooks in the `examples/tutorials/` directory:
 
 - `01_vanilla_pricing/` - Basic option pricing
 - `02_asian_scenario/` - Path-dependent options

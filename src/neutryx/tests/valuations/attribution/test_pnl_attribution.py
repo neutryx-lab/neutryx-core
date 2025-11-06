@@ -3,7 +3,7 @@
 import jax.numpy as jnp
 import pytest
 
-from neutryx.analytics.pnl_attribution import (
+from neutryx.valuations.attribution.pnl_attribution import (
     DailyPLExplain,
     GreekPLCalculator,
     ModelRiskCalculator,

@@ -37,6 +37,8 @@ env/
 .coverage
 htmlcov/
 .tox/
+tests/
+src/neutryx/tests/
 
 # Git
 .git/
@@ -44,6 +46,8 @@ htmlcov/
 
 # Documentation
 docs/_build/
+docs/
+site/
 *.md
 
 # Kubernetes
@@ -52,6 +56,11 @@ k8s/
 # CI/CD
 .github/
 .gitlab-ci.yml
+
+# Examples and Dev tools
+examples/
+dev/
+scripts/
 
 # Logs
 *.log
