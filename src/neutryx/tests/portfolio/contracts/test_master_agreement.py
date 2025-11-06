@@ -5,7 +5,7 @@ from datetime import date
 
 import pytest
 
-from neutryx.contracts.master_agreement import (
+from neutryx.portfolio.contracts.master_agreement import (
     AgreementType,
     GoverningLaw,
     MasterAgreement,

@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from neutryx.contracts.csa import CSA
+from neutryx.portfolio.contracts.csa import CSA
 
 
 def calculate_variation_margin(

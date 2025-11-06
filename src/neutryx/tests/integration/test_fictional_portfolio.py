@@ -93,7 +93,7 @@ class TestFictionalPortfolio:
         """Test trade filtering by product type."""
         portfolio, _ = portfolio_and_hierarchy
 
-        from neutryx.contracts.trade import ProductType
+        from neutryx.portfolio.contracts.trade import ProductType
 
         # Interest rate swaps
         irs_trades = portfolio.get_trades_by_product_type(ProductType.INTEREST_RATE_SWAP)

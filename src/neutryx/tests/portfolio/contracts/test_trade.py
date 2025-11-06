@@ -5,7 +5,7 @@ from datetime import date, timedelta
 
 import pytest
 
-from neutryx.contracts.trade import (
+from neutryx.portfolio.contracts.trade import (
     ProductType,
     SettlementType,
     Trade,

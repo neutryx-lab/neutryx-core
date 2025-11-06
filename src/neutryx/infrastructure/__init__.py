@@ -1,7 +1,11 @@
-"""Infrastructure for distributed execution, governance, and experiment tracking."""
+"""Infrastructure for distributed execution, governance, and experiment tracking.
+
+This module also includes configuration management.
+"""
 
 from __future__ import annotations
 
+from . import config  # noqa: F401
 from .cluster import *  # noqa: F401, F403
 from .governance import *  # noqa: F401, F403
 try:  # pragma: no cover - optional dependency glue
@@ -24,6 +28,8 @@ from .tracking import *  # noqa: F401, F403
 from .workflows import CheckpointManager, ModelWorkflow
 
 __all__ = [
+    # config
+    "config",
     # tracking
     "BaseTracker",
     "TrackingConfig",

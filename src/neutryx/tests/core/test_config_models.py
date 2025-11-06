@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from neutryx.config.schemas import (
+from neutryx.infrastructure.config.schemas import (
     AppConfig,
     ConfigValidationError,
     EngineSettings,

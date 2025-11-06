@@ -12,8 +12,8 @@ from abc import ABC, abstractmethod
 from datetime import date
 from typing import Dict, List, Optional
 
-from neutryx.contracts.counterparty import Counterparty
-from neutryx.contracts.trade import ProductType, Trade, TradeStatus
+from neutryx.portfolio.contracts.counterparty import Counterparty
+from neutryx.portfolio.contracts.trade import ProductType, Trade, TradeStatus
 from neutryx.portfolio.books import Book, Desk, LegalEntity, BusinessUnit, Trader
 
 

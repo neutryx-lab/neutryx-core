@@ -31,8 +31,8 @@ from typing import Dict, List, Optional, Tuple
 import jax.numpy as jnp
 from jax import Array
 
-from neutryx.contracts.csa import CollateralType as CSACollateralType
-from neutryx.contracts.csa import EligibleCollateral
+from neutryx.portfolio.contracts.csa import CollateralType as CSACollateralType
+from neutryx.portfolio.contracts.csa import EligibleCollateral
 
 
 # ==============================================================================

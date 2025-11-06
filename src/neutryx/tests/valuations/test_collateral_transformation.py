@@ -12,8 +12,8 @@ Tests cover:
 import pytest
 import jax.numpy as jnp
 
-from neutryx.contracts.csa import CollateralType as CSACollateralType
-from neutryx.contracts.csa import EligibleCollateral
+from neutryx.portfolio.contracts.csa import CollateralType as CSACollateralType
+from neutryx.portfolio.contracts.csa import EligibleCollateral
 from neutryx.valuations.margin.collateral_transformation import (
     CollateralHolding,
     CollateralPortfolio,

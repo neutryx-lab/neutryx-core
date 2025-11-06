@@ -9,7 +9,7 @@ from typing import Optional
 
 import jax.numpy as jnp
 
-from neutryx.contracts.csa import CSA
+from neutryx.portfolio.contracts.csa import CSA
 
 
 def calculate_collateralized_exposure(

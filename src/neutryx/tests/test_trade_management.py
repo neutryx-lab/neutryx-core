@@ -5,13 +5,13 @@ from datetime import date, timedelta
 
 import pytest
 
-from neutryx.contracts.counterparty import Counterparty
-from neutryx.contracts.counterparty_codes import (
+from neutryx.portfolio.contracts.counterparty import Counterparty
+from neutryx.portfolio.contracts.counterparty_codes import (
     CounterpartyCodeGenerator,
     CounterpartyType,
     create_simple_counterparty_code_generator,
 )
-from neutryx.contracts.trade import ProductType, Trade, TradeStatus
+from neutryx.portfolio.contracts.trade import ProductType, Trade, TradeStatus
 from neutryx.portfolio.books import (
     Book,
     BookHierarchy,
@@ -508,7 +508,7 @@ class TestRepository:
 
     def test_counterparty_repository(self):
         """Test counterparty repository operations."""
-        from neutryx.contracts.counterparty import EntityType
+        from neutryx.portfolio.contracts.counterparty import EntityType
 
         repo = InMemoryCounterpartyRepository()
 

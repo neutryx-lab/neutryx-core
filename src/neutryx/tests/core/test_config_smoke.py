@@ -6,7 +6,7 @@ import random
 import jax
 import numpy as np
 
-from neutryx.config import get_config, init_environment
+from neutryx.infrastructure.config import get_config, init_environment
 from neutryx.core.rng import KeySeq
 
 

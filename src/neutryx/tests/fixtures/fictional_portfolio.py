@@ -10,21 +10,21 @@ This module provides a comprehensive test portfolio with:
 from datetime import date, timedelta
 from typing import Dict, List
 
-from neutryx.contracts.counterparty import (
+from neutryx.portfolio.contracts.counterparty import (
     Counterparty,
     CounterpartyCredit,
     CreditRating,
     EntityType,
 )
-from neutryx.contracts.csa import (
+from neutryx.portfolio.contracts.csa import (
     CSA,
     CollateralTerms,
     CollateralType,
     EligibleCollateral,
     ThresholdTerms,
 )
-from neutryx.contracts.master_agreement import AgreementType, MasterAgreement
-from neutryx.contracts.trade import ProductType, SettlementType, Trade, TradeStatus
+from neutryx.portfolio.contracts.master_agreement import AgreementType, MasterAgreement
+from neutryx.portfolio.contracts.trade import ProductType, SettlementType, Trade, TradeStatus
 from neutryx.portfolio.books import (
     Book,
     BookHierarchy,
@@ -337,7 +337,7 @@ def _create_master_agreements(
     counterparties: Dict[str, Counterparty]
 ) -> Dict[str, MasterAgreement]:
     """Create master agreements with counterparties."""
-    from neutryx.contracts.master_agreement import GoverningLaw
+    from neutryx.portfolio.contracts.master_agreement import GoverningLaw
 
     base_date = date(2020, 1, 1)
     agreements = {}

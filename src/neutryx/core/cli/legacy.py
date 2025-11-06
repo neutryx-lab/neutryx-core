@@ -39,7 +39,7 @@ def lint_code(*paths: str) -> None:
 
 def validate_configs(*paths: str) -> None:
     """Validate configuration files via the Pydantic schemas."""
-    from neutryx.config.schemas import collect_and_validate
+    from neutryx.infrastructure.config.schemas import collect_and_validate
 
     target_paths = [Path(path) for path in paths] if paths else [REPO_ROOT / "config"]
     configs = collect_and_validate(target_paths)

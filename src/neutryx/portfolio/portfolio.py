@@ -10,10 +10,10 @@ from typing import Dict, List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from neutryx.contracts.counterparty import Counterparty
-from neutryx.contracts.csa import CSA
-from neutryx.contracts.master_agreement import MasterAgreement
-from neutryx.contracts.trade import Trade, ProductType, TradeStatus
+from neutryx.portfolio.contracts.counterparty import Counterparty
+from neutryx.portfolio.contracts.csa import CSA
+from neutryx.portfolio.contracts.master_agreement import MasterAgreement
+from neutryx.portfolio.contracts.trade import Trade, ProductType, TradeStatus
 from neutryx.portfolio.netting_set import NettingSet
 
 

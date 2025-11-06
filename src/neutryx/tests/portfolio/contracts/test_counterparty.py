@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import pytest
 
-from neutryx.contracts.counterparty import (
+from neutryx.portfolio.contracts.counterparty import (
     Counterparty,
     CounterpartyCredit,
     CreditRating,

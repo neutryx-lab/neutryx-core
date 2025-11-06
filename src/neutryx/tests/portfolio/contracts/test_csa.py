@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import pytest
 
-from neutryx.contracts.csa import (
+from neutryx.portfolio.contracts.csa import (
     CSA,
     CollateralTerms,
     CollateralType,

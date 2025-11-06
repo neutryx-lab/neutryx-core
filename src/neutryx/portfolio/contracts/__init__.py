@@ -8,15 +8,15 @@ This module provides data models and utilities for managing:
 - ISDA Master Agreement representations
 """
 
-from neutryx.contracts.counterparty import Counterparty, CounterpartyCredit
-from neutryx.contracts.csa import (
+from neutryx.portfolio.contracts.counterparty import Counterparty, CounterpartyCredit
+from neutryx.portfolio.contracts.csa import (
     CSA,
     CollateralTerms,
     EligibleCollateral,
     ThresholdTerms,
 )
-from neutryx.contracts.master_agreement import MasterAgreement, AgreementType
-from neutryx.contracts.trade import Trade, TradeStatus
+from neutryx.portfolio.contracts.master_agreement import MasterAgreement, AgreementType
+from neutryx.portfolio.contracts.trade import Trade, TradeStatus
 
 __all__ = [
     "Counterparty",

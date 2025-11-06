@@ -5,10 +5,10 @@ from datetime import date, timedelta
 
 import pytest
 
-from neutryx.contracts.counterparty import Counterparty, EntityType
-from neutryx.contracts.csa import CSA, CollateralTerms, EligibleCollateral, CollateralType
-from neutryx.contracts.master_agreement import MasterAgreement, AgreementType
-from neutryx.contracts.trade import Trade, ProductType, TradeStatus
+from neutryx.portfolio.contracts.counterparty import Counterparty, EntityType
+from neutryx.portfolio.contracts.csa import CSA, CollateralTerms, EligibleCollateral, CollateralType
+from neutryx.portfolio.contracts.master_agreement import MasterAgreement, AgreementType
+from neutryx.portfolio.contracts.trade import Trade, ProductType, TradeStatus
 from neutryx.portfolio.netting_set import NettingSet
 from neutryx.portfolio.portfolio import Portfolio
 

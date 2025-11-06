@@ -16,7 +16,7 @@ import jax
 import jax.numpy as jnp
 
 from neutryx.api.rest import VanillaOptionRequest
-from neutryx.contracts.trade import ProductType, Trade
+from neutryx.portfolio.contracts.trade import ProductType, Trade
 from neutryx.core.engine import MCConfig, price_vanilla_mc
 
 
