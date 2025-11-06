@@ -2,6 +2,7 @@
 
 from datetime import date, timedelta
 
+import jax
 import jax.numpy as jnp
 import pytest
 
@@ -22,7 +23,7 @@ class TestVaRBacktesting:
         """Test VaR backtest with no exceptions (perfect model)."""
         # VaR forecasts that are never breached
         actual_pnl = jnp.array([1.0, 2.0, 3.0, 4.0, 5.0] * 50)  # 250 days
-        var_forecasts = jnp.array([-10.0] * 250)  # Conservative VaR
+        var_forecasts = jnp.array([10.0] * 250)  # Conservative VaR (positive values)
 
         result = backtest_var(actual_pnl, var_forecasts, coverage_level=0.99)
 
@@ -38,7 +39,7 @@ class TestVaRBacktesting:
         actual_pnl = actual_pnl.at[100].set(-5.0)
         actual_pnl = actual_pnl.at[200].set(-5.0)
 
-        var_forecasts = jnp.ones(250) * -3.0  # 3 breaches
+        var_forecasts = jnp.ones(250) * 3.0  # 3 breaches (positive values)
 
         result = backtest_var(actual_pnl, var_forecasts)
 
@@ -52,7 +53,7 @@ class TestVaRBacktesting:
         for i in range(7):
             actual_pnl = actual_pnl.at[i * 30].set(-5.0)
 
-        var_forecasts = jnp.ones(250) * -3.0
+        var_forecasts = jnp.ones(250) * 3.0  # Positive values
 
         result = backtest_var(actual_pnl, var_forecasts)
 
@@ -66,7 +67,7 @@ class TestVaRBacktesting:
         for i in range(12):
             actual_pnl = actual_pnl.at[i * 20].set(-5.0)
 
-        var_forecasts = jnp.ones(250) * -3.0
+        var_forecasts = jnp.ones(250) * 3.0  # Positive values
 
         result = backtest_var(actual_pnl, var_forecasts)
 
@@ -76,7 +77,7 @@ class TestVaRBacktesting:
     def test_var_capital_multiplier(self):
         """Test capital multiplier increases with exceptions."""
         actual_pnl = jnp.ones(250)
-        var_forecasts = jnp.ones(250) * -3.0
+        var_forecasts = jnp.ones(250) * 3.0  # Positive values
 
         # Test different exception counts
         multipliers = []
@@ -103,7 +104,7 @@ class TestVaRBacktesting:
         actual_pnl = actual_pnl.at[10].set(-5.0)
         actual_pnl = actual_pnl.at[100].set(-5.0)
 
-        var_forecasts = jnp.ones(250) * -3.0
+        var_forecasts = jnp.ones(250) * 3.0  # Positive values
 
         result = backtest_var(actual_pnl, var_forecasts, dates=dates)
 
@@ -125,7 +126,7 @@ class TestESBacktesting:
         ])
 
         # ES forecast: average of worst 2.5% (~6-7 worst observations)
-        es_forecasts = jnp.ones(250) * -6.5
+        es_forecasts = jnp.ones(250) * 6.5  # Positive values
 
         result = backtest_expected_shortfall(
             actual_pnl, es_forecasts, coverage_level=0.975
@@ -140,7 +141,8 @@ class TestESBacktesting:
         key = jax.random.PRNGKey(42)
         actual_pnl = jax.random.normal(key, (250,)) * 10.0
 
-        var_forecasts = jnp.percentile(actual_pnl, 1.0) * jnp.ones(250)
+        # VaR should be positive (absolute value of 1% percentile)
+        var_forecasts = jnp.abs(jnp.percentile(actual_pnl, 1.0)) * jnp.ones(250)
         es_forecasts = var_forecasts * 1.3  # ES should be ~30% worse than VaR
 
         result_var = backtest_var(actual_pnl, var_forecasts, coverage_level=0.99)
@@ -178,7 +180,7 @@ class TestTrafficLightZones:
     def test_capital_multiplier_ranges(self):
         """Test capital multiplier ranges by zone."""
         actual_pnl = jnp.ones(250)
-        var_forecasts = jnp.ones(250) * -3.0
+        var_forecasts = jnp.ones(250) * 3.0  # Positive values
 
         # Green zone multiplier: 3.00
         pnl_green = actual_pnl.copy()
@@ -207,49 +209,60 @@ class TestRollingBacktest:
     def test_rolling_backtest_basic(self):
         """Test rolling backtest with 250-day windows."""
         # Create 500 days of data
+        start_date = date(2024, 1, 1)
+        dates = [start_date + timedelta(days=i) for i in range(500)]
+
         actual_pnl = jnp.concatenate([
             jax.random.normal(jax.random.PRNGKey(42), (250,)) * 5.0,
             jax.random.normal(jax.random.PRNGKey(43), (250,)) * 10.0  # Higher vol
         ])
 
-        var_forecasts = jnp.ones(500) * -10.0
+        var_forecasts = jnp.ones(500) * 10.0  # Positive values
 
         results = rolling_backtest(
+            dates,
             actual_pnl,
             var_forecasts,
-            window_size=250,
-            step_size=50
+            window_days=250,
+            risk_measure="var"
         )
 
         # Should have multiple windows
         assert len(results) > 1
 
         # Each result should be valid
-        for result in results:
+        for date_result, result in results:
             assert isinstance(result, BacktestResult)
             assert result.num_observations == 250
             assert result.traffic_light_zone in [TrafficLightZone.GREEN, TrafficLightZone.AMBER, TrafficLightZone.RED]
 
     def test_rolling_backtest_degradation(self):
         """Test detection of model degradation over time."""
+        # Create dates
+        start_date = date(2024, 1, 1)
+        dates = [start_date + timedelta(days=i) for i in range(500)]
+
         # Good model initially, degrades later
         actual_pnl = jnp.concatenate([
             jnp.ones(250) * 2.0,  # Period 1: good
             jnp.ones(250) * -10.0  # Period 2: bad (many exceptions)
         ])
 
-        var_forecasts = jnp.ones(500) * -5.0
+        var_forecasts = jnp.ones(500) * 5.0  # Positive values
 
         results = rolling_backtest(
+            dates,
             actual_pnl,
             var_forecasts,
-            window_size=250,
-            step_size=250
+            window_days=250,
+            risk_measure="var"
         )
 
         # First window should be better than second
         if len(results) >= 2:
-            assert results[0].num_exceptions <= results[1].num_exceptions
+            _, result0 = results[0]
+            _, result1 = results[1]
+            assert result0.num_exceptions <= result1.num_exceptions
 
 
 class TestBacktestEdgeCases:
@@ -258,7 +271,7 @@ class TestBacktestEdgeCases:
     def test_insufficient_observations(self):
         """Test error with too few observations."""
         actual_pnl = jnp.array([1.0, 2.0, 3.0])
-        var_forecasts = jnp.array([-1.0, -1.0, -1.0])
+        var_forecasts = jnp.array([1.0, 1.0, 1.0])  # Positive values
 
         # Should still work but with warning or low confidence
         result = backtest_var(actual_pnl, var_forecasts)
@@ -267,7 +280,7 @@ class TestBacktestEdgeCases:
     def test_unequal_length_inputs(self):
         """Test error with unequal length inputs."""
         actual_pnl = jnp.array([1.0, 2.0, 3.0])
-        var_forecasts = jnp.array([-1.0, -1.0])
+        var_forecasts = jnp.array([1.0, 1.0])  # Positive values
 
         with pytest.raises((ValueError, IndexError)):
             backtest_var(actual_pnl, var_forecasts)
@@ -275,7 +288,7 @@ class TestBacktestEdgeCases:
     def test_all_exceptions(self):
         """Test behavior when all observations are exceptions."""
         actual_pnl = jnp.ones(250) * -10.0
-        var_forecasts = jnp.ones(250) * -1.0  # Too optimistic
+        var_forecasts = jnp.ones(250) * 1.0  # Too optimistic (positive values)
 
         result = backtest_var(actual_pnl, var_forecasts)
 
@@ -286,7 +299,7 @@ class TestBacktestEdgeCases:
     def test_no_exceptions_boundary(self):
         """Test boundary case with VaR = actual PnL."""
         actual_pnl = jnp.array([1.0, 2.0, -5.0, 3.0, 4.0] * 50)
-        var_forecasts = jnp.array([0.5, 1.5, -5.0, 2.5, 3.5] * 50)  # Exact match
+        var_forecasts = jnp.array([0.5, 1.5, 5.0, 2.5, 3.5] * 50)  # Conservative VaR (positive values)
 
         result = backtest_var(actual_pnl, var_forecasts)
 
@@ -304,7 +317,7 @@ class TestStatisticalTests:
         actual_pnl = actual_pnl.at[10].set(-5.0)
         actual_pnl = actual_pnl.at[20].set(-5.0)
 
-        var_forecasts = jnp.ones(250) * -3.0
+        var_forecasts = jnp.ones(250) * 3.0  # Positive values
 
         result = backtest_var(actual_pnl, var_forecasts)
 
@@ -321,7 +334,7 @@ class TestStatisticalTests:
         for i in range(10):
             actual_pnl = actual_pnl.at[100 + i].set(-5.0)
 
-        var_forecasts = jnp.ones(250) * -3.0
+        var_forecasts = jnp.ones(250) * 3.0  # Positive values
 
         result = backtest_var(actual_pnl, var_forecasts)
 

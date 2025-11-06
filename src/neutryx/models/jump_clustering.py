@@ -185,10 +185,12 @@ def _simulate_hawkes_jumps(
 
         # Compute intensity at candidate time (decay from previous jumps)
         # λ(t) = λ₀ + Σ α*exp(-β*(t - tᵢ))
-        # For all previous jumps
-        time_diffs = t_candidate - jump_times[:n_jumps]
+        # For all previous jumps (use masking to handle dynamic n_jumps)
+        valid_mask = jnp.arange(max_jumps) < n_jumps
+        time_diffs = t_candidate - jump_times
         decay_factors = jnp.exp(-params.beta * time_diffs)
-        intensity_from_past = jnp.sum(params.alpha * decay_factors)
+        # Sum only valid decay factors (mask out invalid jumps)
+        intensity_from_past = jnp.sum(jnp.where(valid_mask, params.alpha * decay_factors, 0.0))
         intensity_candidate = params.lambda0 + intensity_from_past
 
         # Thinning: accept with probability λ(t)/λ_max

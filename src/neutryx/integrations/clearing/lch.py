@@ -149,6 +149,9 @@ class LCHSwapClearConnector(CCPConnector):
                     f"Connection failed with status {response.status_code}: {response.text}"
                 )
 
+        except CCPAuthenticationError:
+            # Re-raise authentication errors as-is
+            raise
         except httpx.ConnectError as e:
             raise CCPConnectionError(f"Failed to connect to LCH SwapClear: {e}")
         except Exception as e:

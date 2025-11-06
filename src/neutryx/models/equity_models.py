@@ -163,8 +163,12 @@ def simulate_slv(
     S_paths = jnp.zeros((total_paths, cfg.steps + 1), dtype=dtype)
     V_paths = jnp.zeros((total_paths, cfg.steps + 1), dtype=dtype)
 
+    # Initialize all paths at t=0
     S_paths = S_paths.at[:cfg.base_paths, 0].set(S0)
     V_paths = V_paths.at[:cfg.base_paths, 0].set(params.V0)
+    if cfg.antithetic:
+        S_paths = S_paths.at[cfg.base_paths:, 0].set(S0)
+        V_paths = V_paths.at[cfg.base_paths:, 0].set(params.V0)
 
     # Euler-Maruyama scheme
     # Time grid
