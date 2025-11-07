@@ -180,7 +180,7 @@ def build_dashboard() -> gr.Blocks:
                 strike_steps = gr.Slider(10, 80, value=30, step=1, label="Strike sweep points")
                 run_button = gr.Button("Run analysis", variant="primary")
 
-            with gr.Column(scale=1.5):
+            with gr.Column(scale=2):
                 scenario_table = gr.Dataframe(
                     headers=["Scenario", "Spot", "Volatility", "Price"],
                     datatype=["str", "number", "number", "number"],
@@ -244,7 +244,7 @@ def main() -> None:
     """Launch the dashboard when executed as a script."""
 
     demo = build_dashboard()
-    demo.queue(concurrency_count=2).launch()
+    demo.queue().launch()
 
 
 if __name__ == "__main__":
