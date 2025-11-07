@@ -145,7 +145,7 @@ xva_config:
 
 # Reporting configuration
 reporting:
-  output_directory: "demos/fictional_bank/reports"
+  output_directory: "examples/applications/fictional_bank/reports"
   formats: ["json", "csv", "html"]
 
   include_sections:
@@ -164,5 +164,5 @@ reporting:
 # Data persistence
 persistence:
   save_portfolio_snapshot: true
-  snapshot_directory: "demos/fictional_bank/snapshots"
+  snapshot_directory: "examples/applications/fictional_bank/snapshots"
   compression: true
