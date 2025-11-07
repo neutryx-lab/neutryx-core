@@ -7,10 +7,13 @@ for payment and settlement instructions.
 
 from __future__ import annotations
 
-import defusedxml.ElementTree as ET
+import xml.etree.ElementTree as ET
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Any, Dict, Optional
+
+# Use defusedxml for parsing untrusted XML to prevent XXE attacks
+import defusedxml.ElementTree as DefusedET
 
 from pydantic import Field, field_validator
 
@@ -192,7 +195,7 @@ class PACS008(MXMessage):
     def from_swift(cls, swift_text: str) -> PACS008:
         """Parse pacs.008 from XML."""
         try:
-            root = ET.fromstring(swift_text)
+            root = DefusedET.fromstring(swift_text)
 
             # Navigate XML structure
             ns = {"ns": "urn:iso:std:iso:20022:tech:xsd:pacs.008.001.08"}
