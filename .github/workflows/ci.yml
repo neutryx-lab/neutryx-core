@@ -116,7 +116,13 @@ jobs:
           pip install -e ".[dev]"
 
       - name: Dependency vulnerability scan
-        run: pip-audit
+        run: |
+          # GHSA-wj6h-64fc-37mp: Minerva timing attack on P-256 in python-ecdsa
+          # This is a false positive because we use python-jose[cryptography] which uses
+          # the cryptography backend, not ecdsa. The ecdsa package is only a transitive
+          # dependency and is not used for any cryptographic operations.
+          # See: https://github.com/mpdavis/python-jose/issues/341
+          pip-audit --ignore-vuln GHSA-wj6h-64fc-37mp
 
       - name: Static analysis security scan
         run: bandit -r src -ll
