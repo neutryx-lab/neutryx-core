@@ -1,0 +1,58 @@
+# All Trades Dashboard Configuration
+
+# Dashboard settings
+dashboard:
+  title: "Fictional Bank - All Trades Dashboard"
+  refresh_interval_seconds: 5
+  theme: "default"
+
+# Risk limits and alerts
+risk_limits:
+  max_net_delta: 1000000  # Maximum net delta across portfolio
+  max_counterparty_exposure: 5000000  # Maximum exposure per counterparty
+  max_gamma: 50000  # Maximum gamma
+  var_threshold: 1000000  # VaR threshold for alerts
+  concentration_threshold: 0.3  # Alert if single counterparty > 30% of total
+
+# Stress test scenarios
+stress_scenarios:
+  - name: "Rates Up 100bps"
+    type: "rate_shift"
+    shift: 0.01
+  - name: "Rates Down 100bps"
+    type: "rate_shift"
+    shift: -0.01
+  - name: "Vol Up 20%"
+    type: "vol_shift"
+    multiplier: 1.2
+  - name: "Vol Down 20%"
+    type: "vol_shift"
+    multiplier: 0.8
+  - name: "FX Spot Up 10%"
+    type: "fx_shift"
+    multiplier: 1.1
+  - name: "FX Spot Down 10%"
+    type: "fx_shift"
+    multiplier: 0.9
+  - name: "Equity Down 20%"
+    type: "equity_shift"
+    multiplier: 0.8
+
+# Display settings
+display:
+  max_rows_per_page: 100
+  decimal_places: 2
+  notional_format: "millions"
+  show_all_greeks: true
+
+# XVA calculation parameters
+xva_params:
+  default_lgd: 0.6  # Loss Given Default
+  funding_spread_bps: 50  # Funding spread in basis points
+  margin_period_of_risk_days: 10
+
+# Export settings
+export:
+  csv_separator: ","
+  include_timestamp: true
+  filename_prefix: "fictional_bank_trades"
