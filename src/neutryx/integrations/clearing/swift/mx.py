@@ -7,7 +7,7 @@ for payment and settlement instructions.
 
 from __future__ import annotations
 
-import xml.etree.ElementTree as ET
+import defusedxml.ElementTree as ET
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Any, Dict, Optional
