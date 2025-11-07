@@ -328,8 +328,8 @@ class TestIdentifyNMRFs:
 
         risk_factors = {
             # Modellable: good data (>= 365 days, >= 24 observations)
-            "USD.EUR": [start_date + timedelta(days=i * 15) for i in range(26)],
-            "US.10Y": [start_date + timedelta(days=i * 14) for i in range(27)],
+            "USD.EUR": [start_date + timedelta(days=i * 15) for i in range(26)],  # 375 days
+            "US.10Y": [start_date + timedelta(days=i * 14) for i in range(28)],  # 378 days
             # Non-modellable: insufficient data
             "EXOTIC.OPTION": [start_date + timedelta(days=i * 20) for i in range(10)],
             # Non-modellable: excessive gaps

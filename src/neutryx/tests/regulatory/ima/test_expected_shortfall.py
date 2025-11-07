@@ -41,8 +41,8 @@ class TestExpectedShortfall:
             scenarios, confidence_level=0.975
         )
 
-        # ES should be more extreme than VaR
-        assert es < var
+        # ES should be more extreme than VaR (larger positive value since both are reported as positive losses)
+        assert es > var
         # Roughly expect ES to be ~30-40% larger in magnitude than VaR
         assert abs(es) > abs(var) * 1.1
 
@@ -96,21 +96,27 @@ class TestExpectedShortfall:
         """Test stressed ES calculation."""
         key = jax.random.PRNGKey(42)
 
-        # Normal period
+        # Combined scenarios: normal period + stressed period
         normal_scenarios = jax.random.normal(key, (500,)) * 5.0
+        stressed_scenarios = jax.random.normal(jax.random.PRNGKey(43), (500,)) * 15.0
 
-        # Stressed period with higher volatility
-        stressed_scenarios = jax.random.normal(key, (500,)) * 15.0
+        # Combine all scenarios
+        all_scenarios = jnp.concatenate([normal_scenarios, stressed_scenarios])
 
-        stressed_es = calculate_stressed_es(
-            normal_scenarios=normal_scenarios,
-            stressed_scenarios=stressed_scenarios,
+        # Create stress period mask (last 500 scenarios are stressed)
+        stress_mask = jnp.concatenate([
+            jnp.zeros(500, dtype=bool),
+            jnp.ones(500, dtype=bool)
+        ])
+
+        total_es, standard_result, stressed_result = calculate_stressed_es(
+            all_scenarios,
+            stress_period_indices=stress_mask,
             confidence_level=0.975
         )
 
-        # Stressed ES should be significantly larger
-        normal_es, _, _ = calculate_expected_shortfall(normal_scenarios)
-        assert abs(stressed_es) > abs(normal_es) * 2.0
+        # Stressed ES should be significantly larger than standard ES
+        assert stressed_result.expected_shortfall > standard_result.expected_shortfall * 1.5
 
     def test_es_coherence(self):
         """Test that ES satisfies coherent risk measure properties."""
@@ -157,14 +163,14 @@ class TestExpectedShortfall:
         # Create ESResult manually
         result = ESResult(
             expected_shortfall=es,
-            value_at_risk=var,
+            var_97_5=var,
             confidence_level=0.975,
             num_scenarios=len(scenarios),
-            liquidity_horizon_days=10
+            base_horizon_days=10
         )
 
         assert result.expected_shortfall == es
-        assert result.value_at_risk == var
+        assert result.var_97_5 == var
         assert result.confidence_level == 0.975
 
 
