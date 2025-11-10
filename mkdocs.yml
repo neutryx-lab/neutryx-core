@@ -14,7 +14,7 @@ nav:
       - Product Strategy: products.md
       - Roadmap: roadmap.md
       - Design Decisions: design_decisions.md
-  - Theory and Foundations:
+  - Theory:
       - Mathematical Foundations: theory/mathematical_foundations.md
       - Pricing Models Theory: theory/pricing_models.md
       - Numerical Methods Theory: theory/numerical_methods.md
@@ -61,7 +61,7 @@ nav:
       - Quick Start Guide: valuations_quickstart.md
       - Comprehensive Guide: valuations_comprehensive.md
       - API Reference: valuations_api_summary.md
-  - Engineering Operations:
+  - Engineering:
       - Deployment Guide: deployment.md
       - Orchestration Patterns: orchestration.md
       - Observability Stack: observability.md
@@ -70,14 +70,14 @@ nav:
       - Tracking and Observability: tracking.md
       - CI Pipeline: ci_pipeline.md
       - Security Audit: security_audit.md
-  - Performance & Troubleshooting:
+  - Performance:
       - Performance Tuning: performance_tuning.md
       - Troubleshooting Guide: troubleshooting.md
-  - For Developers:
+  - Developers:
       - Developer Guide: developer_guide.md
       - API Reference: api_reference.md
       - Test Coverage: test_coverage.md
-  - Additional References:
+  - References:
       - Trade Management: trade_management.md
       - FpML Integration: fpml_integration.md
       - Configuration Guide: configuration.md
