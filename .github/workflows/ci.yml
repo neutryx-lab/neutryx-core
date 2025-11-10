@@ -4,14 +4,21 @@ on:
   push:
     branches: ["main"]
   pull_request:
+    paths-ignore:
+      - 'docs/**'
+      - '**.md'
+      - 'mkdocs.yml'
+      - 'LICENSE'
 
 permissions:
   contents: read
 
 jobs:
   unit-tests:
-    name: Unit tests
+    name: Unit tests (fast)
     runs-on: ubuntu-latest
+    # Only run on PRs - full suite runs on main branch push
+    if: github.event_name == 'pull_request'
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
@@ -30,7 +37,51 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
 
-      - name: Run unit tests
+      - name: Run fast unit tests (smoke tests only for PRs)
+        run: |
+          PYTHONPATH=$PWD:$PYTHONPATH pytest src/neutryx/tests \
+            -n auto \
+            -x \
+            --maxfail=3 \
+            --ignore=src/neutryx/tests/regression \
+            --ignore=src/neutryx/tests/performance \
+            --ignore=src/neutryx/tests/monte_carlo \
+            --ignore=src/neutryx/tests/integration \
+            --ignore=src/neutryx/tests/tools \
+            --ignore=src/neutryx/tests/test_calibration.py \
+            --ignore=src/neutryx/tests/test_calibration_diagnostics.py \
+            --ignore=src/neutryx/tests/test_config_smoke.py \
+            --ignore=src/neutryx/tests/test_credit_models.py \
+            --ignore=src/neutryx/tests/test_ffi_bindings.py \
+            --ignore=src/neutryx/tests/test_ffi_performance.py \
+            --ignore=src/neutryx/tests/test_fourier_pricing.py \
+            --ignore=src/neutryx/tests/test_pde.py \
+            || [ $? -eq 5 ]
+
+  full-tests:
+    name: Full test suite (main branch only)
+    runs-on: ubuntu-latest
+    # Only run on main branch pushes - not on PRs
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.10"
+          cache: 'pip'
+          cache-dependency-path: |
+            requirements.txt
+            pyproject.toml
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Run all unit tests
         run: |
           PYTHONPATH=$PWD:$PYTHONPATH pytest src/neutryx/tests \
             -n auto \
@@ -49,9 +100,10 @@ jobs:
             --ignore=src/neutryx/tests/test_pde.py
 
   regression:
-    name: Regression suite
+    name: Regression suite (main branch only)
     runs-on: ubuntu-latest
-    needs: unit-tests
+    needs: full-tests
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
@@ -79,9 +131,10 @@ jobs:
             || [ $? -eq 5 ]
 
   benchmarks:
-    name: Performance benchmarks
+    name: Performance benchmarks (main branch only)
     runs-on: ubuntu-latest
-    needs: unit-tests
+    needs: full-tests
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
@@ -110,8 +163,9 @@ jobs:
           path: benchmark-results.json
 
   security:
-    name: Security and dependencies
+    name: Security and dependencies (main branch only)
     runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
@@ -156,8 +210,10 @@ jobs:
           path: bom.json
 
   docs-build:
-    name: Documentation build
+    name: Documentation build (main branch only)
     runs-on: ubuntu-latest
+    # Only run on main branch pushes
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
