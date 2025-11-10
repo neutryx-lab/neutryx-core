@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+
+{% block content %}
+{{ super() }}
+
+<!-- QR Code Display -->
+<div class="qr-code-fixed">
+    <a href="https://www.neutryx.tech" target="_blank" title="Visit www.neutryx.tech">
+        <img src="{{ base_url }}/qrcode_www.neutryx.tech.png" alt="www.neutryx.tech QR Code" />
+    </a>
+</div>
+{% endblock %}
