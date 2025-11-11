@@ -34,6 +34,11 @@ coverage.xml
 demos/data/
 demos/outputs/
 
+# Fictional Bank application outputs
+examples/applications/fictional_bank/reports/
+examples/applications/fictional_bank/sample_outputs/
+examples/applications/fictional_bank/snapshots/
+
 # Profiling dumps
 dev/profiling/flamegraphs/
 dev/profiling/xla_hlo_dumps/
@@ -52,3 +57,6 @@ site/
 
 # Logs
 *.log
+
+# Test outputs
+test_output.txt

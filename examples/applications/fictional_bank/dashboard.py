@@ -111,12 +111,12 @@ def get_portfolio_overview() -> tuple[str, pd.DataFrame, pd.DataFrame]:
     book_data = []
     for book_id, book_info in summary["books"].items():
         book_data.append({
-            "Book": book_info["name"],
-            "Desk": book_info["desk"],
-            "Trader": book_info["trader"],
-            "Trades": book_info["num_trades"],
-            "Active": book_info["active_trades"],
-            "MTM": format_currency(book_info["total_mtm"]),
+            "Book": book_info.get("name", book_id),
+            "Desk": book_info.get("desk", "N/A"),
+            "Trader": book_info.get("trader", "N/A"),
+            "Trades": book_info.get("num_trades", 0),
+            "Active": book_info.get("active_trades", 0),
+            "MTM": format_currency(book_info.get("total_mtm", 0.0)),
         })
 
     book_df = pd.DataFrame(book_data)
@@ -292,8 +292,8 @@ def get_risk_metrics() -> tuple[str, Any, Any]:
     # MTM by desk
     desk_mtm = {}
     for book_id, book_info in summary["books"].items():
-        desk = book_info["desk"]
-        desk_mtm[desk] = desk_mtm.get(desk, 0) + book_info["total_mtm"]
+        desk = book_info.get("desk", "Unknown")
+        desk_mtm[desk] = desk_mtm.get(desk, 0) + book_info.get("total_mtm", 0.0)
 
     fig_desks = px.bar(
         x=list(desk_mtm.keys()),
@@ -377,11 +377,11 @@ def generate_json_report() -> str:
         ],
         "books": [
             {
-                "name": book["name"],
-                "desk": book["desk"],
-                "trader": book["trader"],
-                "num_trades": book["num_trades"],
-                "total_mtm": book["total_mtm"],
+                "name": book.get("name", "Unknown"),
+                "desk": book.get("desk", "N/A"),
+                "trader": book.get("trader", "N/A"),
+                "num_trades": book.get("num_trades", 0),
+                "total_mtm": book.get("total_mtm", 0.0),
             }
             for book in summary["books"].values()
         ],
