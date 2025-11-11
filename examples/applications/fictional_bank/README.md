@@ -55,15 +55,20 @@ fictional_bank/
 ├── Core Scripts
 │   ├── load_portfolio.py                 # Portfolio loader with summary
 │   ├── compute_xva.py                    # XVA calculation via API
+│   ├── standalone_xva_demo.py            # Standalone XVA calculator (NEW!)
+│   ├── xva_dashboard.py                  # Interactive XVA dashboard (NEW!)
 │   ├── portfolio_report.py               # Multi-format reporting
 │   ├── visualization.py                  # Chart generation
 │   ├── stress_testing.py                 # Enhanced stress testing framework
 │   ├── stress_test_visualization.py      # Advanced stress test charts
 │   ├── advanced_stress_testing_demo.py   # Comprehensive stress test demo
 │   ├── sensitivity_analysis.py           # Greeks & sensitivities
-│   ├── compliance_monitoring.py          # Compliance & limit monitoring (NEW!)
-│   ├── compliance_dashboard.py           # Compliance dashboards (NEW!)
-│   └── compliance_demo.py                # Compliance monitoring demo (NEW!)
+│   ├── compliance_monitoring.py          # Compliance & limit monitoring
+│   ├── compliance_dashboard.py           # Compliance dashboards
+│   ├── compliance_demo.py                # Compliance monitoring demo
+│   ├── timeseries_analysis.py            # Time series analysis & forecasting (NEW!)
+│   ├── timeseries_visualization.py       # Time series visualizations (NEW!)
+│   └── timeseries_demo.py                # Time series analysis demo (NEW!)
 │
 ├── CLI & Automation
 │   ├── cli.py                   # Interactive command-line interface
@@ -166,6 +171,12 @@ fictional_bank/
 
 # 8. Compute sensitivities
 ./sensitivity_analysis.py
+
+# 9. Run standalone XVA calculator (NEW! - No API required)
+./standalone_xva_demo.py
+
+# 10. Generate interactive XVA dashboard (NEW!)
+./xva_dashboard.py
 ```
 
 #### Option 3: Execute Complete Demo
@@ -173,6 +184,69 @@ fictional_bank/
 ```bash
 # Run all analyses in sequence
 ./run_all_demos.py
+```
+
+## 💰 NEW: Standalone XVA Calculator
+
+Comprehensive XVA analytics without requiring the API! Calculate CVA, DVA, FVA, and MVA using Monte Carlo simulation:
+
+### Key Features
+
+**XVA Components:**
+- **CVA** (Credit Valuation Adjustment): Counterparty credit risk charge
+- **DVA** (Debit Valuation Adjustment): Own-credit adjustment
+- **FVA** (Funding Valuation Adjustment): Funding cost of uncollateralized exposure
+- **MVA** (Margin Valuation Adjustment): Cost of posting initial margin
+
+**Advanced Analytics:**
+- Monte Carlo simulation (1000+ paths) for exposure profiles
+- Expected Positive Exposure (EPE) calculation
+- Peak Exposure estimation
+- CSA impact analysis (70% exposure reduction)
+- Credit rating-based default probabilities
+- Time-dependent exposure profiles over 5-year horizon
+
+**Visualizations:**
+- **XVA Waterfall**: Component breakdown visualization
+- **Exposure Profiles**: Time series of expected positive exposure by counterparty
+- **XVA by Counterparty**: Stacked bar charts showing component breakdown
+- **CSA Impact**: Comparison of collateralized vs. uncollateralized positions
+
+**Interactive Dashboard:**
+- Plotly-based HTML dashboard with drill-down capabilities
+- Real-time metrics indicators
+- Interactive heatmaps and charts
+- Export-ready for presentations
+
+**Reporting:**
+- Comprehensive Excel workbooks with multiple sheets
+- JSON reports for API integration
+- Summary metrics and detailed breakdowns
+- Netting set-level analysis
+
+### Quick Start
+
+```bash
+# Run standalone XVA calculator
+./standalone_xva_demo.py
+
+# Generate interactive dashboard
+./xva_dashboard.py
+
+# Open the dashboard in your browser
+# File: sample_outputs/xva_dashboard.html
+```
+
+### Sample Output
+
+```
+Portfolio XVA Summary:
+  Total CVA:  $      4,397.14
+  Total DVA:  $          0.00  (Benefit)
+  Total FVA:  $     35,739.29
+  Total MVA:  $      3,573.93
+  ────────────────────────────
+  Total XVA:  $     43,710.37
 ```
 
 ## 🔥 NEW: Advanced Stress Testing Features
