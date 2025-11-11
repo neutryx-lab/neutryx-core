@@ -37,6 +37,7 @@ from neutryx.tests.fixtures.fictional_portfolio import (
 PORTFOLIO_DATA = None
 BOOK_HIERARCHY = None
 SUMMARY_DATA = None
+DARK_MODE = False
 
 
 def load_portfolio_data():
@@ -62,6 +63,18 @@ def format_currency(value: float) -> str:
 def format_percentage(value: float) -> str:
     """Format value as percentage."""
     return f"{value:.1f}%"
+
+
+def get_plotly_template(dark_mode: bool = False) -> str:
+    """Get Plotly template based on theme."""
+    return "plotly_dark" if dark_mode else "plotly_white"
+
+
+def apply_theme_to_figure(fig, dark_mode: bool = False):
+    """Apply theme to Plotly figure."""
+    template = get_plotly_template(dark_mode)
+    fig.update_layout(template=template)
+    return fig
 
 
 # ============================================================================
@@ -128,7 +141,7 @@ def get_portfolio_overview() -> tuple[str, pd.DataFrame, pd.DataFrame]:
 # Tab 2: Counterparty Analysis
 # ============================================================================
 
-def get_counterparty_analysis() -> tuple[Any, Any, Any]:
+def get_counterparty_analysis(dark_mode: bool = False) -> tuple[Any, Any, Any]:
     """Generate counterparty analysis with charts."""
     portfolio, book_hierarchy, summary = load_portfolio_data()
 
@@ -143,6 +156,7 @@ def get_counterparty_analysis() -> tuple[Any, Any, Any]:
         names=list(rating_counts.keys()),
         title="Counterparty Credit Rating Distribution",
         hole=0.3,
+        template=get_plotly_template(dark_mode),
     )
 
     # CSA coverage
@@ -160,6 +174,7 @@ def get_counterparty_analysis() -> tuple[Any, Any, Any]:
         labels={"x": "CSA Status", "y": "Number of Counterparties"},
         color=list(csa_counts.keys()),
         color_discrete_map={"With CSA": "#2ecc71", "Without CSA": "#e74c3c"},
+        template=get_plotly_template(dark_mode),
     )
 
     # Net MTM by counterparty
@@ -176,6 +191,7 @@ def get_counterparty_analysis() -> tuple[Any, Any, Any]:
         labels={"x": "Counterparty", "y": "Net MTM (USD)"},
         color=cp_mtm,
         color_continuous_scale="RdYlGn",
+        template=get_plotly_template(dark_mode),
     )
     fig_mtm.update_xaxes(tickangle=-45)
 
@@ -234,7 +250,7 @@ def get_product_types() -> list[str]:
 # Tab 4: Risk Metrics & Visualizations
 # ============================================================================
 
-def get_risk_metrics() -> tuple[str, Any, Any]:
+def get_risk_metrics(dark_mode: bool = False) -> tuple[str, Any, Any]:
     """Generate risk metrics and exposure analysis."""
     portfolio, book_hierarchy, summary = load_portfolio_data()
 
@@ -287,6 +303,7 @@ def get_risk_metrics() -> tuple[str, Any, Any]:
         names=list(product_notional.keys()),
         title="Notional Breakdown by Product Type",
         hole=0.4,
+        template=get_plotly_template(dark_mode),
     )
 
     # MTM by desk
@@ -302,6 +319,7 @@ def get_risk_metrics() -> tuple[str, Any, Any]:
         labels={"x": "Desk", "y": "MTM (USD)"},
         color=list(desk_mtm.values()),
         color_continuous_scale="Viridis",
+        template=get_plotly_template(dark_mode),
     )
 
     return metrics_text, fig_products, fig_desks
@@ -405,9 +423,28 @@ def generate_csv_report() -> str:
 def build_dashboard() -> gr.Blocks:
     """Build the complete dashboard interface."""
 
+    # Custom CSS for dark mode support
+    custom_css = """
+    .dark-mode {
+        background-color: #1a1a1a !important;
+        color: #ffffff !important;
+    }
+    .dark-mode .markdown-text {
+        color: #e0e0e0 !important;
+    }
+    .dark-mode table {
+        background-color: #2a2a2a !important;
+        color: #ffffff !important;
+    }
+    .dark-mode th, .dark-mode td {
+        border-color: #444444 !important;
+    }
+    """
+
     with gr.Blocks(
         title="Fictional Bank Portfolio Dashboard",
         theme=gr.themes.Soft(),
+        css=custom_css,
     ) as demo:
 
         gr.Markdown("""
@@ -420,8 +457,14 @@ def build_dashboard() -> gr.Blocks:
         interactive visualizations.
         """)
 
-        # Refresh button
-        refresh_btn = gr.Button("🔄 Refresh All Data", variant="secondary", size="sm")
+        # Control buttons
+        with gr.Row():
+            refresh_btn = gr.Button("🔄 Refresh All Data", variant="secondary", size="sm")
+            dark_mode_toggle = gr.Checkbox(
+                label="🌙 Dark Mode",
+                value=False,
+                interactive=True,
+            )
 
         with gr.Tabs():
 
@@ -462,6 +505,14 @@ def build_dashboard() -> gr.Blocks:
                 load_cp_btn = gr.Button("Load Analysis", variant="primary")
                 load_cp_btn.click(
                     fn=get_counterparty_analysis,
+                    inputs=[dark_mode_toggle],
+                    outputs=[plot_ratings, plot_csa, plot_mtm],
+                )
+
+                # Update on dark mode toggle
+                dark_mode_toggle.change(
+                    fn=get_counterparty_analysis,
+                    inputs=[dark_mode_toggle],
                     outputs=[plot_ratings, plot_csa, plot_mtm],
                 )
 
@@ -509,6 +560,14 @@ def build_dashboard() -> gr.Blocks:
                 load_risk_btn = gr.Button("Load Risk Metrics", variant="primary")
                 load_risk_btn.click(
                     fn=get_risk_metrics,
+                    inputs=[dark_mode_toggle],
+                    outputs=[metrics_text, plot_products, plot_desks],
+                )
+
+                # Update on dark mode toggle
+                dark_mode_toggle.change(
+                    fn=get_risk_metrics,
+                    inputs=[dark_mode_toggle],
                     outputs=[metrics_text, plot_products, plot_desks],
                 )
 
