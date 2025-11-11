@@ -205,7 +205,7 @@ def get_trade_details(filter_product: str = "All") -> pd.DataFrame:
         has_csa = "Yes" if (ns and ns.csa_id) else "No"
 
         trade_data.append({
-            "Trade ID": trade.trade_id,
+            "Trade ID": trade.id,
             "Counterparty": cp_name[:30],
             "Product": trade.product_type.value,
             "Notional": format_currency(trade.notional),
