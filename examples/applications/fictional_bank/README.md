@@ -161,7 +161,10 @@ fictional_bank/
 # 6. Run advanced stress testing (NEW! - Includes custom scenarios & visualizations)
 ./advanced_stress_testing_demo.py
 
-# 7. Compute sensitivities
+# 7. Run compliance monitoring (NEW! - Limit checks & dashboards)
+./compliance_demo.py
+
+# 8. Compute sensitivities
 ./sensitivity_analysis.py
 ```
 
