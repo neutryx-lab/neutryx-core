@@ -350,6 +350,71 @@ Define limits at multiple levels via YAML configuration:
 # Uses configuration from data/compliance/compliance_limits.yaml
 ```
 
+## 📊 NEW: Time Series Analysis & Forecasting
+
+Advanced time series analysis for portfolio monitoring and forecasting:
+
+### Historical Data Generation
+Generate synthetic historical data with realistic market dynamics:
+
+```python
+analyzer = TimeSeriesAnalyzer()
+
+# Generate 1 year of historical MTM data
+mtm_history = analyzer.generate_historical_data(
+    portfolio, book_hierarchy,
+    num_days=252,  # 1 year of trading days
+    volatility=0.02,  # 2% daily volatility
+    drift=0.0001  # Small positive drift
+)
+
+# Generate counterparty exposure history
+exposure_history = analyzer.generate_exposure_history(
+    portfolio, book_hierarchy,
+    num_days=252
+)
+```
+
+### Statistical Analysis
+- **Descriptive Statistics**: Mean, std, min, max
+- **Return Analysis**: Mean return, volatility, Sharpe ratio
+- **Risk Metrics**: Maximum drawdown, Value at Risk (VaR), Conditional VaR
+- **Technical Indicators**: Moving averages, rolling volatility
+
+### Monte Carlo Forecasting
+Simulate future portfolio values with confidence intervals:
+
+```python
+# Run Monte Carlo simulation
+forecast = analyzer.forecast_montecarlo(
+    mtm_history,
+    num_days=60,  # 3 months
+    num_scenarios=1000,
+    seed=42
+)
+
+# Access forecast statistics
+mean_forecast = forecast.mean
+p95_upper = forecast.percentile_95
+p5_lower = forecast.percentile_5
+```
+
+### Advanced Visualizations
+- **Trend Charts**: Historical values with moving averages (5, 20, 50-day)
+- **Volatility Charts**: Rolling volatility analysis
+- **Forecast Charts**: Monte Carlo projections with confidence intervals
+- **Exposure Evolution**: Counterparty exposure over time
+- **Interactive Dashboard**: Plotly-based HTML dashboard
+
+### Try It Now!
+
+```bash
+# Run time series analysis demo
+./timeseries_demo.py
+
+# Generates historical data, forecasts, and visualizations
+```
+
 ## 📈 Features & Capabilities
 
 ### 1. Portfolio Management
