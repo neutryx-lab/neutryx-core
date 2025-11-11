@@ -12,12 +12,13 @@ This script demonstrates comprehensive stress testing including:
 """
 import json
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import pandas as pd
+import yaml
 
 # Add project root to path
 project_root = Path(__file__).parent.parent.parent
@@ -43,15 +44,21 @@ class StressScenario:
 class StressTester:
     """Comprehensive stress testing framework."""
 
-    def __init__(self, output_dir: Path):
+    def __init__(self, output_dir: Path, scenario_dir: Optional[Path] = None):
         """Initialize the stress tester.
 
         Args:
             output_dir: Directory to save stress test results
+            scenario_dir: Optional directory to load/save custom scenarios
         """
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
+
+        self.scenario_dir = Path(scenario_dir) if scenario_dir else self.output_dir.parent / "data" / "scenarios"
+        self.scenario_dir.mkdir(parents=True, exist_ok=True)
+
         self.scenarios = self._define_scenarios()
+        self.custom_scenarios = []
 
     def _define_scenarios(self) -> List[StressScenario]:
         """Define stress test scenarios."""
@@ -393,6 +400,276 @@ class StressTester:
                 impact_factor = 0.80  # -20% for stagflation
 
         return baseline_mtm * impact_factor
+
+    def load_custom_scenarios(self, file_path: Optional[Path] = None) -> int:
+        """Load custom scenarios from YAML or JSON file.
+
+        Args:
+            file_path: Path to scenario file. If None, loads all scenarios from scenario_dir
+
+        Returns:
+            Number of scenarios loaded
+        """
+        loaded_count = 0
+
+        if file_path:
+            files_to_load = [Path(file_path)]
+        else:
+            # Load all YAML and JSON files from scenario directory
+            files_to_load = list(self.scenario_dir.glob("*.yaml")) + list(
+                self.scenario_dir.glob("*.yml")
+            ) + list(self.scenario_dir.glob("*.json"))
+
+        for file in files_to_load:
+            try:
+                with open(file, "r") as f:
+                    if file.suffix in [".yaml", ".yml"]:
+                        data = yaml.safe_load(f)
+                    else:
+                        data = json.load(f)
+
+                # Handle both single scenario and multiple scenarios
+                scenarios_data = data if isinstance(data, list) else [data]
+
+                for scenario_data in scenarios_data:
+                    scenario = StressScenario(
+                        name=scenario_data["name"],
+                        description=scenario_data["description"],
+                        category=scenario_data.get("category", "custom"),
+                        shocks=scenario_data["shocks"],
+                        severity=scenario_data.get("severity", "moderate"),
+                    )
+                    self.custom_scenarios.append(scenario)
+                    loaded_count += 1
+
+                print(f"✓ Loaded {len(scenarios_data)} scenario(s) from {file.name}")
+
+            except Exception as e:
+                print(f"✗ Failed to load scenarios from {file.name}: {e}")
+
+        return loaded_count
+
+    def save_custom_scenario(self, scenario: StressScenario, file_name: Optional[str] = None):
+        """Save a custom scenario to file.
+
+        Args:
+            scenario: Scenario to save
+            file_name: Optional file name. If None, uses scenario name
+        """
+        if not file_name:
+            file_name = f"{scenario.name.lower().replace(' ', '_')}.yaml"
+
+        file_path = self.scenario_dir / file_name
+        scenario_dict = asdict(scenario)
+
+        with open(file_path, "w") as f:
+            yaml.dump(scenario_dict, f, default_flow_style=False, sort_keys=False)
+
+        print(f"✓ Scenario saved to {file_path}")
+
+    def create_custom_scenario(
+        self,
+        name: str,
+        description: str,
+        shocks: Dict[str, Any],
+        category: str = "custom",
+        severity: str = "moderate",
+        save: bool = True,
+    ) -> StressScenario:
+        """Create a custom stress scenario.
+
+        Args:
+            name: Scenario name
+            description: Scenario description
+            shocks: Dictionary of market shocks
+            category: Scenario category
+            severity: Severity level (mild/moderate/severe/extreme)
+            save: Whether to save the scenario to file
+
+        Returns:
+            Created StressScenario
+
+        Example:
+            >>> tester.create_custom_scenario(
+            ...     name="Custom_Crisis",
+            ...     description="My custom crisis scenario",
+            ...     shocks={
+            ...         "USD_curve": "+200bps",
+            ...         "EUR_curve": "+150bps",
+            ...         "SPX": "-25%",
+            ...         "FX_vols": "+75%"
+            ...     },
+            ...     severity="severe"
+            ... )
+        """
+        scenario = StressScenario(
+            name=name,
+            description=description,
+            category=category,
+            shocks=shocks,
+            severity=severity,
+        )
+
+        self.custom_scenarios.append(scenario)
+
+        if save:
+            self.save_custom_scenario(scenario)
+
+        return scenario
+
+    def get_all_scenarios(self) -> List[StressScenario]:
+        """Get all scenarios (predefined + custom).
+
+        Returns:
+            Combined list of all scenarios
+        """
+        return self.scenarios + self.custom_scenarios
+
+    def run_scenario(self, scenario: StressScenario, portfolio: Any, book_hierarchy: Any) -> Dict:
+        """Run a single stress scenario.
+
+        Args:
+            scenario: Scenario to run
+            portfolio: Portfolio object
+            book_hierarchy: Book hierarchy object
+
+        Returns:
+            Scenario result dictionary
+        """
+        baseline_summary = get_portfolio_summary(portfolio, book_hierarchy)
+        baseline_mtm = baseline_summary["total_mtm"]
+
+        stressed_mtm = self._simulate_stress_impact(baseline_mtm, scenario, baseline_summary)
+        pnl_impact = stressed_mtm - baseline_mtm
+        pnl_pct = (pnl_impact / baseline_mtm * 100) if baseline_mtm != 0 else 0
+
+        return {
+            "scenario": scenario.name,
+            "category": scenario.category,
+            "severity": scenario.severity,
+            "description": scenario.description,
+            "baseline_mtm": baseline_mtm,
+            "stressed_mtm": stressed_mtm,
+            "pnl_impact": pnl_impact,
+            "pnl_impact_pct": pnl_pct,
+            "shocks": scenario.shocks,
+        }
+
+    def run_custom_stress_tests(
+        self, portfolio: Any, book_hierarchy: Any, include_predefined: bool = False
+    ) -> Dict[str, Dict]:
+        """Run only custom stress scenarios.
+
+        Args:
+            portfolio: Portfolio object
+            book_hierarchy: Book hierarchy object
+            include_predefined: Whether to also include predefined scenarios
+
+        Returns:
+            Dictionary of stress test results
+        """
+        scenarios_to_run = (
+            self.get_all_scenarios() if include_predefined else self.custom_scenarios
+        )
+
+        if not scenarios_to_run:
+            print("No custom scenarios to run. Create some first!")
+            return {}
+
+        print(f"Running {len(scenarios_to_run)} stress scenario(s)...")
+        print()
+
+        results = {}
+        baseline_summary = get_portfolio_summary(portfolio, book_hierarchy)
+        baseline_mtm = baseline_summary["total_mtm"]
+
+        for i, scenario in enumerate(scenarios_to_run, 1):
+            print(f"[{i}/{len(scenarios_to_run)}] Running: {scenario.name}")
+            print(f"  Category: {scenario.category.upper()}")
+            print(f"  Severity: {scenario.severity.upper()}")
+
+            result = self.run_scenario(scenario, portfolio, book_hierarchy)
+            results[scenario.name] = result
+
+            print(f"  P&L Impact: ${result['pnl_impact']:,.2f} ({result['pnl_impact_pct']:+.2f}%)")
+            print()
+
+        return results
+
+    def analyze_shock_sensitivity(
+        self, portfolio: Any, book_hierarchy: Any, shock_type: str, shock_range: List[str]
+    ) -> pd.DataFrame:
+        """Analyze portfolio sensitivity to a range of shock values.
+
+        Args:
+            portfolio: Portfolio object
+            book_hierarchy: Book hierarchy object
+            shock_type: Type of shock (e.g., 'USD_curve', 'SPX', 'EURUSD')
+            shock_range: List of shock values (e.g., ['-100bps', '0', '+100bps', '+200bps'])
+
+        Returns:
+            DataFrame with sensitivity analysis results
+        """
+        print(f"Analyzing sensitivity to {shock_type} shocks...")
+        print()
+
+        results = []
+        baseline_summary = get_portfolio_summary(portfolio, book_hierarchy)
+        baseline_mtm = baseline_summary["total_mtm"]
+
+        for shock_value in shock_range:
+            scenario = StressScenario(
+                name=f"Sensitivity_{shock_type}_{shock_value}",
+                description=f"{shock_type} shock: {shock_value}",
+                category="sensitivity",
+                shocks={shock_type: shock_value},
+                severity="mild",
+            )
+
+            stressed_mtm = self._simulate_stress_impact(baseline_mtm, scenario, baseline_summary)
+            pnl_impact = stressed_mtm - baseline_mtm
+            pnl_pct = (pnl_impact / baseline_mtm * 100) if baseline_mtm != 0 else 0
+
+            results.append({
+                "shock_type": shock_type,
+                "shock_value": shock_value,
+                "baseline_mtm": baseline_mtm,
+                "stressed_mtm": stressed_mtm,
+                "pnl_impact": pnl_impact,
+                "pnl_impact_pct": pnl_pct,
+            })
+
+            print(f"  {shock_value:>10}: P&L Impact = ${pnl_impact:>12,.2f} ({pnl_pct:>+6.2f}%)")
+
+        print()
+        return pd.DataFrame(results)
+
+    def compare_scenarios(
+        self, portfolio: Any, book_hierarchy: Any, scenario_names: List[str]
+    ) -> pd.DataFrame:
+        """Compare multiple scenarios side-by-side.
+
+        Args:
+            portfolio: Portfolio object
+            book_hierarchy: Book hierarchy object
+            scenario_names: List of scenario names to compare
+
+        Returns:
+            DataFrame with comparison results
+        """
+        all_scenarios = {s.name: s for s in self.get_all_scenarios()}
+        results = []
+
+        for name in scenario_names:
+            if name not in all_scenarios:
+                print(f"Warning: Scenario '{name}' not found. Skipping.")
+                continue
+
+            scenario = all_scenarios[name]
+            result = self.run_scenario(scenario, portfolio, book_hierarchy)
+            results.append(result)
+
+        return pd.DataFrame(results)
 
     def generate_stress_report(self, results: Dict[str, Dict]) -> Path:
         """Generate comprehensive stress test report.

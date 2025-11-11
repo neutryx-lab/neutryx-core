@@ -53,12 +53,17 @@ This example showcases a complete enterprise-grade risk management system for a 
 ```
 fictional_bank/
 ├── Core Scripts
-│   ├── load_portfolio.py        # Portfolio loader with summary
-│   ├── compute_xva.py           # XVA calculation via API
-│   ├── portfolio_report.py      # Multi-format reporting
-│   ├── visualization.py         # Chart generation
-│   ├── stress_testing.py        # Market stress scenarios
-│   └── sensitivity_analysis.py  # Greeks & sensitivities
+│   ├── load_portfolio.py                 # Portfolio loader with summary
+│   ├── compute_xva.py                    # XVA calculation via API
+│   ├── portfolio_report.py               # Multi-format reporting
+│   ├── visualization.py                  # Chart generation
+│   ├── stress_testing.py                 # Enhanced stress testing framework
+│   ├── stress_test_visualization.py      # Advanced stress test charts
+│   ├── advanced_stress_testing_demo.py   # Comprehensive stress test demo
+│   ├── sensitivity_analysis.py           # Greeks & sensitivities
+│   ├── compliance_monitoring.py          # Compliance & limit monitoring (NEW!)
+│   ├── compliance_dashboard.py           # Compliance dashboards (NEW!)
+│   └── compliance_demo.py                # Compliance monitoring demo (NEW!)
 │
 ├── CLI & Automation
 │   ├── cli.py                   # Interactive command-line interface
@@ -72,15 +77,17 @@ fictional_bank/
 │   ├── reports/                 # Generated reports (JSON, CSV, Excel, HTML)
 │   ├── snapshots/               # Portfolio snapshots
 │   ├── sample_outputs/charts/   # Visualization outputs
-│   ├── data/scenarios/          # Stress test scenarios
+│   ├── data/scenarios/          # Custom stress test scenarios (YAML/JSON)
+│   ├── data/compliance/         # Compliance limit configurations (YAML) (NEW!)
 │   └── templates/               # HTML report templates
 │
 └── Documentation
-    ├── README.md                # This file
-    ├── USER_GUIDE.md            # Detailed user guide
-    ├── API_EXAMPLES.md          # API usage examples
-    ├── ARCHITECTURE.md          # System architecture
-    └── TROUBLESHOOTING.md       # Common issues & solutions
+    ├── README.md                   # This file
+    ├── USER_GUIDE.md               # Detailed user guide
+    ├── STRESS_TESTING_GUIDE.md     # Advanced stress testing guide
+    ├── API_EXAMPLES.md             # API usage examples
+    ├── ARCHITECTURE.md             # System architecture
+    └── TROUBLESHOOTING.md          # Common issues & solutions
 ```
 
 ## 🚀 Quick Start
@@ -151,7 +158,10 @@ fictional_bank/
 # 5. Run stress tests
 ./stress_testing.py
 
-# 6. Compute sensitivities
+# 6. Run advanced stress testing (NEW! - Includes custom scenarios & visualizations)
+./advanced_stress_testing_demo.py
+
+# 7. Compute sensitivities
 ./sensitivity_analysis.py
 ```
 
@@ -160,6 +170,107 @@ fictional_bank/
 ```bash
 # Run all analyses in sequence
 ./run_all_demos.py
+```
+
+## 🔥 NEW: Advanced Stress Testing Features
+
+We've significantly enhanced the stress testing framework! Key new capabilities:
+
+### Custom Scenario Creation
+Create your own stress scenarios using YAML/JSON files or programmatically:
+
+```python
+# Create custom scenario
+tester.create_custom_scenario(
+    name="My_Custom_Crisis",
+    description="Custom market crisis scenario",
+    shocks={
+        "USD_curve": "+150bps",
+        "SPX": "-25%",
+        "FX_vols": "+75%"
+    },
+    severity="severe"
+)
+```
+
+### Sensitivity Analysis
+Analyze portfolio response across shock ranges:
+
+```python
+# Equity sensitivity analysis
+sensitivity = tester.analyze_shock_sensitivity(
+    portfolio, book_hierarchy,
+    shock_type="SPX",
+    shock_range=["-30%", "-20%", "-10%", "0", "+10%", "+20%"]
+)
+```
+
+### Advanced Visualizations
+- **Heatmaps**: Color-coded impact across all scenarios
+- **Tornado Charts**: Ranked impact visualization
+- **Interactive Dashboards**: Plotly-based HTML dashboards with zoom/pan
+- **3D Risk Surfaces**: Multi-dimensional risk visualization
+- **Sensitivity Curves**: Visual representation of shock sensitivity
+
+### Try It Now!
+
+```bash
+# Run comprehensive stress testing demo
+./advanced_stress_testing_demo.py
+
+# See STRESS_TESTING_GUIDE.md for detailed documentation
+```
+
+## 🚨 NEW: Compliance Monitoring & Limit Management
+
+Enterprise-grade compliance monitoring system for real-time limit checking and regulatory reporting:
+
+### Configurable Limit Framework
+Define limits at multiple levels via YAML configuration:
+
+```yaml
+# Portfolio-level limits
+- name: "Portfolio Total Notional"
+  type: notional
+  value: 200000000  # $200M
+  scope: portfolio
+
+# Counterparty limits
+- name: "AAA Global Bank - Notional"
+  type: notional
+  scope: counterparty
+  entity_id: "CP001"
+  value: 75000000  # $75M
+
+# Desk limits, concentration limits, Greek limits, etc.
+```
+
+### Real-Time Monitoring
+- **Multi-level alerts**: 🟢 OK (<70%) | 🟡 Warning (70-90%) | 🔴 Critical (90-100%) | 🚨 Breach (>100%)
+- **Automatic breach detection**: Immediate identification of limit violations
+- **Health scoring**: Portfolio-wide compliance health metrics
+- **Utilization tracking**: Real-time usage of allocated limits
+
+### Interactive Dashboards
+- **Compliance overview**: Health score, alert distribution, key metrics
+- **Limit utilization charts**: Visual representation of all limits
+- **Gauge dashboards**: Real-time utilization indicators
+- **Breach analysis**: Detailed analysis of violations and warnings
+- **Scope breakdown**: Analysis by counterparty, desk, product type
+
+### Regulatory Reporting
+- **Comprehensive reports**: JSON, CSV, Excel formats
+- **Breach documentation**: Complete audit trail
+- **Remediation tracking**: Action items and suggestions
+- **Export capabilities**: Integration-ready formats
+
+### Try It Now!
+
+```bash
+# Run compliance monitoring demo
+./compliance_demo.py
+
+# Uses configuration from data/compliance/compliance_limits.yaml
 ```
 
 ## 📈 Features & Capabilities
@@ -180,14 +291,31 @@ fictional_bank/
 
 ### 3. Risk Analytics
 
-#### Stress Testing
-- **Interest Rate Scenarios**: Parallel shifts, steepeners, flatteners
-- **FX Stress**: Currency strength/weakness scenarios
-- **Equity Stress**: Market crashes, sector-specific shocks
-- **Volatility Shocks**: Spikes and crushes
-- **Credit Scenarios**: Spread widening, rating migrations
-- **Combined Scenarios**: Multi-factor stress tests
-- **Historical Replays**: 2008 Crisis, COVID-19, etc.
+#### Stress Testing (Enhanced!)
+- **Predefined Scenarios**: 18+ standard market shock scenarios
+  - Interest Rate: Parallel shifts, steepeners, flatteners
+  - FX: Currency strength/weakness, EM crisis
+  - Equity: Market crashes, sector-specific shocks
+  - Volatility: Spikes and crushes across asset classes
+  - Credit: Spread widening, rating migrations
+  - Combined: Multi-factor stress (2008 Crisis, COVID-19, etc.)
+
+- **Custom Scenario Framework**:
+  - Create custom scenarios programmatically or from YAML/JSON files
+  - Save and load scenario libraries
+  - Build scenario templates for recurring analyses
+
+- **Advanced Analytics**:
+  - Sensitivity analysis across shock ranges
+  - Scenario comparison and ranking
+  - Impact attribution by risk factor
+  - Category and severity-based analysis
+
+- **Enhanced Visualizations**:
+  - Static charts: Heatmaps, tornado charts, category breakdowns
+  - Interactive dashboards: Plotly-based HTML dashboards
+  - 3D risk surfaces
+  - Sensitivity curve plotting
 
 #### Sensitivity Analysis
 - **Option Greeks**:
@@ -275,6 +403,7 @@ The `config.yaml` file contains:
 ## 📚 Additional Documentation
 
 - **[USER_GUIDE.md](USER_GUIDE.md)** - Detailed tutorials and walkthroughs
+- **[STRESS_TESTING_GUIDE.md](STRESS_TESTING_GUIDE.md)** - Advanced stress testing guide (NEW!)
 - **[API_EXAMPLES.md](API_EXAMPLES.md)** - Neutryx API integration examples
 - **[ARCHITECTURE.md](ARCHITECTURE.md)** - System design and architecture
 - **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)** - Common issues and solutions

@@ -11,8 +11,14 @@ This script creates various charts and plots:
 """
 import json
 import sys
+import io
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+
+# Fix encoding for Windows
+if sys.platform == "win32":
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8")
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -51,6 +57,7 @@ class PortfolioVisualizer:
         portfolio: Any,
         book_hierarchy: Any,
         xva_results: Optional[Dict] = None,
+        sensitivity_results: Optional[Dict] = None,
     ) -> Dict[str, Path]:
         """Create all visualization charts.
 
@@ -58,6 +65,7 @@ class PortfolioVisualizer:
             portfolio: Portfolio object
             book_hierarchy: Book hierarchy object
             xva_results: Optional XVA calculation results
+            sensitivity_results: Optional sensitivity analysis results
 
         Returns:
             Dictionary mapping chart name to file path
@@ -102,6 +110,23 @@ class PortfolioVisualizer:
             chart = self.plot_csa_impact(xva_results)
             charts["csa_impact"] = chart
             print(f"✓ CSA impact chart")
+
+        # Greeks charts (if available)
+        if sensitivity_results:
+            if sensitivity_results.get("portfolio_greeks"):
+                chart = self.plot_portfolio_greeks(sensitivity_results)
+                charts["portfolio_greeks"] = chart
+                print(f"✓ Portfolio Greeks chart")
+
+            if sensitivity_results.get("greeks_by_underlying"):
+                chart = self.plot_greeks_heatmap(sensitivity_results)
+                charts["greeks_heatmap"] = chart
+                print(f"✓ Greeks heatmap chart")
+
+            if sensitivity_results.get("greeks_by_product"):
+                chart = self.plot_greeks_by_product(sensitivity_results)
+                charts["greeks_by_product"] = chart
+                print(f"✓ Greeks by product chart")
 
         print()
         print(f"All charts saved to: {self.output_dir}")
@@ -242,11 +267,12 @@ class PortfolioVisualizer:
             cp["num_trades"] for cp in summary["counterparties"].values() if not cp["has_csa"]
         )
 
+        # Use net_mtm as proxy for notional since gross_notional not available per counterparty
         csa_notional = sum(
-            cp["gross_notional"] for cp in summary["counterparties"].values() if cp["has_csa"]
+            abs(cp["net_mtm"]) for cp in summary["counterparties"].values() if cp["has_csa"]
         )
         non_csa_notional = sum(
-            cp["gross_notional"] for cp in summary["counterparties"].values() if not cp["has_csa"]
+            abs(cp["net_mtm"]) for cp in summary["counterparties"].values() if not cp["has_csa"]
         )
 
         # Bar chart comparing counts
@@ -516,6 +542,193 @@ class PortfolioVisualizer:
 
         return output_file
 
+    def plot_portfolio_greeks(self, sensitivity_results: Dict) -> Path:
+        """Create portfolio-level Greeks bar chart.
+
+        Args:
+            sensitivity_results: Sensitivity analysis results
+
+        Returns:
+            Path to saved chart
+        """
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 7))
+
+        portfolio_greeks = sensitivity_results["portfolio_greeks"]
+
+        # Total Greeks
+        greeks_names = ["Delta", "Gamma", "Vega", "Theta", "Rho"]
+        greeks_values = [
+            portfolio_greeks["total_delta"],
+            portfolio_greeks["total_gamma"],
+            portfolio_greeks["total_vega"],
+            portfolio_greeks["total_theta"],
+            portfolio_greeks["total_rho"],
+        ]
+
+        colors = ["#3498db", "#e74c3c", "#f39c12", "#9b59b6", "#2ecc71"]
+        bars = ax1.bar(greeks_names, greeks_values, color=colors, alpha=0.8, edgecolor="black")
+
+        ax1.set_ylabel("Total Value", fontweight="bold", fontsize=12)
+        ax1.set_title("Portfolio Total Greeks", fontweight="bold", fontsize=14, pad=20)
+        ax1.axhline(y=0, color="black", linestyle="-", linewidth=0.8)
+        ax1.grid(True, alpha=0.3, axis="y")
+
+        # Add value labels
+        for bar, val in zip(bars, greeks_values):
+            label = f"{val:,.0f}"
+            y_pos = val + (max(greeks_values) - min(greeks_values)) * 0.02
+            if val < 0:
+                y_pos = val - (max(greeks_values) - min(greeks_values)) * 0.02
+                va = "top"
+            else:
+                va = "bottom"
+            ax1.text(bar.get_x() + bar.get_width() / 2, y_pos, label, ha="center", va=va, fontsize=10, fontweight="bold")
+
+        # Average Greeks
+        avg_greeks = [
+            portfolio_greeks["avg_delta"],
+            portfolio_greeks["avg_gamma"],
+            portfolio_greeks["avg_vega"],
+            portfolio_greeks["avg_theta"],
+            portfolio_greeks["avg_rho"],
+        ]
+
+        bars2 = ax2.bar(greeks_names, avg_greeks, color=colors, alpha=0.8, edgecolor="black")
+
+        ax2.set_ylabel("Average Value per Trade", fontweight="bold", fontsize=12)
+        ax2.set_title("Portfolio Average Greeks", fontweight="bold", fontsize=14, pad=20)
+        ax2.axhline(y=0, color="black", linestyle="-", linewidth=0.8)
+        ax2.grid(True, alpha=0.3, axis="y")
+
+        # Add value labels
+        for bar, val in zip(bars2, avg_greeks):
+            label = f"{val:,.0f}"
+            y_pos = val + (max(avg_greeks) - min(avg_greeks)) * 0.02
+            if val < 0:
+                y_pos = val - (max(avg_greeks) - min(avg_greeks)) * 0.02
+                va = "top"
+            else:
+                va = "bottom"
+            ax2.text(bar.get_x() + bar.get_width() / 2, y_pos, label, ha="center", va=va, fontsize=10, fontweight="bold")
+
+        plt.tight_layout()
+        output_file = self.output_dir / "portfolio_greeks.png"
+        plt.savefig(output_file, dpi=300, bbox_inches="tight")
+        plt.close()
+
+        return output_file
+
+    def plot_greeks_heatmap(self, sensitivity_results: Dict) -> Path:
+        """Create Greeks heatmap by underlying.
+
+        Args:
+            sensitivity_results: Sensitivity analysis results
+
+        Returns:
+            Path to saved chart
+        """
+        fig, ax = plt.subplots(figsize=(14, 10))
+
+        # Prepare data for heatmap
+        greeks_by_underlying = sensitivity_results["greeks_by_underlying"]
+
+        underlyings = list(greeks_by_underlying.keys())
+        greek_names = ["Delta", "Gamma", "Vega", "Theta", "Rho"]
+
+        # Create data matrix
+        data_matrix = []
+        annotations = []
+
+        for greek in greek_names:
+            row = []
+            annot_row = []
+            for underlying in underlyings:
+                value = greeks_by_underlying[underlying][greek.lower()]
+                row.append(value)
+                annot_row.append(f"{value:,.0f}")
+            data_matrix.append(row)
+            annotations.append(annot_row)
+
+        # Normalize for color mapping
+        data_array = np.array(data_matrix)
+        normalized_data = np.zeros_like(data_array)
+
+        for i in range(len(greek_names)):
+            max_val = np.abs(data_array[i]).max()
+            if max_val > 0:
+                normalized_data[i] = data_array[i] / max_val
+
+        # Create heatmap
+        im = ax.imshow(normalized_data, cmap="RdYlGn", aspect="auto", vmin=-1, vmax=1)
+
+        # Set ticks and labels
+        ax.set_xticks(np.arange(len(underlyings)))
+        ax.set_yticks(np.arange(len(greek_names)))
+        ax.set_xticklabels(underlyings, rotation=45, ha="right")
+        ax.set_yticklabels(greek_names)
+
+        # Add annotations
+        for i in range(len(greek_names)):
+            for j in range(len(underlyings)):
+                text = ax.text(j, i, annotations[i][j], ha="center", va="center", color="black", fontsize=9, fontweight="bold")
+
+        # Add colorbar
+        cbar = plt.colorbar(im, ax=ax)
+        cbar.set_label("Normalized Greek Value", fontweight="bold", fontsize=11)
+
+        ax.set_title("Portfolio Greeks Heatmap by Underlying", fontweight="bold", fontsize=14, pad=20)
+        ax.set_xlabel("Underlying Asset", fontweight="bold", fontsize=12)
+        ax.set_ylabel("Greek", fontweight="bold", fontsize=12)
+
+        plt.tight_layout()
+        output_file = self.output_dir / "greeks_heatmap_viz.png"
+        plt.savefig(output_file, dpi=300, bbox_inches="tight")
+        plt.close()
+
+        return output_file
+
+    def plot_greeks_by_product(self, sensitivity_results: Dict) -> Path:
+        """Create Greeks breakdown by product type.
+
+        Args:
+            sensitivity_results: Sensitivity analysis results
+
+        Returns:
+            Path to saved chart
+        """
+        fig, ax = plt.subplots(figsize=(14, 8))
+
+        greeks_by_product = sensitivity_results["greeks_by_product"]
+
+        products = list(greeks_by_product.keys())
+        greek_names = ["Delta", "Gamma", "Vega", "Theta", "Rho"]
+
+        # Prepare data for stacked bar chart
+        x = np.arange(len(products))
+        width = 0.15
+
+        colors = ["#3498db", "#e74c3c", "#f39c12", "#9b59b6", "#2ecc71"]
+
+        for i, greek in enumerate(greek_names):
+            values = [greeks_by_product[p][greek.lower()] for p in products]
+            offset = width * (i - 2)
+            bars = ax.bar(x + offset, values, width, label=greek, color=colors[i], alpha=0.8)
+
+        ax.set_xticks(x)
+        ax.set_xticklabels([p.replace("_", " ").title() for p in products], rotation=15, ha="right")
+        ax.set_ylabel("Greek Value", fontweight="bold", fontsize=12)
+        ax.set_title("Greeks Breakdown by Product Type", fontweight="bold", fontsize=14, pad=20)
+        ax.axhline(y=0, color="black", linestyle="-", linewidth=0.8)
+        ax.legend(loc="upper left", fontsize=10)
+        ax.grid(True, alpha=0.3, axis="y")
+
+        plt.tight_layout()
+        output_file = self.output_dir / "greeks_by_product.png"
+        plt.savefig(output_file, dpi=300, bbox_inches="tight")
+        plt.close()
+
+        return output_file
+
 
 def main():
     """Main entry point."""
@@ -545,11 +758,29 @@ def main():
         print("      Run compute_xva.py first to generate XVA visualizations.")
         print()
 
+    # Try to load sensitivity results if available
+    sensitivity_results = None
+    reports_dir = Path(__file__).parent / "reports"
+
+    # Look for the latest sensitivity analysis file
+    sensitivity_files = list(reports_dir.glob("sensitivity_analysis_*.json"))
+    if sensitivity_files:
+        latest_file = max(sensitivity_files, key=lambda p: p.stat().st_mtime)
+        print(f"Loading sensitivity results from {latest_file.name}...")
+        with open(latest_file, "r") as f:
+            sensitivity_results = json.load(f)
+        print("✓ Sensitivity results loaded")
+        print()
+    else:
+        print("Note: Sensitivity results not found. Greeks charts will be skipped.")
+        print("      Run sensitivity_analysis.py first to generate Greeks visualizations.")
+        print()
+
     # Generate visualizations
     output_dir = Path(__file__).parent / "sample_outputs" / "charts"
     visualizer = PortfolioVisualizer(output_dir)
 
-    charts = visualizer.create_all_charts(portfolio, book_hierarchy, xva_results)
+    charts = visualizer.create_all_charts(portfolio, book_hierarchy, xva_results, sensitivity_results)
 
     print()
     print("=" * 80)

@@ -1,0 +1,276 @@
+# Compliance Monitoring - Trading and Risk Limits Configuration
+#
+# This file defines all trading and risk limits for the fictional bank portfolio.
+# Limits are monitored in real-time with three alert levels:
+#   - GREEN (< 70%): OK
+#   - YELLOW (70-90%): Warning - approaching limit
+#   - RED (90-100%): Critical - very close to limit
+#   - BREACH (> 100%): Limit exceeded
+
+# Alert thresholds (global defaults)
+thresholds:
+  soft: 0.70    # Yellow warning at 70% utilization
+  hard: 0.90    # Red critical at 90% utilization
+
+# Limit definitions
+limits:
+  # ==========================================================================
+  # PORTFOLIO-LEVEL LIMITS
+  # ==========================================================================
+
+  # Notional exposure limits
+  - name: "Portfolio Total Notional"
+    type: notional
+    scope: portfolio
+    value: 200000000  # $200M maximum notional
+    currency: USD
+    description: "Maximum total notional exposure across all positions"
+
+  - name: "Portfolio Gross Notional"
+    type: notional
+    scope: portfolio
+    value: 250000000  # $250M gross notional
+    currency: USD
+    description: "Maximum gross notional (sum of absolute values)"
+
+  # MTM limits
+  - name: "Portfolio Total MTM"
+    type: mtm
+    scope: portfolio
+    value: 50000000  # $50M absolute MTM
+    currency: USD
+    description: "Maximum absolute mark-to-market value"
+
+  # Operational limits
+  - name: "Maximum Number of Counterparties"
+    type: num_counterparties
+    scope: portfolio
+    value: 10
+    description: "Maximum number of active counterparties"
+
+  - name: "Maximum Number of Trades"
+    type: num_trades
+    scope: portfolio
+    value: 50
+    description: "Maximum number of open trades"
+
+  # ==========================================================================
+  # COUNTERPARTY-SPECIFIC LIMITS
+  # ==========================================================================
+
+  # AAA Global Bank
+  - name: "AAA Global Bank - Notional Limit"
+    type: notional
+    scope: counterparty
+    entity_id: "CP001"
+    value: 75000000  # $75M
+    currency: USD
+    description: "Maximum notional with AAA rated bank"
+
+  - name: "AAA Global Bank - MTM Limit"
+    type: mtm
+    scope: counterparty
+    entity_id: "CP001"
+    value: 15000000  # $15M
+    currency: USD
+    description: "Maximum MTM exposure to AAA rated bank"
+
+  # Tech Corporation A
+  - name: "Tech Corporation A - Notional Limit"
+    type: notional
+    scope: counterparty
+    entity_id: "CP002"
+    value: 50000000  # $50M (lower for corporate)
+    currency: USD
+    description: "Maximum notional with A rated corporate"
+
+  # Industrial Group BBB
+  - name: "Industrial Group BBB - Notional Limit"
+    type: notional
+    scope: counterparty
+    entity_id: "CP003"
+    value: 30000000  # $30M (lower for BBB rated, no CSA)
+    currency: USD
+    soft_limit: 20000000  # $20M soft warning
+    description: "Maximum notional with BBB rated corporate (no CSA)"
+
+  # Alpha Strategies Fund
+  - name: "Alpha Strategies Fund - Notional Limit"
+    type: notional
+    scope: counterparty
+    entity_id: "CP004"
+    value: 40000000  # $40M
+    currency: USD
+    description: "Maximum notional with hedge fund"
+
+  # Republic Investment Authority
+  - name: "Republic Investment Authority - Notional Limit"
+    type: notional
+    scope: counterparty
+    entity_id: "CP005"
+    value: 60000000  # $60M (higher for sovereign)
+    currency: USD
+    description: "Maximum notional with sovereign wealth fund"
+
+  # Global Insurance Group
+  - name: "Global Insurance Group - Notional Limit"
+    type: notional
+    scope: counterparty
+    entity_id: "CP006"
+    value: 55000000  # $55M
+    currency: USD
+    description: "Maximum notional with insurance company"
+
+  # ==========================================================================
+  # DESK-LEVEL LIMITS
+  # ==========================================================================
+
+  # Interest Rates Desk
+  - name: "IR Desk - Total Notional"
+    type: notional
+    scope: desk
+    entity_id: "DESK001"
+    value: 100000000  # $100M
+    currency: USD
+    description: "Maximum notional for Interest Rates desk"
+
+  - name: "IR Desk - MTM Limit"
+    type: mtm
+    scope: desk
+    entity_id: "DESK001"
+    value: 20000000  # $20M
+    currency: USD
+    description: "Maximum MTM for Interest Rates desk"
+
+  # FX Desk
+  - name: "FX Desk - Total Notional"
+    type: notional
+    scope: desk
+    entity_id: "DESK002"
+    value: 75000000  # $75M
+    currency: USD
+    description: "Maximum notional for FX desk"
+
+  - name: "FX Desk - MTM Limit"
+    type: mtm
+    scope: desk
+    entity_id: "DESK002"
+    value: 15000000  # $15M
+    currency: USD
+    description: "Maximum MTM for FX desk"
+
+  # Equity Derivatives Desk
+  - name: "Equity Desk - Total Notional"
+    type: notional
+    scope: desk
+    entity_id: "DESK003"
+    value: 80000000  # $80M
+    currency: USD
+    description: "Maximum notional for Equity Derivatives desk"
+
+  - name: "Equity Desk - MTM Limit"
+    type: mtm
+    scope: desk
+    entity_id: "DESK003"
+    value: 18000000  # $18M
+    currency: USD
+    description: "Maximum MTM for Equity Derivatives desk"
+
+  # ==========================================================================
+  # CONCENTRATION LIMITS
+  # ==========================================================================
+
+  # Single counterparty concentration
+  - name: "Single Counterparty Concentration - AAA Global"
+    type: concentration_pct
+    scope: concentration
+    entity_id: "CP001"
+    value: 40.0  # Max 40% of portfolio notional
+    description: "Maximum concentration to single counterparty (% of total notional)"
+
+  - name: "Single Counterparty Concentration - Industrial BBB"
+    type: concentration_pct
+    scope: concentration
+    entity_id: "CP003"
+    value: 20.0  # Max 20% for BBB rated
+    description: "Maximum concentration to BBB rated counterparty"
+
+  # ==========================================================================
+  # GREEK LIMITS (Risk Sensitivities)
+  # ==========================================================================
+  # Note: These require sensitivity analysis results as additional_metrics
+
+  - name: "Portfolio Total Delta"
+    type: total_delta
+    scope: portfolio
+    value: 50000  # Max Delta exposure
+    currency: USD
+    description: "Maximum portfolio delta (first-order price sensitivity)"
+
+  - name: "Portfolio Total Gamma"
+    type: total_gamma
+    scope: portfolio
+    value: 10000  # Max Gamma exposure
+    currency: USD
+    description: "Maximum portfolio gamma (convexity)"
+
+  - name: "Portfolio Total Vega"
+    type: total_vega
+    scope: portfolio
+    value: 25000  # Max Vega exposure
+    currency: USD
+    description: "Maximum portfolio vega (volatility sensitivity)"
+
+  # ==========================================================================
+  # CUSTOM LIMITS
+  # ==========================================================================
+
+  # Add your custom limits here following the same structure:
+  # - name: "Your Limit Name"
+  #   type: limit_type  # notional, mtm, delta, gamma, vega, concentration_pct, num_trades, etc.
+  #   scope: scope_type  # portfolio, counterparty, desk, concentration
+  #   entity_id: "ID"  # Required for counterparty, desk, concentration scopes
+  #   value: 1000000  # Limit value
+  #   currency: USD  # Optional, default USD
+  #   soft_limit: 700000  # Optional, overrides global soft threshold
+  #   hard_limit: 900000  # Optional, overrides global hard threshold
+  #   description: "Description of the limit"
+
+# ==========================================================================
+# LIMIT TYPES REFERENCE
+# ==========================================================================
+#
+# Common limit types:
+#   notional         - Notional amount
+#   mtm              - Mark-to-market value
+#   num_counterparties - Number of counterparties
+#   num_trades       - Number of trades
+#   total_delta      - Total delta (requires additional_metrics)
+#   total_gamma      - Total gamma (requires additional_metrics)
+#   total_vega       - Total vega (requires additional_metrics)
+#   total_theta      - Total theta (requires additional_metrics)
+#   total_rho        - Total rho (requires additional_metrics)
+#   concentration_pct - Concentration as % of total
+#
+# Scope types:
+#   portfolio        - Portfolio-wide limit
+#   counterparty     - Counterparty-specific (requires entity_id)
+#   desk             - Desk-specific (requires entity_id)
+#   concentration    - Concentration limit (requires entity_id)
+#
+# ==========================================================================
+# ENTITY IDS REFERENCE
+# ==========================================================================
+#
+# Counterparties:
+#   CP001 - AAA Global Bank
+#   CP002 - Tech Corporation A
+#   CP003 - Industrial Group BBB
+#   CP004 - Alpha Strategies Fund
+#   CP005 - Republic Investment Authority
+#   CP006 - Global Insurance Group
+#
+# Desks:
+#   DESK001 - Interest Rates Desk
+#   DESK002 - Foreign Exchange Desk
+#   DESK003 - Equity Derivatives Desk
