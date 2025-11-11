@@ -177,7 +177,7 @@ def get_counterparty_analysis() -> tuple[Any, Any, Any]:
         color=cp_mtm,
         color_continuous_scale="RdYlGn",
     )
-    fig_mtm.update_xaxis(tickangle=-45)
+    fig_mtm.update_xaxes(tickangle=-45)
 
     return fig_ratings, fig_csa, fig_mtm
 
