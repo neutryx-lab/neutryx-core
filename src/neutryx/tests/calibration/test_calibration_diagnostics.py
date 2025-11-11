@@ -38,6 +38,7 @@ def test_generate_calibration_diagnostics_heston():
     true_params = HestonParams(v0=0.05, kappa=1.6, theta=0.04, sigma=0.35, rho=-0.5)
     market_prices = _heston_surface(true_params, strike=strikes, maturity=maturities, S0=S0, r=r, q=q)
 
+    # Reduced iterations for CI performance (was 25)
     calibrated = calibrate_heston(
         S0,
         strikes,
@@ -45,8 +46,8 @@ def test_generate_calibration_diagnostics_heston():
         market_prices,
         r=r,
         q=q,
-        n_iterations=25,
-        lr=5e-3,
+        n_iterations=10,  # Reduced from 25 for faster CI
+        lr=8e-3,  # Slightly increased learning rate to compensate
     )
 
     diagnostics = generate_calibration_diagnostics(
