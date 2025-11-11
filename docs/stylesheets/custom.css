@@ -52,3 +52,31 @@
         padding: 4px;
     }
 }
+
+/* ASCIIアート・Box Drawing文字の表示修正 */
+.md-typeset pre code,
+.md-typeset code {
+    font-family: 'SF Mono', 'Cascadia Code', 'Consolas', 'Liberation Mono', 'Menlo', 'Courier', monospace;
+    font-size: 0.85em;
+    letter-spacing: 0;
+    line-height: 1.4;
+    font-variant-ligatures: none;
+    font-feature-settings: normal;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+/* コードブロック内のBox Drawing文字を適切に表示 */
+.md-typeset pre {
+    overflow-x: auto;
+    white-space: pre;
+    tab-size: 8;
+}
+
+.md-typeset pre code {
+    white-space: pre;
+    word-break: keep-all;
+    word-wrap: normal;
+    display: block;
+    font-variant-numeric: tabular-nums;
+}
