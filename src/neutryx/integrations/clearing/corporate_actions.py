@@ -173,6 +173,34 @@ class DividendTerms(BaseModel):
     stock_dividend_ratio: Optional[str] = Field(None, description="e.g., '1:10'")
     new_shares_per_old: Optional[Decimal] = Field(None, description="New shares per old")
 
+    # Mixed payment terms
+    cash_dividend_rate: Optional[Decimal] = Field(
+        None,
+        description="Cash portion per share for mixed payments",
+    )
+
+    # Rights issue terms
+    rights_ratio: Optional[Decimal] = Field(
+        None, description="Rights per existing share"
+    )
+    rights_subscription_price: Optional[Decimal] = Field(
+        None, description="Subscription price for rights"
+    )
+    rights_max_allocation: Optional[Decimal] = Field(
+        None, description="Maximum rights that can be allocated"
+    )
+
+    # Warrant distribution terms
+    warrant_ratio: Optional[Decimal] = Field(
+        None, description="Warrants per existing share"
+    )
+    warrant_exercise_price: Optional[Decimal] = Field(
+        None, description="Exercise price for warrants"
+    )
+    warrant_max_allocation: Optional[Decimal] = Field(
+        None, description="Maximum warrants that can be allocated"
+    )
+
     # Tax information
     tax_treatment: TaxTreatment = Field(default=TaxTreatment.QUALIFIED_DIVIDEND)
     withholding_rate: Optional[Decimal] = Field(None, description="Withholding tax rate")
@@ -422,6 +450,129 @@ class CorporateActionProcessor:
                 fractional_shares=fractional,
                 cash_in_lieu=cash_in_lieu,
                 currency=terms.currency
+            )
+
+        elif terms.payment_type == PaymentType.CASH_AND_STOCK:
+            cash_rate = terms.cash_dividend_rate or terms.dividend_rate
+            if cash_rate is None:
+                raise ValueError(
+                    "Cash and stock dividend requires cash_dividend_rate or dividend_rate"
+                )
+            if not terms.new_shares_per_old:
+                raise ValueError(
+                    "Cash and stock dividend requires new_shares_per_old for stock component"
+                )
+
+            gross_cash = position.quantity * cash_rate
+            tax_withheld = Decimal("0")
+            if terms.withholding_rate:
+                tax_withheld = gross_cash * terms.withholding_rate
+
+            net_cash = gross_cash - tax_withheld
+
+            total_new_shares = position.quantity * terms.new_shares_per_old
+            whole_shares = int(total_new_shares)
+            fractional = total_new_shares - Decimal(whole_shares)
+
+            cash_in_lieu = Decimal("0")
+            if fractional > 0 and terms.drip_price:
+                cash_in_lieu = fractional * terms.drip_price
+
+            entitlement = Entitlement(
+                event_id=event_id,
+                position_id=position.position_id,
+                holder=position.holder,
+                account=position.account,
+                entitled_quantity=position.quantity,
+                cash_entitlement=net_cash,
+                stock_entitlement=Decimal(whole_shares),
+                new_security_id=event.new_security_id,
+                fractional_shares=fractional,
+                cash_in_lieu=cash_in_lieu,
+                currency=terms.currency,
+                gross_amount=gross_cash,
+                tax_withheld=tax_withheld,
+                net_amount=net_cash,
+                metadata={
+                    "cash_component": {
+                        "rate_per_share": cash_rate,
+                        "gross_amount": gross_cash,
+                        "tax_withheld": tax_withheld,
+                    },
+                    "stock_component": {
+                        "ratio": terms.new_shares_per_old,
+                        "total_new_shares": total_new_shares,
+                        "cash_in_lieu_rate": terms.drip_price,
+                    },
+                },
+            )
+
+        elif terms.payment_type == PaymentType.RIGHTS:
+            if terms.rights_ratio is None:
+                raise ValueError("Rights distribution requires rights_ratio")
+            if terms.rights_subscription_price is None:
+                raise ValueError("Rights distribution requires rights_subscription_price")
+
+            total_rights = position.quantity * terms.rights_ratio
+            if terms.rights_max_allocation is not None:
+                if terms.rights_max_allocation <= 0:
+                    raise ValueError("rights_max_allocation must be positive")
+                total_rights = min(total_rights, terms.rights_max_allocation)
+
+            subscription_value = total_rights * terms.rights_subscription_price
+
+            entitlement = Entitlement(
+                event_id=event_id,
+                position_id=position.position_id,
+                holder=position.holder,
+                account=position.account,
+                entitled_quantity=position.quantity,
+                stock_entitlement=total_rights,
+                new_security_id=event.new_security_id,
+                currency=terms.currency,
+                net_amount=Decimal("0"),
+                metadata={
+                    "rights": {
+                        "ratio": terms.rights_ratio,
+                        "subscription_price": terms.rights_subscription_price,
+                        "subscription_value": subscription_value,
+                        "max_allocation": terms.rights_max_allocation,
+                    }
+                },
+            )
+
+        elif terms.payment_type == PaymentType.WARRANTS:
+            if terms.warrant_ratio is None:
+                raise ValueError("Warrant distribution requires warrant_ratio")
+            if terms.warrant_exercise_price is None:
+                raise ValueError("Warrant distribution requires warrant_exercise_price")
+
+            total_warrants = position.quantity * terms.warrant_ratio
+            if terms.warrant_max_allocation is not None:
+                if terms.warrant_max_allocation <= 0:
+                    raise ValueError("warrant_max_allocation must be positive")
+                total_warrants = min(total_warrants, terms.warrant_max_allocation)
+
+            exercise_value = total_warrants * terms.warrant_exercise_price
+
+            entitlement = Entitlement(
+                event_id=event_id,
+                position_id=position.position_id,
+                holder=position.holder,
+                account=position.account,
+                entitled_quantity=position.quantity,
+                stock_entitlement=total_warrants,
+                new_security_id=event.new_security_id,
+                currency=terms.currency,
+                net_amount=Decimal("0"),
+                metadata={
+                    "warrants": {
+                        "ratio": terms.warrant_ratio,
+                        "exercise_price": terms.warrant_exercise_price,
+                        "exercise_value": exercise_value,
+                        "max_allocation": terms.warrant_max_allocation,
+                    }
+                },
             )
 
         else:
