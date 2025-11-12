@@ -1,7 +1,9 @@
 """Tests for advanced interest rate models."""
 import jax
 import jax.numpy as jnp
+import numpy as np
 import pytest
+from scipy.stats import norm
 
 from neutryx.models.hull_white_two_factor import (
     HullWhiteTwoFactorParams,
@@ -34,6 +36,7 @@ from neutryx.models.lgm import (
     simulate_path as lgm_simulate_path,
     simulate_paths as lgm_simulate_paths,
     caplet_price as lgm_caplet_price,
+    calibrate_to_swaption_vols,
 )
 
 from neutryx.models.lmm import (
@@ -45,6 +48,163 @@ from neutryx.models.lmm import (
     simple_volatility_structure,
     create_correlation_matrix,
 )
+
+from neutryx.products.swaptions import implied_swaption_volatility
+
+
+def _discount_factor(forward_curve_fn, maturity: float) -> float:
+    if maturity <= 0.0:
+        return 1.0
+    rate = forward_curve_fn(maturity / 2.0)
+    return float(np.exp(-rate * maturity))
+
+
+def _construct_swaption_schedule(
+    forward_curve_fn,
+    option_expiry: float,
+    swap_tenor: float,
+    payment_interval: float,
+) -> dict:
+    n_payments = int(np.round(swap_tenor / payment_interval))
+    if n_payments < 1:
+        raise ValueError("Swap tenor must span at least one payment interval")
+
+    payment_times = option_expiry + payment_interval * np.arange(1, n_payments + 1)
+    discount_factors = np.array([
+        _discount_factor(forward_curve_fn, t) for t in payment_times
+    ])
+    year_fractions = np.full(n_payments, payment_interval, dtype=float)
+    annuity = float(np.dot(discount_factors, year_fractions))
+    df_expiry = _discount_factor(forward_curve_fn, option_expiry)
+    forward_rate = float((df_expiry - discount_factors[-1]) / max(annuity, 1e-12))
+
+    return {
+        "expiry": float(option_expiry),
+        "tenor": float(swap_tenor),
+        "forward": forward_rate,
+        "annuity": annuity,
+        "payment_times": payment_times,
+        "weights": discount_factors * year_fractions,
+    }
+
+
+def _lgm_normal_vol(alpha: float, sigma: float, schedule: dict, integration_points: int = 256) -> float:
+    expiry = schedule["expiry"]
+    if expiry <= 0.0:
+        return 0.0
+
+    payment_times = schedule["payment_times"]
+    weights = schedule["weights"]
+    annuity = schedule["annuity"]
+
+    t_grid = np.linspace(0.0, expiry, integration_points)
+    exposures_sq = np.zeros_like(t_grid)
+
+    for idx, t in enumerate(t_grid):
+        dt = np.maximum(payment_times - t, 0.0)
+        if alpha > 1e-12:
+            B_vals = (1.0 - np.exp(-alpha * dt)) / alpha
+        else:
+            B_vals = dt
+
+        numerator = float(np.dot(weights, B_vals))
+        instantaneous_vol = sigma * numerator / max(annuity, 1e-12)
+        exposures_sq[idx] = instantaneous_vol * instantaneous_vol
+
+    variance = float(np.trapezoid(exposures_sq, t_grid))
+    return float(np.sqrt(max(variance, 0.0)))
+
+
+def _bachelier_price(
+    forward_rate: float,
+    strike: float,
+    option_maturity: float,
+    volatility: float,
+    annuity: float,
+    *,
+    notional: float = 1.0,
+    is_payer: bool = True,
+) -> float:
+    if option_maturity <= 0.0:
+        intrinsic = max(forward_rate - strike, 0.0)
+        if not is_payer:
+            intrinsic = max(strike - forward_rate, 0.0)
+        return notional * annuity * intrinsic
+
+    sqrt_T = np.sqrt(option_maturity)
+    vol_sqrt_T = volatility * sqrt_T
+
+    if vol_sqrt_T < 1e-12:
+        intrinsic = max(forward_rate - strike, 0.0)
+        if not is_payer:
+            intrinsic = max(strike - forward_rate, 0.0)
+        return notional * annuity * intrinsic
+
+    d = (forward_rate - strike) / vol_sqrt_T
+    if is_payer:
+        price = (forward_rate - strike) * norm.cdf(d) + vol_sqrt_T * norm.pdf(d)
+    else:
+        price = (strike - forward_rate) * norm.cdf(-d) + vol_sqrt_T * norm.pdf(d)
+
+    return float(notional * annuity * price)
+
+
+def _build_synthetic_swaption_surface(
+    alpha: float,
+    sigma: float,
+    forward_curve_fn,
+    expiries: np.ndarray,
+    tenors: np.ndarray,
+    *,
+    payment_interval: float = 0.5,
+    notional: float = 1.0,
+) -> tuple[list[dict], np.ndarray, np.ndarray]:
+    instruments: list[dict] = []
+    normal_vols = np.zeros((expiries.size, tenors.size))
+    lognormal_vols = np.zeros_like(normal_vols)
+
+    for i, expiry in enumerate(expiries):
+        for j, tenor in enumerate(tenors):
+            schedule = _construct_swaption_schedule(
+                forward_curve_fn,
+                float(expiry),
+                float(tenor),
+                payment_interval,
+            )
+            normal_vol = _lgm_normal_vol(alpha, sigma, schedule)
+            market_price = _bachelier_price(
+                schedule["forward"],
+                schedule["forward"],
+                schedule["expiry"],
+                normal_vol,
+                schedule["annuity"],
+                notional=notional,
+            )
+
+            lognormal_vol = implied_swaption_volatility(
+                market_price,
+                schedule["forward"],
+                schedule["forward"],
+                schedule["expiry"],
+                schedule["annuity"],
+                notional=notional,
+                is_payer=True,
+            )
+
+            schedule.update(
+                {
+                    "index": (i, j),
+                    "normal_vol": normal_vol,
+                    "market_price": market_price,
+                    "lognormal_vol": lognormal_vol,
+                }
+            )
+
+            instruments.append(schedule)
+            normal_vols[i, j] = normal_vol
+            lognormal_vols[i, j] = lognormal_vol
+
+    return instruments, normal_vols, lognormal_vols
 
 from neutryx.models.hjm import (
     HJMParams,
@@ -303,6 +463,120 @@ def test_lgm_caplet_price():
 
     caplet_value = lgm_caplet_price(params, strike=0.03, caplet_maturity=1.0, tenor=0.25)
     assert caplet_value >= 0
+
+
+def test_lgm_swaption_calibration_normal_vols():
+    """Calibrate LGM parameters from synthetic normal swaption vols."""
+
+    forward_curve_fn = lambda t: 0.025
+    r0 = forward_curve_fn(0.0)
+    expiries = jnp.array([1.0, 2.0, 5.0])
+    tenors = jnp.array([2.0, 5.0])
+    alpha_true = 0.12
+    sigma_true = 0.009
+    payment_interval = 0.5
+    notional = 1.0
+
+    instruments, normal_vols, _ = _build_synthetic_swaption_surface(
+        alpha_true,
+        sigma_true,
+        forward_curve_fn,
+        np.asarray(expiries, dtype=float),
+        np.asarray(tenors, dtype=float),
+        payment_interval=payment_interval,
+        notional=notional,
+    )
+
+    calibrated = calibrate_to_swaption_vols(
+        forward_curve_fn=forward_curve_fn,
+        r0=r0,
+        swaption_expiries=expiries,
+        swaption_tenors=tenors,
+        market_vols=jnp.asarray(normal_vols),
+        initial_alpha=0.05,
+        initial_sigma=0.005,
+        vol_type="normal",
+        payment_interval=payment_interval,
+        notional=notional,
+    )
+
+    assert calibrated.alpha_fn(0.0) == pytest.approx(alpha_true, rel=1e-2)
+    assert calibrated.sigma_fn(0.0) == pytest.approx(sigma_true, rel=1e-2)
+
+    for instrument in instruments:
+        model_vol = _lgm_normal_vol(
+            calibrated.alpha_fn(0.0),
+            calibrated.sigma_fn(0.0),
+            instrument,
+        )
+        model_price = _bachelier_price(
+            instrument["forward"],
+            instrument["forward"],
+            instrument["expiry"],
+            model_vol,
+            instrument["annuity"],
+            notional=notional,
+        )
+        assert model_price == pytest.approx(
+            instrument["market_price"], rel=1e-3
+        )
+
+
+def test_lgm_swaption_calibration_lognormal_vols():
+    """Calibrate using market vols quoted in Black format."""
+
+    forward_curve_fn = lambda t: 0.02
+    r0 = forward_curve_fn(0.0)
+    expiries = jnp.array([1.0, 2.0])
+    tenors = jnp.array([2.0, 4.0])
+    alpha_true = 0.14
+    sigma_true = 0.007
+    payment_interval = 0.5
+    notional = 1.0
+
+    instruments, _, lognormal_vols = _build_synthetic_swaption_surface(
+        alpha_true,
+        sigma_true,
+        forward_curve_fn,
+        np.asarray(expiries, dtype=float),
+        np.asarray(tenors, dtype=float),
+        payment_interval=payment_interval,
+        notional=notional,
+    )
+
+    calibrated = calibrate_to_swaption_vols(
+        forward_curve_fn=forward_curve_fn,
+        r0=r0,
+        swaption_expiries=expiries,
+        swaption_tenors=tenors,
+        market_vols=jnp.asarray(lognormal_vols),
+        initial_alpha=0.1,
+        initial_sigma=0.01,
+        vol_type="lognormal",
+        payment_interval=payment_interval,
+        notional=notional,
+    )
+
+    assert calibrated.alpha_fn(0.0) == pytest.approx(alpha_true, rel=1e-2)
+    assert calibrated.sigma_fn(0.0) == pytest.approx(sigma_true, rel=1e-2)
+
+    for instrument in instruments:
+        model_vol = _lgm_normal_vol(
+            calibrated.alpha_fn(0.0),
+            calibrated.sigma_fn(0.0),
+            instrument,
+        )
+        model_price = _bachelier_price(
+            instrument["forward"],
+            instrument["forward"],
+            instrument["expiry"],
+            model_vol,
+            instrument["annuity"],
+            notional=notional,
+        )
+        assert model_price == pytest.approx(
+            instrument["market_price"], rel=1e-3
+        )
 
 
 # ===== LMM Model Tests =====

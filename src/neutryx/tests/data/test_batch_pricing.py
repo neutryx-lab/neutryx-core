@@ -3,14 +3,17 @@
 import jax.numpy as jnp
 import pytest
 
-from neutryx.data import price_vanilla_options_batch
 from neutryx.data import (
-    TradeArrays,
-    PortfolioBatch,
     IndexMapping,
+    PortfolioBatch,
+    TradeArrays,
     build_market_data_grid_simple,
     build_time_grid,
+    price_portfolio_batch,
+    price_vanilla_options_batch,
 )
+from neutryx.products.fx_vanilla_exotic import FXForward
+from neutryx.products.swap import price_vanilla_swap
 
 
 def test_price_vanilla_options_batch_basic():
@@ -208,3 +211,83 @@ def test_batch_pricing_responds_to_vol_surface_changes():
 
     # Ensure that the interpolated volatility feeds directly into pricing
     assert float(price_low[0]) > 0
+def test_price_portfolio_batch_mixed_products():
+    """Mixed portfolio should route to the appropriate product engines."""
+
+    time_grid = build_time_grid(5.0, n_steps=128)
+    market_grid = build_market_data_grid_simple(
+        time_grid,
+        currencies=["USD"],
+        assets=["SPX"],
+        flat_rate=0.05,
+        flat_vol=0.20,
+    )
+
+    trade_arrays = TradeArrays(
+        spots=jnp.array([100.0, 0.0, 1.10], dtype=jnp.float32),
+        strikes=jnp.array([105.0, 0.0, 1.12], dtype=jnp.float32),
+        maturities=jnp.array([1.0, 5.0, 1.0], dtype=jnp.float32),
+        notionals=jnp.array([1e6, 5e6, 1e6], dtype=jnp.float32),
+        option_types=jnp.array([0, -1, -1], dtype=jnp.int32),
+    )
+
+    currency_mapping = IndexMapping.from_values(["USD"])
+    cp_mapping = IndexMapping.from_values(["CP1", "CP2"])
+    product_mapping = IndexMapping.from_values(
+        ["VanillaOption", "InterestRateSwap", "FXForward"]
+    )
+
+    product_parameters = (
+        {},
+        {
+            "notional": 5_000_000.0,
+            "fixed_rate": 0.05,
+            "floating_rate": 0.045,
+            "maturity": 5.0,
+            "payment_frequency": 2,
+            "discount_rate": 0.05,
+            "pay_fixed": True,
+        },
+        {
+            "spot": 1.10,
+            "forward_rate": 1.12,
+            "expiry": 1.0,
+            "domestic_rate": 0.05,
+            "foreign_rate": 0.02,
+            "notional_foreign": 1_000_000.0,
+            "is_long": True,
+        },
+    )
+
+    portfolio = PortfolioBatch(
+        trade_arrays=trade_arrays,
+        currency_idx=jnp.array([0, 0, 0], dtype=jnp.int32),
+        counterparty_idx=jnp.array([0, 1, 1], dtype=jnp.int32),
+        product_type_idx=jnp.array([0, 1, 2], dtype=jnp.int32),
+        currency_mapping=currency_mapping,
+        counterparty_mapping=cp_mapping,
+        product_type_mapping=product_mapping,
+        product_ids=("OPT-1", "IRS-1", "FXFWD-1"),
+        product_parameters=product_parameters,
+    )
+
+    prices = price_portfolio_batch(portfolio, market_grid, use_notional=True)
+    assert prices.shape == (3,)
+
+    option_portfolio = portfolio.select_trades_by_mask(jnp.array([True, False, False]))
+    expected_option = price_vanilla_options_batch(
+        option_portfolio, market_grid, use_notional=True
+    )[0]
+    expected_swap = price_vanilla_swap(**product_parameters[1])
+    expected_fx = FXForward(**product_parameters[2]).mark_to_market()
+
+    assert jnp.isclose(prices[0], expected_option, rtol=1e-5)
+    assert jnp.isclose(prices[1], expected_swap, rtol=1e-5)
+    assert jnp.isclose(prices[2], expected_fx, rtol=1e-5)
+
+    per_unit = price_portfolio_batch(portfolio, market_grid, use_notional=False)
+    assert jnp.isclose(per_unit[0], expected_option / 1e6, rtol=1e-5)
+    assert jnp.isclose(per_unit[1], expected_swap / product_parameters[1]["notional"], rtol=1e-5)
+    assert jnp.isclose(
+        per_unit[2], expected_fx / product_parameters[2]["notional_foreign"], rtol=1e-5
+    )
