@@ -41,6 +41,7 @@ from jax import Array
 
 from ..core.engine import MCConfig
 from ..core.utils.math import compute_option_payoff, discount_payoff
+from .equity_models import TimeChangedLevyParams, simulate_time_changed_levy
 
 
 # ==============================================================================
@@ -386,6 +387,18 @@ class SelfExcitingLevyParams:
         Self-excitation strength
     beta : float
         Decay rate
+
+    Notes
+    -----
+    Additional keys in ``base_levy_params`` can be used to control the
+    Hawkes coupling:
+
+    ``jump_threshold``
+        Absolute log-return threshold that marks an increment as a jump for
+        intensity feedback. Defaults to 0.02.
+    ``max_intensity_ratio``
+        Upper bound on the relative Hawkes intensity to avoid explosive
+        scaling of Lévy increments. Defaults to 5.0.
     """
 
     base_levy_params: dict
@@ -408,6 +421,10 @@ def simulate_self_exciting_levy(
 
     This combines a Lévy process with Hawkes-modulated intensity,
     creating clustering in jump activity while maintaining heavy tails.
+    The Hawkes intensity rescales the centered Lévy increments at each
+    time step, providing a time-dependent jump correction that ensures
+    the diffusion remains risk-neutral while amplifying (or damping)
+    jump variability in proportion to the current intensity.
 
     Parameters
     ----------
@@ -431,25 +448,59 @@ def simulate_self_exciting_levy(
     Array
         Simulated paths of shape [paths, steps+1]
     """
-    # Use base Lévy simulation with time-varying intensity
-    # For simplicity, modulate the Lévy process by Hawkes intensity
+    levy_type = params.levy_type.upper()
+    dtype = cfg.dtype
+    dt = T / cfg.steps
 
-    if params.levy_type == "VG":
-        from .variance_gamma import simulate_variance_gamma
+    # Simulate base Lévy paths using existing infrastructure
+    tc_params = TimeChangedLevyParams(levy_process=levy_type, levy_params=params.base_levy_params)
+    base_paths = simulate_time_changed_levy(key, S0, T, r, q, tc_params, cfg)
 
-        theta = params.base_levy_params.get("theta", -0.14)
-        sigma = params.base_levy_params.get("sigma", 0.2)
-        nu = params.base_levy_params.get("nu", 0.2)
-
-        # Generate base VG paths
-        base_paths = simulate_variance_gamma(key, S0, r - q, theta, sigma, nu, T, cfg)
-
-        # Modulate by Hawkes intensity (simplified)
-        # In full implementation, would integrate Hawkes into increments
+    # If there is no self-excitation the model reduces to the base Lévy process
+    if params.alpha == 0.0:
         return base_paths
 
-    else:
-        raise NotImplementedError(f"Lévy type '{params.levy_type}' not yet implemented")
+    decay = jnp.exp(-params.beta * dt)
+    base_log_paths = jnp.log(base_paths)
+    base_log_returns = jnp.diff(base_log_paths, axis=1)
+    base_drift = jnp.asarray((r - q) * dt, dtype=dtype)
+
+    jump_threshold = jnp.asarray(params.base_levy_params.get("jump_threshold", 0.02), dtype=dtype)
+    max_intensity_ratio = jnp.asarray(params.base_levy_params.get("max_intensity_ratio", 5.0), dtype=dtype)
+
+    adjusted_returns = []
+    for path_idx in range(base_log_returns.shape[0]):
+        path_returns = base_log_returns[path_idx]
+        intensity = jnp.asarray(params.lambda0, dtype=dtype)
+        path_adjusted = jnp.zeros_like(path_returns)
+
+        for step in range(cfg.steps):
+            ratio = jnp.clip(intensity / params.lambda0, min=0.0, max=max_intensity_ratio)
+            jump_component = path_returns[step] - base_drift
+            scaled_jump = ratio * jump_component
+            total_increment = base_drift + scaled_jump
+            path_adjusted = path_adjusted.at[step].set(total_increment)
+
+            jump_indicator = jnp.where(jnp.abs(scaled_jump) > jump_threshold, 1.0, 0.0)
+            intensity = (
+                params.lambda0
+                + (intensity - params.lambda0) * decay
+                + params.alpha * jump_indicator
+            )
+            intensity = jnp.maximum(intensity, jnp.asarray(1e-8, dtype=dtype))
+
+        adjusted_returns.append(path_adjusted)
+
+    adjusted_returns = jnp.stack(adjusted_returns, axis=0)
+
+    log_S0 = jnp.log(jnp.asarray(S0, dtype=dtype))
+    cum_returns = jnp.cumsum(adjusted_returns, axis=1)
+    log_paths = jnp.concatenate(
+        [jnp.full((adjusted_returns.shape[0], 1), log_S0, dtype=dtype), log_S0 + cum_returns],
+        axis=1,
+    )
+
+    return jnp.exp(log_paths)
 
 
 def price_vanilla_hawkes_mc(
