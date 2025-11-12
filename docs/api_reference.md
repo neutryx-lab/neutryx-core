@@ -1773,6 +1773,42 @@ response = stub.PriceEuropeanOption(request)
 print(f"Price: {response.price}")
 ```
 
+#### Exposure simulation inputs
+
+The `/portfolio/xva` endpoint supports pathwise exposure simulation for the following
+`ProductType` values. The market data payload must provide the listed keys to ensure
+successful valuation.
+
+| ProductType | Required market data |
+| --- | --- |
+| `EquityOption` | `equities.{underlying}.spot`, `equities.{underlying}.volatility`, optional `equities.{underlying}.dividend`, base currency rate under `rates.{currency}.rate` |
+| `FxOption` | `fx.{pair}.spot`, `fx.{pair}.volatility`, domestic/foreign currencies (or inferrable from the 6-letter pair), domestic and foreign rates via `fx.{pair}` or `rates.{currency}.rate` |
+| `InterestRateSwap` | `rates.{currency}.rate`, optional `rates.{currency}.volatility`, optional `rates.{currency}.discount_curve` |
+
+Example market data payload:
+
+```json
+{
+  "equities": {
+    "AAPL": {"spot": 100.0, "volatility": 0.2, "dividend": 0.01}
+  },
+  "fx": {
+    "EURUSD": {
+      "spot": 1.10,
+      "volatility": 0.15,
+      "domestic_currency": "USD",
+      "foreign_currency": "EUR"
+    }
+  },
+  "rates": {
+    "USD": {"rate": 0.03, "volatility": 0.01}
+  }
+}
+```
+
+Any missing spot, volatility or rate inputs trigger `400` validation errors to make the
+required data explicit.
+
 ---
 
 ## Utilities and Helpers
