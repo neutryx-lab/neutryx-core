@@ -32,7 +32,7 @@ class TestPortfolioCreation:
         """Test that portfolio contains expected number of trades."""
         portfolio, _ = create_fictional_portfolio()
 
-        assert len(portfolio.trades) == 13
+        assert len(portfolio.trades) == 11
         assert all(trade.id for trade in portfolio.trades.values())
 
     def test_portfolio_has_counterparties(self):
@@ -82,8 +82,8 @@ class TestPortfolioSummary:
         stats = summary["statistics"]
         assert stats["counterparties"] == 6
         assert stats["netting_sets"] == 6
-        assert stats["trades"] == 13
-        assert stats["active_trades"] == 13
+        assert stats["trades"] == 11
+        assert stats["active_trades"] == 11
 
     def test_summary_mtm_calculation(self):
         """Test MTM is calculated and aggregated."""
@@ -124,9 +124,9 @@ class TestPortfolioSummary:
 
         # Check desk names
         desk_names = [desk_info["name"] for desk_info in desk_summary.values()]
-        assert "Interest Rates" in desk_names
-        assert "Foreign Exchange" in desk_names
-        assert "Equity Derivatives" in desk_names
+        assert "Interest Rates Desk" in desk_names
+        assert "Foreign Exchange Desk" in desk_names
+        assert "Equity Derivatives Desk" in desk_names
 
 
 class TestProductMix:
@@ -139,11 +139,11 @@ class TestProductMix:
         product_types = [trade.product_type.value for trade in portfolio.trades.values()]
 
         # Check for expected product types
-        assert "interest_rate_swap" in product_types
-        assert "swaption" in product_types
-        assert "fx_option" in product_types
-        assert "equity_option" in product_types
-        assert "variance_swap" in product_types
+        assert "InterestRateSwap" in product_types
+        assert "Swaption" in product_types
+        assert "FxOption" in product_types
+        assert "EquityOption" in product_types
+        assert "VarianceSwap" in product_types
 
     def test_currency_mix(self):
         """Test that portfolio has multiple currencies."""

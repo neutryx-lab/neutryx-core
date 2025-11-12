@@ -66,7 +66,7 @@ The fictional portfolio represents a realistic trading desk with:
 - 67% CSA coverage (4 of 6 counterparties)
 
 **Trade Mix:**
-- 13 trades across 3 asset classes
+- 11 trades across 3 asset classes
 - Interest Rates: IRS, Swaptions
 - FX: Options on major and EM pairs
 - Equity: Vanilla and exotic options, variance swaps

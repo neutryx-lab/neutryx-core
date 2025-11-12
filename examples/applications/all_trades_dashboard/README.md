@@ -109,7 +109,7 @@ python examples/applications/all_trades_dashboard/app.py
 Gradio will print a `http://127.0.0.1:7860` link in the console. Open it in a browser to interact with the dashboard.
 
 The dashboard will automatically:
-1. Load the Fictional Bank portfolio with 13 trades across 6 counterparties
+1. Load the Fictional Bank portfolio with 11 trades across 6 counterparties
 2. Calculate initial PV and Greeks for all positions
 3. Display key metrics and risk indicators
 4. Begin auto-refreshing every 5 seconds
@@ -145,7 +145,7 @@ The dashboard will automatically:
 
 The dashboard uses a comprehensive test portfolio created by `create_fictional_portfolio()` with:
 
-- **13 trades** across multiple asset classes
+- **11 trades** across multiple asset classes
 - **6 counterparties** with diverse credit ratings
 - **3 trading desks**: Rates, FX, Equity
 - **Product types**:

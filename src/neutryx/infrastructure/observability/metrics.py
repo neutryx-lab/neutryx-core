@@ -7,7 +7,50 @@ from dataclasses import dataclass
 from typing import Callable, Dict, Mapping, Optional
 
 from fastapi import HTTPException, Response
-from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, REGISTRY, generate_latest
+
+try:  # pragma: no cover - exercised indirectly in tests
+    from prometheus_client import (
+        CONTENT_TYPE_LATEST,
+        Counter,
+        Histogram,
+        REGISTRY,
+        generate_latest,
+    )
+    PROMETHEUS_AVAILABLE = True
+except ImportError:  # pragma: no cover - optional dependency
+    PROMETHEUS_AVAILABLE = False
+
+    CONTENT_TYPE_LATEST = "text/plain; version=0.0.4; charset=utf-8"
+
+    class _NoOpCollector:
+        """Fallback collector used when prometheus-client is unavailable."""
+
+        def __init__(self, *args, **kwargs) -> None:
+            self._samples = {}
+
+        def labels(self, *args, **kwargs):
+            return self
+
+        def observe(self, *args, **kwargs) -> None:  # pragma: no cover - noop
+            return None
+
+        def inc(self, *args, **kwargs) -> None:  # pragma: no cover - noop
+            return None
+
+    class Counter(_NoOpCollector):
+        pass
+
+    class Histogram(_NoOpCollector):
+        pass
+
+    class _NoOpRegistry:
+        def __init__(self) -> None:
+            self._names_to_collectors: Dict[str, _NoOpCollector] = {}
+
+    REGISTRY = _NoOpRegistry()
+
+    def generate_latest(registry=None) -> bytes:  # pragma: no cover - noop
+        return b""
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import Response as StarletteResponse
@@ -34,16 +77,27 @@ def _reusable_counter(
     labelnames: tuple[str, ...],
 ):
     metric_id = _metric_name(namespace, subsystem, name)
-    existing = REGISTRY._names_to_collectors.get(metric_id)  # type: ignore[attr-defined]
-    if existing is not None:
-        return existing
-    return Counter(
+    names_to_collectors = getattr(REGISTRY, "_names_to_collectors", None)
+    if isinstance(names_to_collectors, dict):
+        existing = names_to_collectors.get(metric_id)
+        if existing is not None:
+            return existing
+    existing = getattr(REGISTRY, "_names_to_collectors", None)
+    if existing is not None and hasattr(existing, "get"):
+        collector = existing.get(metric_id)
+        if collector is not None:
+            return collector
+
+    counter = Counter(
         name,
         documentation,
         namespace=namespace,
         subsystem=subsystem,
         labelnames=labelnames,
     )
+    if isinstance(names_to_collectors, dict):
+        names_to_collectors[metric_id] = counter
+    return counter
 
 
 def _reusable_histogram(
@@ -56,10 +110,18 @@ def _reusable_histogram(
     buckets: tuple[float, ...],
 ):
     metric_id = _metric_name(namespace, subsystem, name)
-    existing = REGISTRY._names_to_collectors.get(metric_id)  # type: ignore[attr-defined]
-    if existing is not None:
-        return existing
-    return Histogram(
+    names_to_collectors = getattr(REGISTRY, "_names_to_collectors", None)
+    if isinstance(names_to_collectors, dict):
+        existing = names_to_collectors.get(metric_id)
+        if existing is not None:
+            return existing
+    existing = getattr(REGISTRY, "_names_to_collectors", None)
+    if existing is not None and hasattr(existing, "get"):
+        collector = existing.get(metric_id)
+        if collector is not None:
+            return collector
+
+    histogram = Histogram(
         name,
         documentation,
         namespace=namespace,
@@ -67,6 +129,9 @@ def _reusable_histogram(
         labelnames=labelnames,
         buckets=buckets,
     )
+    if isinstance(names_to_collectors, dict):
+        names_to_collectors[metric_id] = histogram
+    return histogram
 
 
 def _safe_route_name(route: Optional[str]) -> str:
@@ -140,7 +205,7 @@ class MetricsRecorder:
         alert_manager: Optional[BaseAlertManager] = None,
     ):
         self.config = config
-        self.enabled = config.enabled
+        self.enabled = config.enabled and PROMETHEUS_AVAILABLE
         self._alert_manager = alert_manager or NullAlertManager()
 
         if not self.enabled:
