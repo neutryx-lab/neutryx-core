@@ -355,7 +355,79 @@ class MT543(MTMessage):
     @classmethod
     def from_swift(cls, swift_text: str) -> MT543:
         """Parse MT543 from text."""
-        raise NotImplementedError("MT543 parsing not yet implemented")
+        sender_bic = "UNKNOWN"
+        receiver_bic = "UNKNOWN"
+        fields: Dict[str, Any] = {}
+
+        for line in swift_text.splitlines():
+            if line.startswith("{1:") and len(line) > 17:
+                sender_bic = line[6:17]
+            elif line.startswith("{2:"):
+                receiver_match = re.search(r"([A-Z0-9]{11})0000000000}\Z", line)
+                if receiver_match:
+                    receiver_bic = receiver_match.group(1)
+            elif line.startswith(":"):
+                tag, value = cls._parse_field(line)
+
+                try:
+                    if tag == "20":
+                        fields["sender_reference"] = value
+                    elif tag == "30":
+                        fields["trade_date"] = datetime.strptime(value, "%Y%m%d").date()
+                    elif tag == "98A" and "//" in value:
+                        _, date_str = value.split("//", 1)
+                        fields["settlement_date"] = datetime.strptime(date_str, "%Y%m%d").date()
+                    elif tag == "35B":
+                        isin_match = re.search(r"ISIN ([A-Z0-9]{12})", value)
+                        if not isin_match:
+                            raise SwiftValidationError("Invalid ISIN field in MT543")
+                        fields["isin"] = isin_match.group(1)
+                    elif tag == "36B":
+                        qty_match = re.search(r"([0-9]+(?:\.[0-9]+)?)", value)
+                        if not qty_match:
+                            raise SwiftValidationError("Invalid quantity field in MT543")
+                        fields["quantity"] = Decimal(qty_match.group(1))
+                    elif tag == "19A":
+                        amount_match = re.search(r"([A-Z]{3})([0-9]+(?:\.[0-9]+)?)", value)
+                        if not amount_match:
+                            raise SwiftValidationError("Invalid amount field in MT543")
+                        fields["settlement_currency"] = amount_match.group(1)
+                        fields["settlement_amount"] = Decimal(amount_match.group(2))
+                    elif tag == "95P":
+                        if "//" not in value:
+                            raise SwiftValidationError("Invalid account owner field in MT543")
+                        fields["account_owner"] = value.split("//", 1)[1]
+                    elif tag == "97A":
+                        if "//" not in value:
+                            raise SwiftValidationError("Invalid safekeeping account field in MT543")
+                        fields["safekeeping_account"] = value.split("//", 1)[1]
+                    elif tag == "53A":
+                        fields["place_of_settlement"] = value[2:] if value.startswith("//") else value
+                except ValueError as exc:
+                    raise SwiftValidationError(str(exc)) from exc
+
+        required_fields = {
+            "sender_reference",
+            "trade_date",
+            "settlement_date",
+            "isin",
+            "quantity",
+            "settlement_amount",
+            "settlement_currency",
+            "account_owner",
+            "safekeeping_account",
+            "place_of_settlement",
+        }
+
+        missing = [field for field in required_fields if field not in fields]
+        if missing:
+            raise SwiftValidationError(f"Missing required MT543 fields: {', '.join(missing)}")
+
+        fields.setdefault("message_ref", fields["sender_reference"])
+        fields.setdefault("sender_bic", sender_bic)
+        fields.setdefault("receiver_bic", receiver_bic)
+
+        return cls(**fields)
 
     def validate(self) -> bool:
         """Validate MT543."""
@@ -380,6 +452,12 @@ class MT544(MTMessage):
     isin: str = Field(..., description="ISIN code")
     quantity: Decimal = Field(..., description="Settled quantity")
     status: str = Field(..., description="Settlement status")
+    settlement_amount: Optional[Decimal] = Field(
+        None, description="Settlement amount for receipt against payment"
+    )
+    settlement_currency: Optional[str] = Field(
+        None, description="Settlement currency for receipt against payment"
+    )
 
     def to_swift(self) -> str:
         """Convert to MT544 format."""
@@ -392,20 +470,94 @@ class MT544(MTMessage):
             self._format_field("98A", ":SETT//" + self.settlement_date.strftime("%Y%m%d")),
             self._format_field("35B", "ISIN " + self.isin),
             self._format_field("36B", f":SETT//{float(self.quantity):.2f}"),
-            self._format_field("25D", ":MTCH//" + self.status),
-            "-}",
         ]
+
+        if self.settlement_amount is not None and self.settlement_currency is not None:
+            lines.append(
+                self._format_field(
+                    "19A",
+                    f":SETT//{self.settlement_currency}{float(self.settlement_amount):.2f}",
+                )
+            )
+
+        lines.append(self._format_field("25D", ":MTCH//" + self.status))
+        lines.append("-}")
+
         return "\n".join(lines)
 
     @classmethod
     def from_swift(cls, swift_text: str) -> MT544:
         """Parse MT544 from text."""
-        raise NotImplementedError("MT544 parsing not yet implemented")
+        sender_bic = "UNKNOWN"
+        receiver_bic = "UNKNOWN"
+        fields: Dict[str, Any] = {}
+
+        for line in swift_text.splitlines():
+            if line.startswith("{1:") and len(line) > 17:
+                sender_bic = line[6:17]
+            elif line.startswith("{2:"):
+                receiver_match = re.search(r"([A-Z0-9]{11})0000000000}\Z", line)
+                if receiver_match:
+                    receiver_bic = receiver_match.group(1)
+            elif line.startswith(":"):
+                tag, value = cls._parse_field(line)
+
+                if tag == "20":
+                    fields["sender_reference"] = value
+                elif tag == "21":
+                    fields["related_reference"] = value
+                elif tag == "98A" and "//" in value:
+                    _, date_str = value.split("//", 1)
+                    try:
+                        fields["settlement_date"] = datetime.strptime(date_str, "%Y%m%d").date()
+                    except ValueError as exc:
+                        raise SwiftValidationError("Invalid settlement date in MT544") from exc
+                elif tag == "35B":
+                    isin_match = re.search(r"ISIN ([A-Z0-9]{12})", value)
+                    if not isin_match:
+                        raise SwiftValidationError("Invalid ISIN field in MT544")
+                    fields["isin"] = isin_match.group(1)
+                elif tag == "36B":
+                    qty_match = re.search(r"([0-9]+(?:\.[0-9]+)?)", value)
+                    if not qty_match:
+                        raise SwiftValidationError("Invalid quantity field in MT544")
+                    fields["quantity"] = Decimal(qty_match.group(1))
+                elif tag == "19A":
+                    amount_match = re.search(r"([A-Z]{3})([0-9]+(?:\.[0-9]+)?)", value)
+                    if not amount_match:
+                        raise SwiftValidationError("Invalid amount field in MT544")
+                    fields["settlement_currency"] = amount_match.group(1)
+                    fields["settlement_amount"] = Decimal(amount_match.group(2))
+                elif tag == "25D":
+                    if "//" not in value:
+                        raise SwiftValidationError("Invalid status field in MT544")
+                    fields["status"] = value.split("//", 1)[1]
+
+        required_fields = {
+            "sender_reference",
+            "related_reference",
+            "settlement_date",
+            "isin",
+            "quantity",
+            "status",
+        }
+
+        missing = [field for field in required_fields if field not in fields]
+        if missing:
+            raise SwiftValidationError(f"Missing required MT544 fields: {', '.join(missing)}")
+
+        fields.setdefault("message_ref", fields["sender_reference"])
+        fields.setdefault("sender_bic", sender_bic)
+        fields.setdefault("receiver_bic", receiver_bic)
+
+        return cls(**fields)
 
     def validate(self) -> bool:
         """Validate MT544."""
         if self.quantity <= 0:
             raise SwiftValidationError("Quantity must be positive")
+        if self.settlement_amount is not None and self.settlement_amount <= 0:
+            raise SwiftValidationError("Settlement amount must be positive")
         return True
 
 

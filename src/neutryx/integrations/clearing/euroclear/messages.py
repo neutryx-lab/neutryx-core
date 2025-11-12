@@ -10,6 +10,8 @@ from typing import Optional
 from pydantic import BaseModel, Field, field_validator
 import re
 
+from ..swift.base import SwiftValidationError
+
 
 class SettlementType(str, Enum):
     """Settlement type for securities transactions."""
@@ -108,7 +110,7 @@ class EuroclearSettlementInstruction(BaseModel):
         Returns:
             MT540 formatted message
         """
-        from ..swift.mt import MT540
+        from ..swift.mt import MT540, MT543, MT544
 
         # For receive free instructions
         if self.settlement_type in (SettlementType.RFP, SettlementType.FOP):
@@ -128,6 +130,50 @@ class EuroclearSettlementInstruction(BaseModel):
                 delivery_agent=self.delivering_party,
             )
             return mt540.to_swift()
+
+        if self.settlement_type == SettlementType.DVP:
+            self.validate_dvp_fields()
+
+            if self.settlement_amount is None or self.settlement_currency is None:
+                raise SwiftValidationError("DVP instruction missing settlement amount or currency")
+
+            mt543 = MT543(
+                sender_bic=self.participant_bic,
+                receiver_bic="MGTCBEBEECL",
+                message_ref=self.instruction_id,
+                sender_reference=self.sender_reference,
+                trade_date=self.trade_date,
+                settlement_date=self.settlement_date,
+                isin=self.isin,
+                quantity=self.quantity,
+                settlement_amount=self.settlement_amount,
+                settlement_currency=self.settlement_currency,
+                account_owner=self.delivering_party,
+                safekeeping_account=self.safekeeping_account or "DEFAULT",
+                place_of_settlement=self.place_of_settlement,
+            )
+            return mt543.to_swift()
+
+        if self.settlement_type == SettlementType.RVP:
+            self.validate_dvp_fields()
+
+            if self.settlement_amount is None or self.settlement_currency is None:
+                raise SwiftValidationError("RVP instruction missing settlement amount or currency")
+
+            mt544 = MT544(
+                sender_bic=self.participant_bic,
+                receiver_bic="MGTCBEBEECL",
+                message_ref=self.instruction_id,
+                sender_reference=self.sender_reference,
+                related_reference=self.linked_reference or self.instruction_id,
+                settlement_date=self.settlement_date,
+                isin=self.isin,
+                quantity=self.quantity,
+                status=self.status.value.upper(),
+                settlement_amount=self.settlement_amount,
+                settlement_currency=self.settlement_currency,
+            )
+            return mt544.to_swift()
 
         raise NotImplementedError(f"MT message generation for {self.settlement_type} not yet implemented")
 
