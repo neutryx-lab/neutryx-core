@@ -22,14 +22,11 @@ security = HTTPBearer()
 # In-memory user storage (for demo purposes)
 # In production, this would be a database
 _user_store: dict[str, User] = {}
-_username_index: dict[str, str] = {}
+_user_store_by_username: dict[str, str] = {}
+_credentials_store: dict[str, str] = {}
 
 
-# Password hashing context for local users
-_pwd_context = CryptContext(
-    schemes=["pbkdf2_sha256"],
-    deprecated="auto",
-)
+_password_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
 # RBAC manager (should be injected from app state in production)
@@ -58,6 +55,15 @@ def get_user_from_store(user_id: str) -> Optional[User]:
     return _user_store.get(user_id)
 
 
+def get_user_by_username(username: str) -> Optional[User]:
+    """Get user from in-memory store by username."""
+
+    user_id = _user_store_by_username.get(username)
+    if not user_id:
+        return None
+    return _user_store.get(user_id)
+
+
 def add_user_to_store(user: User):
     """Add user to in-memory store.
 
@@ -65,47 +71,31 @@ def add_user_to_store(user: User):
         user: User object
     """
     _user_store[user.user_id] = user
-    _username_index[user.username] = user.user_id
+    _user_store_by_username[user.username] = user.user_id
 
 
-def register_local_user(user: User, password: str) -> User:
-    """Register a local user with a plaintext password.
+def register_local_user(user: User, password: str) -> None:
+    """Register a local user with hashed credentials."""
 
-    Args:
-        user: User object to register
-        password: Plaintext password to hash and store
-
-    Returns:
-        The stored user with hashed password populated
-    """
-
-    user.hashed_password = _pwd_context.hash(password)
     add_user_to_store(user)
-    return user
+    hashed_password = _password_context.hash(password)
+    _credentials_store[user.username] = hashed_password
 
 
-def get_user_by_username(username: str) -> Optional[User]:
-    """Look up a user by username from the in-memory store."""
+def authenticate_local_user(username: str, password: str) -> Optional[User]:
+    """Authenticate a local user against the credential store."""
 
-    user_id = _username_index.get(username)
-    if not user_id:
+    hashed_password = _credentials_store.get(username)
+    if not hashed_password:
         return None
-    return get_user_from_store(user_id)
 
+    try:
+        if not _password_context.verify(password, hashed_password):
+            return None
+    except ValueError:
+        return None
 
-def verify_local_user_password(user: User, password: str) -> bool:
-    """Verify a plaintext password against the stored hash for a user."""
-
-    if not user.hashed_password:
-        return False
-    return _pwd_context.verify(password, user.hashed_password)
-
-
-def clear_user_store():
-    """Clear in-memory user storage (primarily for testing)."""
-
-    _user_store.clear()
-    _username_index.clear()
+    return get_user_by_username(username)
 
 
 async def get_current_user(
@@ -291,9 +281,8 @@ __all__ = [
     "require_tenant",
     "set_rbac_manager",
     "get_user_from_store",
+    "get_user_by_username",
     "add_user_to_store",
     "register_local_user",
-    "verify_local_user_password",
-    "get_user_by_username",
-    "clear_user_store",
+    "authenticate_local_user",
 ]

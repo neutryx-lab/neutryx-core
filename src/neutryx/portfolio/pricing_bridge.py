@@ -10,14 +10,16 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import date
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 import jax
 import jax.numpy as jnp
 
-from neutryx.api.rest import VanillaOptionRequest
 from neutryx.portfolio.contracts.trade import ProductType, Trade
 from neutryx.core.engine import MCConfig, price_vanilla_mc
+from neutryx.products.credit_derivatives import CreditDefaultSwap
+from neutryx.products.equity import equity_forward_value, variance_swap_value
+from neutryx.products.swaptions import european_swaption_black
 
 
 @dataclass
@@ -83,6 +85,27 @@ class PricingBridge:
         self.mc_config = mc_config or MCConfig(steps=252, paths=100_000)
         self.seed = seed
         self._key = jax.random.PRNGKey(seed)
+        self._pricers: Dict[ProductType, Callable[[Trade, MarketData], float]] = {}
+
+        # Register default pricing handlers
+        self.register_pricer(ProductType.EQUITY_OPTION, self._price_equity_option)
+        self.register_pricer(ProductType.FX_OPTION, self._price_fx_option)
+        self.register_pricer(
+            ProductType.INTEREST_RATE_SWAP, self._price_interest_rate_swap
+        )
+        self.register_pricer(ProductType.FORWARD, self._price_forward)
+        self.register_pricer(ProductType.SWAPTION, self._price_swaption)
+        self.register_pricer(ProductType.VARIANCE_SWAP, self._price_variance_swap)
+        self.register_pricer(
+            ProductType.CREDIT_DEFAULT_SWAP, self._price_credit_default_swap
+        )
+
+    def register_pricer(
+        self, product_type: ProductType, pricer: Callable[[Trade, MarketData], float]
+    ) -> None:
+        """Register a pricing handler for a given product type."""
+
+        self._pricers[product_type] = pricer
 
     def price_trade(self, trade: Trade, market_data: MarketData) -> PricingResult:
         """Price a single trade.
@@ -95,13 +118,8 @@ class PricingBridge:
             Pricing result
         """
         try:
-            if trade.product_type == ProductType.EQUITY_OPTION:
-                price = self._price_equity_option(trade, market_data)
-            elif trade.product_type == ProductType.FX_OPTION:
-                price = self._price_fx_option(trade, market_data)
-            elif trade.product_type == ProductType.INTEREST_RATE_SWAP:
-                price = self._price_interest_rate_swap(trade, market_data)
-            else:
+            pricer = self._pricers.get(trade.product_type)
+            if pricer is None:
                 return PricingResult(
                     trade_id=trade.id,
                     price=0.0,
@@ -109,6 +127,8 @@ class PricingBridge:
                     success=False,
                     error_message=f"Unsupported product type: {trade.product_type}",
                 )
+
+            price = pricer(trade, market_data)
 
             return PricingResult(
                 trade_id=trade.id,
@@ -264,6 +284,202 @@ class PricingBridge:
         )
 
         return float(value)
+
+    def _price_forward(self, trade: Trade, market_data: MarketData) -> float:
+        """Price a forward contract using equity forward valuation."""
+
+        if not trade.product_details:
+            raise ValueError("Missing product_details for forward")
+
+        details = trade.product_details
+        underlying = details.get("underlying")
+        strike = details.get("strike")
+        position = details.get("position", "long")
+
+        if not underlying or strike is None:
+            raise ValueError("Missing underlying or strike for forward")
+
+        if not trade.maturity_date:
+            raise ValueError("Missing maturity_date")
+
+        maturity = self._time_to_maturity(trade.maturity_date, market_data.pricing_date)
+        if maturity < 0:
+            maturity = 0.0
+
+        spot = details.get("spot") or market_data.spot_prices.get(underlying)
+        if spot is None:
+            raise ValueError(f"Missing spot price for {underlying}")
+
+        currency = trade.currency or details.get("currency", "USD")
+        risk_free_rate = details.get(
+            "risk_free_rate", market_data.interest_rates.get(currency, 0.0)
+        )
+        dividend_yield = details.get(
+            "dividend_yield", market_data.dividend_yields.get(underlying, 0.0)
+        )
+
+        value = equity_forward_value(
+            spot,
+            strike,
+            maturity,
+            risk_free_rate,
+            dividend_yield,
+            position=position,
+        )
+
+        return float(value)
+
+    def _price_swaption(self, trade: Trade, market_data: MarketData) -> float:
+        """Price a European swaption using Black's model."""
+
+        if not trade.product_details:
+            raise ValueError("Missing product_details for swaption")
+
+        details = trade.product_details
+        strike = details.get("strike")
+        volatility = details.get("volatility")
+        swap_maturity = details.get("swap_maturity")
+        payment_frequency = details.get("payment_frequency", 2)
+        is_payer = details.get("is_payer", True)
+
+        if strike is None or volatility is None or swap_maturity is None:
+            raise ValueError("Missing strike, volatility, or swap_maturity for swaption")
+
+        if not trade.maturity_date:
+            raise ValueError("Missing maturity_date for swaption option expiry")
+
+        option_maturity = self._time_to_maturity(
+            trade.maturity_date, market_data.pricing_date
+        )
+        if option_maturity < 0:
+            option_maturity = 0.0
+
+        notional = details.get("notional", trade.notional)
+        if notional is None:
+            raise ValueError("Missing notional for swaption")
+
+        currency = trade.currency or details.get("currency", "USD")
+        discount_rate = details.get(
+            "discount_rate", market_data.interest_rates.get(currency, 0.03)
+        )
+
+        price = european_swaption_black(
+            strike=strike,
+            option_maturity=option_maturity,
+            swap_maturity=swap_maturity,
+            volatility=volatility,
+            discount_rate=discount_rate,
+            notional=notional,
+            payment_frequency=payment_frequency,
+            is_payer=is_payer,
+        )
+
+        return float(price)
+
+    def _price_variance_swap(self, trade: Trade, market_data: MarketData) -> float:
+        """Price a variance swap using expected and realized variance."""
+
+        if not trade.product_details:
+            raise ValueError("Missing product_details for variance swap")
+
+        details = trade.product_details
+        strike = details.get("strike")
+        realized_variance = details.get("realized_variance")
+        expected_variance = details.get("expected_variance")
+        underlying = details.get("underlying")
+
+        if strike is None or realized_variance is None:
+            raise ValueError("Missing strike or realized_variance for variance swap")
+
+        if expected_variance is None:
+            if not underlying:
+                raise ValueError(
+                    "Missing expected_variance and underlying to derive variance"
+                )
+            vol = market_data.volatilities.get(underlying)
+            if vol is None:
+                raise ValueError(f"Missing volatility for {underlying}")
+            expected_variance = float(vol**2)
+
+        if not trade.maturity_date:
+            raise ValueError("Missing maturity_date for variance swap")
+
+        maturity = self._time_to_maturity(trade.maturity_date, market_data.pricing_date)
+        if maturity < 0:
+            maturity = 0.0
+
+        notional = details.get("variance_notional", trade.notional)
+        if notional is None:
+            raise ValueError("Missing variance notional")
+
+        currency = trade.currency or details.get("currency", "USD")
+        discount_rate = details.get(
+            "discount_rate", market_data.interest_rates.get(currency, 0.0)
+        )
+        discount_factor = float(jnp.exp(-discount_rate * maturity))
+
+        price = variance_swap_value(
+            notional=notional,
+            strike=strike,
+            realized_variance=realized_variance,
+            expected_variance=expected_variance,
+            discount_factor=discount_factor,
+        )
+
+        return float(price)
+
+    def _price_credit_default_swap(
+        self, trade: Trade, market_data: MarketData
+    ) -> float:
+        """Price a single-name credit default swap."""
+
+        if not trade.product_details:
+            raise ValueError("Missing product_details for credit default swap")
+
+        details = trade.product_details
+        spread = details.get("spread")
+        hazard_rate = details.get("hazard_rate")
+        recovery_rate = details.get("recovery_rate", 0.4)
+        coupon_freq = details.get("coupon_frequency", 4)
+        upfront_payment = details.get("upfront_payment", 0.0)
+
+        if spread is None or hazard_rate is None:
+            raise ValueError("Missing spread or hazard_rate for credit default swap")
+
+        if trade.notional is None:
+            raise ValueError("Missing notional for credit default swap")
+
+        if not trade.maturity_date:
+            raise ValueError("Missing maturity_date for credit default swap")
+
+        maturity = self._time_to_maturity(trade.maturity_date, market_data.pricing_date)
+        if maturity < 0:
+            maturity = 0.0
+
+        currency = trade.currency or details.get("currency", "USD")
+        discount_rate = details.get(
+            "discount_rate", market_data.interest_rates.get(currency, 0.0)
+        )
+
+        cds = CreditDefaultSwap(
+            T=maturity,
+            notional=trade.notional,
+            spread=spread,
+            recovery_rate=recovery_rate,
+            coupon_freq=coupon_freq,
+            upfront_payment=upfront_payment,
+        )
+
+        protection = cds.protection_leg_pv(hazard_rate, discount_rate)
+        premium = cds.premium_leg_pv(hazard_rate, discount_rate)
+
+        return float(protection - premium - upfront_payment)
+
+    @staticmethod
+    def _time_to_maturity(maturity_date: date, pricing_date: date) -> float:
+        """Compute time to maturity in years (ACT/365)."""
+
+        return (maturity_date - pricing_date).days / 365.0
 
     def price_portfolio(
         self, trades: List[Trade], market_data: MarketData, update_mtm: bool = True

@@ -85,6 +85,14 @@ class HazardRateCurve:
 
         return float(jnp.exp(-integral))
 
+    def value(self, t: float) -> float:
+        """Alias for survival probability for Curve protocol compatibility."""
+
+        return self.survival_probability(t)
+
+    def __call__(self, t: float) -> float:
+        return self.value(t)
+
     def default_probability(self, t: float) -> float:
         """Compute cumulative default probability P(default by time t).
 

@@ -110,6 +110,17 @@ class DiscountCurve(Curve, Protocol):
 
 
 @runtime_checkable
+class CreditCurve(Curve, Protocol):
+    """Protocol for credit term structures supporting survival probabilities."""
+
+    def survival_probability(self, t: float | Array) -> float | Array:
+        r"""Return survival probability :math:`P(\tau > t)`."""
+
+    def default_probability(self, t: float | Array) -> float | Array:
+        r"""Return cumulative default probability :math:`P(\tau \le t)`."""
+
+
+@runtime_checkable
 class Surface(Protocol):
     """
     Abstract protocol for 2D surfaces (e.g., volatility surfaces).

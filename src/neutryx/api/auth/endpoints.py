@@ -12,8 +12,7 @@ from .dependencies import (
     get_current_active_user,
     get_current_user,
     add_user_to_store,
-    get_user_by_username,
-    verify_local_user_password,
+    authenticate_local_user,
 )
 from .jwt_handler import JWTHandler
 from .models import (
@@ -66,12 +65,12 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()) -> Token:
 
     Returns access token for subsequent API calls.
     """
-    # Support MFA code appended to password as password:mfa_code
+    # Separate MFA code if provided in password field
     raw_password = form_data.password
     password = raw_password
-    mfa_code: Optional[str] = None
+    provided_mfa = None
     if ":" in raw_password:
-        password, mfa_code = raw_password.rsplit(":", 1)
+        password, provided_mfa = raw_password.rsplit(":", 1)
 
     # Try LDAP authentication first if configured
     user = None
@@ -80,6 +79,10 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()) -> Token:
             user = _ldap_handler.authenticate_user(form_data.username, password)
         except Exception:
             user = None  # Fall through to local auth
+
+    # Local authentication fallback using credential store
+    if not user:
+        user = authenticate_local_user(form_data.username, password)
 
     # Local authentication fallback (for demo - in production use proper user db)
     if not user:
@@ -98,13 +101,13 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()) -> Token:
     if user.mfa_enabled:
         # In a real implementation, this would be a two-step process
         # For now, we'll require MFA code in the password field format: password:mfa_code
-        if not mfa_code:
+        if provided_mfa is None:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="MFA code required. Format: password:mfa_code",
             )
 
-        if not await _mfa_handler.verify_mfa(user, mfa_code):
+        if not await _mfa_handler.verify_mfa(user, provided_mfa):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid MFA code",

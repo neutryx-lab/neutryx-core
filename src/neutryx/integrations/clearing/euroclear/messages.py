@@ -104,13 +104,39 @@ class EuroclearSettlementInstruction(BaseModel):
                 raise ValueError(f"{self.settlement_type} requires settlement amount and currency")
         return True
 
+    def validate_dfp_fields(self) -> bool:
+        """Validate that DFP instructions do not include payment details and have valid status."""
+        if self.settlement_type != SettlementType.DFP:
+            return True
+
+        if self.settlement_amount is not None and self.settlement_amount != Decimal("0"):
+            raise SwiftValidationError("DFP instruction must not include settlement amount")
+
+        if self.settlement_currency:
+            raise SwiftValidationError("DFP instruction must not include settlement currency")
+
+        if self.payment_bank_bic:
+            raise SwiftValidationError("DFP instruction must not include payment bank BIC")
+
+        allowed_statuses = {
+            SettlementStatus.PENDING,
+            SettlementStatus.MATCHED,
+            SettlementStatus.AFFIRMED,
+        }
+        if self.status not in allowed_statuses:
+            raise SwiftValidationError(
+                f"DFP instruction status must be one of {[s.value for s in allowed_statuses]}"
+            )
+
+        return True
+
     def to_mt540(self) -> str:
         """Convert to SWIFT MT540 format for Euroclear.
 
         Returns:
             MT540 formatted message
         """
-        from ..swift.mt import MT540, MT543, MT544
+        from ..swift.mt import MT540, MT542, MT543, MT544
 
         # For receive free instructions
         if self.settlement_type in (SettlementType.RFP, SettlementType.FOP):
@@ -130,6 +156,26 @@ class EuroclearSettlementInstruction(BaseModel):
                 delivery_agent=self.delivering_party,
             )
             return mt540.to_swift()
+
+        if self.settlement_type == SettlementType.DFP:
+            self.validate_dfp_fields()
+
+            mt542 = MT542(
+                sender_bic=self.participant_bic,
+                receiver_bic="MGTCBEBEECL",
+                message_ref=self.instruction_id,
+                sender_reference=self.sender_reference,
+                trade_date=self.trade_date,
+                settlement_date=self.settlement_date,
+                isin=self.isin,
+                quantity=self.quantity,
+                security_description=self.security_name,
+                account_owner=self.delivering_party,
+                safekeeping_account=self.safekeeping_account or "DEFAULT",
+                place_of_settlement=self.place_of_settlement,
+                receiving_agent=self.receiving_party,
+            )
+            return mt542.to_swift()
 
         if self.settlement_type == SettlementType.DVP:
             self.validate_dvp_fields()

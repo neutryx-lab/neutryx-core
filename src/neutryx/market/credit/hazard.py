@@ -50,6 +50,21 @@ class HazardRateCurve:
         ends = self.maturities
         return starts, ends
 
+    def value(self, t: ArrayLike) -> ArrayLike:
+        """Return hazard intensity λ(t) using piecewise-constant interpolation."""
+
+        t_arr = jnp.asarray(t)
+        return jnp.interp(
+            t_arr,
+            self.maturities,
+            self.intensities,
+            left=float(self.intensities[0]),
+            right=float(self.intensities[-1]),
+        )
+
+    def __call__(self, t: ArrayLike) -> ArrayLike:
+        return self.value(t)
+
     def integrated_hazard(self, t: ArrayLike) -> ArrayLike:
         r"""Compute the integrated hazard :math:`\int_0^t \lambda(s) ds`.
 
@@ -87,6 +102,55 @@ class HazardRateCurve:
 
         intensities = self.intensities.at[index].set(value)
         return HazardRateCurve(self.maturities, intensities)
+
+
+@dataclass
+class SurvivalProbabilityCurve:
+    """Piecewise-defined survival probability curve."""
+
+    maturities: ArrayLike
+    survival_probabilities: ArrayLike
+
+    def __post_init__(self) -> None:
+        maturities = jnp.asarray(self.maturities)
+        surv = jnp.asarray(self.survival_probabilities)
+
+        if maturities.ndim != 1:
+            raise ValueError("Maturities must be a 1D array.")
+        if surv.ndim != 1:
+            raise ValueError("Survival probabilities must be a 1D array.")
+        if maturities.shape[0] != surv.shape[0]:
+            raise ValueError("Maturities and survival probabilities must have the same length.")
+        if maturities.shape[0] == 0:
+            raise ValueError("At least one maturity is required.")
+        if not bool(jnp.all(maturities[1:] >= maturities[:-1])):
+            raise ValueError("Maturities must be non-decreasing.")
+        if not bool(jnp.all((surv >= 0.0) & (surv <= 1.0))):
+            raise ValueError("Survival probabilities must be between 0 and 1.")
+        if not bool(jnp.all(surv[1:] <= surv[:-1] + 1e-12)):
+            raise ValueError("Survival probabilities must be non-increasing.")
+
+        self.maturities = maturities
+        self.survival_probabilities = surv
+
+    def value(self, t: ArrayLike) -> ArrayLike:
+        return self.survival_probability(t)
+
+    def __call__(self, t: ArrayLike) -> ArrayLike:
+        return self.value(t)
+
+    def survival_probability(self, t: ArrayLike) -> ArrayLike:
+        t_arr = jnp.asarray(t)
+        return jnp.interp(
+            t_arr,
+            self.maturities,
+            self.survival_probabilities,
+            left=1.0,
+            right=float(self.survival_probabilities[-1]),
+        )
+
+    def default_probability(self, t: ArrayLike) -> ArrayLike:
+        return 1.0 - self.survival_probability(t)
 
 
 def _ensure_array(values: Iterable[float]) -> jnp.ndarray:
