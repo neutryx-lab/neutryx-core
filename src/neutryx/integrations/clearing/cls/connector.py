@@ -5,15 +5,22 @@ from __future__ import annotations
 import asyncio
 import uuid
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional, Sequence
+
+import httpx
 
 from ..base import (
+    CCPAuthenticationError,
     CCPConfig,
     CCPConnector,
     CCPConnectionError,
     CCPError,
+    CCPMetrics,
     CCPTimeoutError,
+    CCPTradeRejectionError,
+    Trade,
     TradeStatus,
+    TradeSubmissionResponse,
 )
 from .messages import (
     CLSConfirmation,
@@ -30,293 +37,381 @@ class CLSConnector(CCPConnector):
     status queries, and confirmation processing.
     """
 
-    def __init__(self, config: CCPConfig):
-        """Initialize CLS connector.
+    def __init__(
+        self,
+        config: CCPConfig,
+        *,
+        transport: Optional[httpx.AsyncBaseTransport] = None,
+    ):
+        """Initialize CLS connector."""
 
-        Args:
-            config: CCP configuration with CLS-specific settings
-        """
         super().__init__(config)
         self._session_token: Optional[str] = None
         self._instructions: Dict[str, CLSSettlementInstruction] = {}
+        self._client: Optional[httpx.AsyncClient] = None
+        self._transport = transport
+        self.metrics = CCPMetrics()
 
     async def connect(self) -> bool:
-        """Establish connection to CLS.
+        """Establish connection to CLS."""
 
-        Returns:
-            True if connection successful
-
-        Raises:
-            CCPConnectionError: If connection fails
-        """
         try:
-            # Simulate connection to CLS API
-            # In production, this would:
-            # 1. Establish secure connection (mTLS)
-            # 2. Authenticate with certificates
-            # 3. Obtain session token
-            # 4. Subscribe to settlement session updates
+            headers = {
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+                "X-CLS-Member-ID": self.config.member_id,
+            }
 
-            await asyncio.sleep(0.1)  # Simulate network delay
+            if self.config.api_key:
+                headers["X-API-Key"] = self.config.api_key
 
-            self._session_id = str(uuid.uuid4())
-            self._session_token = f"CLS_TOKEN_{self._session_id[:8]}"
+            timeout = httpx.Timeout(self.config.timeout, connect=10.0)
+
+            self._client = httpx.AsyncClient(
+                base_url=self.config.api_endpoint,
+                headers=headers,
+                timeout=timeout,
+                transport=self._transport,
+            )
+
+            auth_payload = {
+                "member_id": self.config.member_id,
+                "environment": self.config.environment,
+                "timestamp": datetime.utcnow().isoformat(),
+            }
+
+            response = await self._perform_request(
+                "POST",
+                "/auth/session",
+                json=auth_payload,
+                expected_status=(200, 201),
+                allow_retries=False,
+            )
+
+            data = response.json()
+            self._session_id = data.get("session_id") or str(uuid.uuid4())
+            self._session_token = data.get("session_token")
             self._connected = True
+            self.metrics.last_heartbeat = datetime.utcnow()
 
             return True
 
-        except Exception as e:
-            raise CCPConnectionError(f"Failed to connect to CLS: {e}")
+        except CCPAuthenticationError:
+            raise
+        except CCPTimeoutError as exc:
+            raise CCPConnectionError(f"CLS authentication timed out: {exc}")
+        except CCPConnectionError:
+            raise
+        except Exception as exc:  # pragma: no cover - defensive fallback
+            raise CCPConnectionError(f"Failed to connect to CLS: {exc}")
 
     async def disconnect(self) -> bool:
-        """Disconnect from CLS.
+        """Disconnect from CLS."""
 
-        Returns:
-            True if disconnection successful
-        """
         try:
+            if self._client:
+                await self._client.aclose()
+            self._client = None
             self._connected = False
             self._session_id = None
             self._session_token = None
             return True
 
-        except Exception as e:
+        except Exception as e:  # pragma: no cover - defensive fallback
             raise CCPError(f"Failed to disconnect from CLS: {e}")
 
     async def submit_settlement_instruction(
         self,
-        instruction: CLSSettlementInstruction
+        instruction: CLSSettlementInstruction,
     ) -> CLSConfirmation:
-        """Submit FX settlement instruction to CLS.
+        """Submit FX settlement instruction to CLS."""
 
-        Args:
-            instruction: Settlement instruction
-
-        Returns:
-            Settlement confirmation
-
-        Raises:
-            CCPConnectionError: If not connected
-            CCPError: If submission fails
-        """
-        if not self._connected:
+        if not self._connected or not self._client:
             raise CCPConnectionError("Not connected to CLS")
 
         try:
-            # Validate instruction
             instruction.validate_currencies()
 
-            # Store instruction
-            self._instructions[instruction.instruction_id] = instruction
+            payload = instruction.model_dump(mode="json")
+            if self._session_id:
+                payload["session_id"] = self._session_id
 
-            # Simulate submission to CLS
-            await asyncio.sleep(0.05)
-
-            # Create confirmation
-            confirmation = CLSConfirmation(
-                confirmation_id=f"CLSConf_{uuid.uuid4().hex[:12]}",
-                instruction_id=instruction.instruction_id,
-                trade_id=instruction.trade_id,
-                settlement_date=instruction.settlement_date,
-                settlement_time=datetime.utcnow(),
-                buy_currency=instruction.buy_currency.value,
-                buy_amount=instruction.buy_amount,
-                sell_currency=instruction.sell_currency.value,
-                sell_amount=instruction.sell_amount,
-                status=CLSSettlementStatus.MATCHED,
+            response = await self._perform_request(
+                "POST",
+                "/settlements/instructions",
+                json=payload,
+                expected_status=(200, 201, 202),
             )
 
-            # Update instruction status
-            instruction.status = CLSSettlementStatus.MATCHED
-
+            confirmation = CLSConfirmation(**response.json())
+            instruction.status = confirmation.status
+            self._instructions[instruction.instruction_id] = instruction
             return confirmation
 
+        except CCPTimeoutError:
+            raise
+        except CCPTradeRejectionError:
+            raise
         except Exception as e:
             raise CCPError(f"Failed to submit settlement instruction: {e}")
 
-    async def get_settlement_status(
-        self,
-        instruction_id: str
-    ) -> CLSStatus:
-        """Get current settlement status.
+    async def get_settlement_status(self, instruction_id: str) -> CLSStatus:
+        """Get current settlement status."""
 
-        Args:
-            instruction_id: Settlement instruction ID
-
-        Returns:
-            Current settlement status
-
-        Raises:
-            CCPError: If query fails
-        """
-        if not self._connected:
+        if not self._connected or not self._client:
             raise CCPConnectionError("Not connected to CLS")
 
         try:
-            instruction = self._instructions.get(instruction_id)
-
-            if instruction is None:
-                raise CCPError(f"Instruction not found: {instruction_id}")
-
-            # Simulate status query
-            await asyncio.sleep(0.02)
-
-            return CLSStatus(
-                instruction_id=instruction_id,
-                trade_id=instruction.trade_id,
-                status=instruction.status,
-                last_updated=datetime.utcnow(),
-                pay_in_complete=instruction.status in (CLSSettlementStatus.MATCHED, CLSSettlementStatus.SETTLED),
-                pay_out_complete=instruction.status == CLSSettlementStatus.SETTLED,
-                status_message=f"Status: {instruction.status.value}",
+            response = await self._perform_request(
+                "GET",
+                f"/settlements/instructions/{instruction_id}",
+                expected_status=(200,),
             )
+
+            status = CLSStatus(**response.json())
+            if instruction_id in self._instructions:
+                self._instructions[instruction_id].status = status.status
+            return status
 
         except Exception as e:
             raise CCPError(f"Failed to get settlement status: {e}")
 
-    async def cancel_settlement_instruction(
-        self,
-        instruction_id: str
-    ) -> bool:
-        """Cancel a pending settlement instruction.
+    async def cancel_settlement_instruction(self, instruction_id: str) -> bool:
+        """Cancel a pending settlement instruction."""
 
-        Args:
-            instruction_id: Instruction ID to cancel
-
-        Returns:
-            True if cancellation successful
-
-        Raises:
-            CCPError: If cancellation fails
-        """
-        if not self._connected:
+        if not self._connected or not self._client:
             raise CCPConnectionError("Not connected to CLS")
 
         try:
-            instruction = self._instructions.get(instruction_id)
+            response = await self._perform_request(
+                "POST",
+                f"/settlements/instructions/{instruction_id}/cancel",
+                expected_status=(200, 202, 204),
+            )
 
-            if instruction is None:
-                raise CCPError(f"Instruction not found: {instruction_id}")
+            if instruction_id in self._instructions:
+                self._instructions[instruction_id].status = CLSSettlementStatus.CANCELLED
 
-            # Can only cancel if not yet settled
-            if instruction.status == CLSSettlementStatus.SETTLED:
-                raise CCPError("Cannot cancel already settled instruction")
-
-            # Simulate cancellation
-            await asyncio.sleep(0.02)
-
-            instruction.status = CLSSettlementStatus.CANCELLED
-            return True
+            return response.status_code in (200, 202, 204)
 
         except Exception as e:
             raise CCPError(f"Failed to cancel instruction: {e}")
 
-    async def get_session_liquidity(
-        self,
-        settlement_session_id: str
-    ) -> Dict[str, Any]:
-        """Get liquidity information for settlement session.
+    async def get_session_liquidity(self, settlement_session_id: str) -> Dict[str, Any]:
+        """Get liquidity information for settlement session."""
 
-        Args:
-            settlement_session_id: CLS settlement session ID
-
-        Returns:
-            Dictionary with liquidity details per currency
-        """
-        if not self._connected:
+        if not self._connected or not self._client:
             raise CCPConnectionError("Not connected to CLS")
 
-        # Simulate liquidity query
-        await asyncio.sleep(0.02)
+        response = await self._perform_request(
+            "GET",
+            f"/settlements/sessions/{settlement_session_id}/liquidity",
+            expected_status=(200,),
+        )
 
-        # Return mock liquidity data
-        return {
-            "session_id": settlement_session_id,
-            "currencies": {
-                "USD": {"available": 10000000.00, "required": 5000000.00, "shortfall": 0.00},
-                "EUR": {"available": 8000000.00, "required": 6000000.00, "shortfall": 0.00},
-                "GBP": {"available": 5000000.00, "required": 4000000.00, "shortfall": 0.00},
-            },
-            "timestamp": datetime.utcnow().isoformat(),
-        }
+        return response.json()
 
     # Implement abstract methods from CCPConnector
 
-    async def submit_trade(self, trade: Any) -> Any:
-        """Submit trade - delegates to submit_settlement_instruction."""
-        raise NotImplementedError("Use submit_settlement_instruction for CLS")
+    async def submit_trade(self, trade: Trade) -> TradeSubmissionResponse:
+        """Submit trade to CLS trade capture API."""
+
+        if not self._connected or not self._client:
+            raise CCPConnectionError("Not connected to CLS")
+
+        start_time = datetime.utcnow()
+
+        try:
+            payload = trade.to_dict()
+            payload["member_id"] = self.config.member_id
+            if self._session_id:
+                payload["session_id"] = self._session_id
+
+            response = await self._perform_request(
+                "POST",
+                "/trades",
+                json=payload,
+                expected_status=(200, 201, 202),
+            )
+
+            duration = (datetime.utcnow() - start_time).total_seconds() * 1000
+            submission = TradeSubmissionResponse(**response.json())
+            self.metrics.record_submission(True, duration)
+            return submission
+
+        except CCPTradeRejectionError as exc:
+            duration = (datetime.utcnow() - start_time).total_seconds() * 1000
+            self.metrics.record_submission(False, duration, rejected=True)
+            raise exc
+        except (CCPTimeoutError, CCPConnectionError) as exc:
+            duration = (datetime.utcnow() - start_time).total_seconds() * 1000
+            self.metrics.record_submission(False, duration)
+            raise exc
 
     async def get_trade_status(self, trade_id: str) -> TradeStatus:
         """Get trade status."""
-        # Map CLS instructions by trade_id
-        for instruction in self._instructions.values():
-            if instruction.trade_id == trade_id:
-                status_map = {
-                    CLSSettlementStatus.PENDING: TradeStatus.PENDING,
-                    CLSSettlementStatus.MATCHED: TradeStatus.ACCEPTED,
-                    CLSSettlementStatus.SETTLED: TradeStatus.SETTLED,
-                    CLSSettlementStatus.FAILED: TradeStatus.FAILED,
-                    CLSSettlementStatus.CANCELLED: TradeStatus.CANCELLED,
-                    CLSSettlementStatus.REJECTED: TradeStatus.REJECTED,
-                }
-                return status_map.get(instruction.status, TradeStatus.PENDING)
 
-        return TradeStatus.PENDING
+        if not self._connected or not self._client:
+            raise CCPConnectionError("Not connected to CLS")
+
+        response = await self._perform_request(
+            "GET",
+            f"/trades/{trade_id}/status",
+            expected_status=(200,),
+        )
+
+        data = response.json()
+        status_value = data.get("status", TradeStatus.PENDING.value)
+        return TradeStatus(status_value)
 
     async def cancel_trade(self, trade_id: str) -> bool:
         """Cancel trade by trade_id."""
-        for instruction in self._instructions.values():
-            if instruction.trade_id == trade_id:
-                return await self.cancel_settlement_instruction(instruction.instruction_id)
-        return False
+
+        if not self._connected or not self._client:
+            raise CCPConnectionError("Not connected to CLS")
+
+        response = await self._perform_request(
+            "POST",
+            f"/trades/{trade_id}/cancel",
+            expected_status=(200, 202, 204),
+        )
+
+        return response.status_code in (200, 202, 204)
 
     async def get_margin_requirements(
         self,
-        member_id: Optional[str] = None
+        member_id: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """Get margin requirements - not applicable for CLS."""
-        return {
-            "member_id": member_id or self.config.member_id,
-            "initial_margin": 0.0,
-            "variation_margin": 0.0,
-            "note": "CLS uses PvP settlement - no margin required",
-        }
+        """Get margin requirements - not typically required for CLS."""
+
+        if not self._connected or not self._client:
+            raise CCPConnectionError("Not connected to CLS")
+
+        response = await self._perform_request(
+            "GET",
+            "/margin",
+            params={"member_id": member_id or self.config.member_id},
+            expected_status=(200,),
+        )
+
+        return response.json()
 
     async def get_position_report(
         self,
-        as_of_date: Optional[datetime] = None
-    ) -> Any:
-        """Get position report - returns settlement instructions."""
-        return {
-            "report_id": str(uuid.uuid4()),
-            "member_id": self.config.member_id,
-            "as_of_date": (as_of_date or datetime.utcnow()).isoformat(),
-            "instructions": [
-                {
-                    "instruction_id": inst.instruction_id,
-                    "trade_id": inst.trade_id,
-                    "buy_currency": inst.buy_currency.value,
-                    "buy_amount": float(inst.buy_amount),
-                    "sell_currency": inst.sell_currency.value,
-                    "sell_amount": float(inst.sell_amount),
-                    "status": inst.status.value,
-                }
-                for inst in self._instructions.values()
-            ],
-            "total_instructions": len(self._instructions),
-        }
+        as_of_date: Optional[datetime] = None,
+    ) -> Dict[str, Any]:
+        """Get position report - returns settlement positions."""
+
+        if not self._connected or not self._client:
+            raise CCPConnectionError("Not connected to CLS")
+
+        params: Dict[str, Any] = {}
+        if as_of_date:
+            params["as_of_date"] = as_of_date.isoformat()
+
+        response = await self._perform_request(
+            "GET",
+            "/reports/positions",
+            params=params,
+            expected_status=(200,),
+        )
+
+        return response.json()
 
     async def healthcheck(self) -> bool:
         """Check CLS connectivity health."""
-        if not self._connected:
+
+        if not self._connected or not self._client:
             return False
 
         try:
-            # Simulate health check
-            await asyncio.sleep(0.01)
-            return True
-        except Exception:
+            response = await self._perform_request(
+                "GET",
+                "/health",
+                expected_status=(200,),
+            )
+            return response.status_code == 200
+        except CCPError:
             return False
+
+    async def _perform_request(
+        self,
+        method: str,
+        endpoint: str,
+        *,
+        expected_status: Sequence[int],
+        allow_retries: bool = True,
+        **kwargs: Any,
+    ) -> httpx.Response:
+        """Execute HTTP request with retry and robust error handling."""
+
+        if not self._client:
+            raise CCPConnectionError("HTTP client not initialized")
+
+        attempts = self.config.max_retries if allow_retries else 1
+        last_error: Optional[Exception] = None
+
+        for attempt in range(1, attempts + 1):
+            try:
+                response = await self._client.request(method, endpoint, **kwargs)
+
+                if response.status_code in expected_status:
+                    return response
+
+                if response.status_code in (400, 422):
+                    payload = self._safe_json(response)
+                    message = payload.get("message") if isinstance(payload, dict) else response.text
+                    code = payload.get("code") if isinstance(payload, dict) else None
+                    raise CCPTradeRejectionError(message or "CLS request rejected", code)
+
+                if response.status_code in (401, 403):
+                    raise CCPAuthenticationError("CLS authentication failed")
+
+                if response.status_code == 408:
+                    raise CCPTimeoutError("CLS request timed out")
+
+                if response.status_code >= 500:
+                    response.raise_for_status()
+
+                raise CCPConnectionError(
+                    f"Unexpected response {response.status_code}: {response.text}"
+                )
+
+            except CCPTradeRejectionError:
+                raise
+            except CCPAuthenticationError:
+                raise
+            except CCPTimeoutError as exc:
+                last_error = exc
+            except httpx.TimeoutException as exc:
+                last_error = CCPTimeoutError(f"CLS request timed out: {exc}")
+            except httpx.HTTPStatusError as exc:
+                last_error = CCPConnectionError(
+                    f"CLS server error {exc.response.status_code}: {exc.response.text}"
+                )
+            except httpx.RequestError as exc:
+                last_error = CCPConnectionError(f"CLS request failed: {exc}")
+
+            if attempt < attempts:
+                await asyncio.sleep(self.config.retry_delay * attempt)
+
+        if isinstance(last_error, CCPTimeoutError):
+            raise last_error
+        if isinstance(last_error, CCPConnectionError):
+            raise last_error
+        if last_error is not None:
+            raise CCPConnectionError(str(last_error))
+
+        raise CCPConnectionError("CLS request failed without response")
+
+    @staticmethod
+    def _safe_json(response: httpx.Response) -> Any:
+        """Safely parse JSON payload."""
+
+        try:
+            return response.json()
+        except Exception:  # pragma: no cover - defensive fallback
+            return response.text
 
 
 __all__ = ["CLSConnector"]
