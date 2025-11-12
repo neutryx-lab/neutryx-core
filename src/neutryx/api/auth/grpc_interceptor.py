@@ -5,7 +5,6 @@ from __future__ import annotations
 from typing import Callable, Any
 
 import grpc
-from grpc import ServerInterceptor
 from jose import JWTError
 
 from .jwt_handler import verify_token
@@ -13,7 +12,13 @@ from .dependencies import get_user_from_store
 from .models import User
 
 
-class AuthenticationInterceptor(ServerInterceptor):
+try:  # pragma: no cover - fallback for environments without grpc.aio
+    from grpc.aio import ServerInterceptor as _BaseServerInterceptor
+except ImportError:  # pragma: no cover - synchronous fallback
+    from grpc import ServerInterceptor as _BaseServerInterceptor
+
+
+class AuthenticationInterceptor(_BaseServerInterceptor):
     """gRPC server interceptor for JWT authentication.
 
     Intercepts all gRPC calls and validates JWT tokens from metadata.
@@ -27,7 +32,7 @@ class AuthenticationInterceptor(ServerInterceptor):
         """
         self.exempt_methods = exempt_methods or set()
 
-    def intercept_service(self, continuation: Callable, handler_call_details: grpc.HandlerCallDetails):
+    async def intercept_service(self, continuation: Callable, handler_call_details: grpc.HandlerCallDetails):
         """Intercept gRPC service call.
 
         Args:
@@ -42,7 +47,7 @@ class AuthenticationInterceptor(ServerInterceptor):
 
         # Check if method is exempt from authentication
         if method in self.exempt_methods:
-            return continuation(handler_call_details)
+            return await continuation(handler_call_details)
 
         # Extract metadata
         metadata = dict(handler_call_details.invocation_metadata)
@@ -86,7 +91,7 @@ class AuthenticationInterceptor(ServerInterceptor):
             # This would typically be done via context propagation
             # For now, we just validate the token
 
-            return continuation(handler_call_details)
+            return await continuation(handler_call_details)
 
         except JWTError as e:
             return self._unauthenticated_handler(str(e))
@@ -101,8 +106,8 @@ class AuthenticationInterceptor(ServerInterceptor):
             RPC handler that returns UNAUTHENTICATED status
         """
 
-        def handler(request, context):
-            context.abort(grpc.StatusCode.UNAUTHENTICATED, message)
+        async def handler(request, context):
+            await context.abort(grpc.StatusCode.UNAUTHENTICATED, message)
 
         return grpc.unary_unary_rpc_method_handler(handler)
 
@@ -116,13 +121,13 @@ class AuthenticationInterceptor(ServerInterceptor):
             RPC handler that returns PERMISSION_DENIED status
         """
 
-        def handler(request, context):
-            context.abort(grpc.StatusCode.PERMISSION_DENIED, message)
+        async def handler(request, context):
+            await context.abort(grpc.StatusCode.PERMISSION_DENIED, message)
 
         return grpc.unary_unary_rpc_method_handler(handler)
 
 
-class RBACInterceptor(ServerInterceptor):
+class RBACInterceptor(_BaseServerInterceptor):
     """gRPC server interceptor for role-based access control.
 
     Intercepts gRPC calls and validates user roles/permissions.
@@ -137,7 +142,7 @@ class RBACInterceptor(ServerInterceptor):
         """
         self.method_permissions = method_permissions or {}
 
-    def intercept_service(self, continuation: Callable, handler_call_details: grpc.HandlerCallDetails):
+    async def intercept_service(self, continuation: Callable, handler_call_details: grpc.HandlerCallDetails):
         """Intercept gRPC service call.
 
         Args:
@@ -154,7 +159,7 @@ class RBACInterceptor(ServerInterceptor):
 
         if not required_permission:
             # No permission required
-            return continuation(handler_call_details)
+            return await continuation(handler_call_details)
 
         # Extract metadata and get user (assumes AuthenticationInterceptor ran first)
         metadata = dict(handler_call_details.invocation_metadata)
@@ -175,7 +180,7 @@ class RBACInterceptor(ServerInterceptor):
                     f"Missing required permission: {required_permission}"
                 )
 
-            return continuation(handler_call_details)
+            return await continuation(handler_call_details)
 
         except (ValueError, JWTError):
             return self._permission_denied_handler("Invalid authentication token")
@@ -190,8 +195,8 @@ class RBACInterceptor(ServerInterceptor):
             RPC handler that returns PERMISSION_DENIED status
         """
 
-        def handler(request, context):
-            context.abort(grpc.StatusCode.PERMISSION_DENIED, message)
+        async def handler(request, context):
+            await context.abort(grpc.StatusCode.PERMISSION_DENIED, message)
 
         return grpc.unary_unary_rpc_method_handler(handler)
 
