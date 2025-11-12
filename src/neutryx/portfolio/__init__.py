@@ -13,6 +13,11 @@ from __future__ import annotations
 from . import aggregation, allocations, contracts, netting
 from .netting_set import NettingSet
 from .portfolio import Portfolio
+from .positions import PortfolioPosition
+from .corporate_actions_pipeline import (
+    PortfolioCorporateActionResult,
+    PortfolioUpdatePipeline,
+)
 
 __all__ = [
     "aggregation",
@@ -21,4 +26,7 @@ __all__ = [
     "netting",
     "NettingSet",
     "Portfolio",
+    "PortfolioPosition",
+    "PortfolioUpdatePipeline",
+    "PortfolioCorporateActionResult",
 ]

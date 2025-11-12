@@ -58,6 +58,13 @@ from neutryx.data.indices import (
     create_sparse_aggregation_matrix,
 )
 from neutryx.data.market_grid import MarketDataGrid
+from neutryx.data.security_master import (
+    InMemorySecurityMasterStorage,
+    SecurityMaster,
+    SecurityMasterError,
+    SecurityMasterStorage,
+    SecurityRecord,
+)
 from neutryx.data.portfolio_batch import PortfolioBatch, TradeArrays
 
 __all__ = [
@@ -98,4 +105,10 @@ __all__ = [
     "load_chunked_simulation",
     "price_option_chunked",
     "estimate_optimal_chunk_size",
+    # Security master
+    "SecurityMaster",
+    "SecurityMasterStorage",
+    "InMemorySecurityMasterStorage",
+    "SecurityRecord",
+    "SecurityMasterError",
 ]
