@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import xml.etree.ElementTree as ET
 from datetime import date, datetime
-from decimal import Decimal
+from decimal import Decimal, DecimalException
 from typing import Any, Dict, Optional
 
 # Use defusedxml for parsing untrusted XML to prevent XXE attacks
@@ -297,10 +297,19 @@ class SETR002(MXMessage):
         units_dtls = ET.SubElement(ordr_dtls, "UnitsDtls")
         self._add_element(units_dtls, "UnitsNb", f"{float(self.units_number):.2f}")
 
+        # Investor details
+        invstr = ET.SubElement(ordr_dtls, "Invstr")
+        self._add_element(invstr, "Nm", self.investor_name)
+        invstr_acct = ET.SubElement(invstr, "Acct")
+        self._add_element(invstr_acct, "Id", self.investor_account)
+
         # Settlement Details
         sttlm_dtls = ET.SubElement(ordr_dtls, "SttlmDtls")
         self._add_element(sttlm_dtls, "SttlmDt", self._format_date(self.settlement_date))
         self._add_element(sttlm_dtls, "SttlmCcy", self.settlement_currency)
+        sttlm_acct = ET.SubElement(sttlm_dtls, "SttlmAcct")
+        acct_id = ET.SubElement(sttlm_acct, "Id")
+        self._add_element(acct_id, "IBAN", self.settlement_account)
 
         # Convert to string
         ET.indent(root, space="  ")
@@ -309,7 +318,49 @@ class SETR002(MXMessage):
     @classmethod
     def from_swift(cls, swift_text: str) -> SETR002:
         """Parse setr.002 from XML."""
-        raise NotImplementedError("SETR002 parsing not yet implemented")
+        try:
+            root = DefusedET.fromstring(swift_text)
+        except (ET.ParseError, DefusedET.ParseError) as exc:
+            raise SwiftParseError(f"Failed to parse setr.002 XML: {exc}") from exc
+
+        ns = {"ns": "urn:iso:std:iso:20022:tech:xsd:setr.002.001.03"}
+        rmptn_ordr = root.find("ns:RedOrdr", ns)
+        if rmptn_ordr is None:
+            raise SwiftParseError("Invalid setr.002 structure")
+
+        def get_text(path: str) -> str:
+            elem = rmptn_ordr.find(path, ns)
+            if elem is None or (elem.text is None or elem.text.strip() == ""):
+                raise SwiftValidationError(f"Missing required setr.002 field: {path}")
+            return elem.text.strip()
+
+        try:
+            creation_date_text = rmptn_ordr.findtext("ns:MsgId/ns:CreDtTm", default="", namespaces=ns)
+            fields: Dict[str, Any] = {
+                "sender_bic": "UNKNOWN",
+                "receiver_bic": "UNKNOWN",
+                "message_ref": get_text("ns:MsgId/ns:Id"),
+                "order_reference": get_text("ns:OrdrDtls/ns:OrdrRef"),
+                "isin": get_text("ns:OrdrDtls/ns:FinInstrm/ns:Id/ns:ISIN"),
+                "units_number": Decimal(get_text("ns:OrdrDtls/ns:UnitsDtls/ns:UnitsNb")),
+                "trade_date": datetime.strptime(get_text("ns:OrdrDtls/ns:TradDt"), "%Y-%m-%d").date(),
+                "settlement_date": datetime.strptime(
+                    get_text("ns:OrdrDtls/ns:SttlmDtls/ns:SttlmDt"), "%Y-%m-%d"
+                ).date(),
+                "settlement_currency": get_text("ns:OrdrDtls/ns:SttlmDtls/ns:SttlmCcy"),
+                "settlement_account": get_text(
+                    "ns:OrdrDtls/ns:SttlmDtls/ns:SttlmAcct/ns:Id/ns:IBAN"
+                ),
+                "investor_name": get_text("ns:OrdrDtls/ns:Invstr/ns:Nm"),
+                "investor_account": get_text("ns:OrdrDtls/ns:Invstr/ns:Acct/ns:Id"),
+            }
+
+            if creation_date_text:
+                fields["creation_date"] = datetime.strptime(creation_date_text, "%Y-%m-%dT%H:%M:%S")
+
+            return cls(**fields)
+        except (ValueError, DecimalException) as exc:
+            raise SwiftValidationError(f"Invalid value in setr.002 message: {exc}") from exc
 
     def validate(self) -> bool:
         """Validate setr.002 message."""
