@@ -96,6 +96,47 @@ class RefinitivCorporateActionParser(CorporateActionParser):
         )
 
 
+@dataclass
+class SimulatedCorporateActionParser(CorporateActionParser):
+    """Parser for simulated/testing data with simple format."""
+
+    def parse(self, raw_event: Dict[str, Any]) -> CorporateActionEvent:
+        action_map = {
+            "dividend": CorporateActionType.DIVIDEND,
+            "split": CorporateActionType.SPLIT,
+            "merger": CorporateActionType.MERGER,
+            "spinoff": CorporateActionType.SPIN_OFF,
+            "spin_off": CorporateActionType.SPIN_OFF,
+            "symbol_change": CorporateActionType.SYMBOL_CHANGE,
+        }
+        action_type_str = raw_event.get("action_type", "").lower()
+        action_type = action_map.get(action_type_str)
+        if not action_type:
+            raise ValueError(f"Unsupported simulated corporate action type: {action_type_str}")
+
+        effective = raw_event.get("effective_date")
+        if isinstance(effective, date):
+            effective_date = effective
+        else:
+            effective_date = date.fromisoformat(str(effective))
+
+        details = {
+            "amount": raw_event.get("amount"),
+            "currency": raw_event.get("currency"),
+            "split_ratio": raw_event.get("split_ratio"),
+            "old_ticker": raw_event.get("old_ticker"),
+            "new_ticker": raw_event.get("new_ticker"),
+            "pay_date": raw_event.get("pay_date"),
+        }
+        description = raw_event.get("description") or f"{action_type.value} event"
+        return CorporateActionEvent(
+            action_type=action_type,
+            effective_date=effective_date,
+            description=description,
+            details={k: v for k, v in details.items() if v is not None},
+        )
+
+
 def normalize_events(
     raw_events: Iterable[Dict[str, Any]], parser: CorporateActionParser
 ) -> List[CorporateActionEvent]:

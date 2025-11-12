@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from threading import RLock
 from types import MappingProxyType
-from typing import Any, Callable, Dict, Iterator, List, Mapping, Optional
+from typing import Any, Callable, Dict, Iterable, Iterator, List, Mapping, MutableMapping, Optional, Protocol
 from uuid import uuid4
 import contextvars
 
@@ -130,8 +130,132 @@ class DataFlowRecorder:
 
         with self._lock:
             self._events.clear()
-from typing import Any, Dict, Iterable, Iterator, List, MutableMapping, Optional, Protocol
-from uuid import uuid4
+
+
+# Global default recorder for the event-based API
+_DEFAULT_RECORDER: DataFlowRecorder | None = None
+_RECORDER_LOCK = RLock()
+
+
+def get_default_recorder() -> DataFlowRecorder:
+    """Return the global default recorder, creating if necessary."""
+
+    global _DEFAULT_RECORDER  # noqa: PLW0603
+    with _RECORDER_LOCK:
+        if _DEFAULT_RECORDER is None:
+            _DEFAULT_RECORDER = DataFlowRecorder()
+        return _DEFAULT_RECORDER
+
+
+def set_default_recorder(recorder: DataFlowRecorder) -> None:
+    """Replace the global default recorder."""
+
+    global _DEFAULT_RECORDER  # noqa: PLW0603
+    with _RECORDER_LOCK:
+        _DEFAULT_RECORDER = recorder
+
+
+@contextmanager
+def use_recorder(recorder: DataFlowRecorder) -> Iterator[DataFlowRecorder]:
+    """Context manager to temporarily use a specific recorder."""
+
+    previous = get_default_recorder()
+    set_default_recorder(recorder)
+    try:
+        yield recorder
+    finally:
+        set_default_recorder(previous)
+
+
+def current_context() -> LineageContext | None:
+    """Return the currently active lineage context, if any."""
+
+    return _CURRENT_CONTEXT.get()
+
+
+def is_context_active() -> bool:
+    """Check if a lineage context is currently active."""
+
+    return _CURRENT_CONTEXT.get() is not None
+
+
+def embed_lineage_metadata(metadata: Optional[Mapping[str, Any]] = None) -> Dict[str, Any]:
+    """Enrich metadata with active lineage context information."""
+
+    enriched: Dict[str, Any] = dict(metadata or {})
+    ctx = current_context()
+    if ctx:
+        enriched.update(ctx.to_metadata())
+    else:
+        # Generate a new lineage ID if no context is active
+        enriched.setdefault("lineage_id", generate_lineage_id())
+    return enriched
+
+
+@contextmanager
+def data_flow_context(
+    *,
+    source: str,
+    job_id: Optional[str] = None,
+    api_request_id: Optional[str] = None,
+    **attributes: Any,
+) -> Iterator[LineageContext]:
+    """Context manager that establishes a lineage context for the enclosed work."""
+
+    lineage_id = generate_lineage_id()
+    ctx = LineageContext(
+        lineage_id=lineage_id,
+        source=source,
+        job_id=job_id,
+        api_request_id=api_request_id,
+        attributes=dict(attributes),
+    )
+
+    token = _CURRENT_CONTEXT.set(ctx)
+    try:
+        yield ctx
+    finally:
+        _CURRENT_CONTEXT.reset(token)
+
+
+def publish_event(event_type: str, metadata: Optional[Mapping[str, Any]] = None) -> DataFlowEvent:
+    """Publish a data flow event using the default recorder."""
+
+    recorder = get_default_recorder()
+    return recorder.publish(event_type, metadata)
+
+
+def record_artifact(
+    key: str,
+    kind: str,
+    metadata: Optional[Dict[str, Any]] = None,
+    extra_event_metadata: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """Record an artifact and publish an event.
+
+    Args:
+        key: Unique identifier for the artifact
+        kind: Type of artifact (e.g., "array", "metadata", "portfolio")
+        metadata: Metadata to be enriched and associated with the artifact
+        extra_event_metadata: Additional metadata for the event only
+
+    Returns:
+        Enriched metadata dictionary including lineage information
+    """
+
+    enriched_metadata = embed_lineage_metadata(metadata)
+
+    event_metadata = {
+        "artifact_key": key,
+        "artifact_kind": kind,
+        **enriched_metadata,
+    }
+    if extra_event_metadata:
+        event_metadata.update(extra_event_metadata)
+
+    publish_event("data_artifact_saved", event_metadata)
+
+    return enriched_metadata
 
 
 class DataFlowSink(Protocol):

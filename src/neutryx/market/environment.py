@@ -316,10 +316,23 @@ class MarketDataEnvironment:
     ) -> "MarketDataEnvironment":
         """Return new environment with updated credit curve."""
 
+        # Validate that curve implements the CreditCurve protocol
         if not isinstance(curve, CreditCurve):
             raise TypeError(
                 "curve must implement the CreditCurve protocol and provide "
                 "survival_probability/default_probability methods"
+            )
+
+        # Additional explicit check for required methods
+        if not (
+            hasattr(curve, "survival_probability")
+            and callable(getattr(curve, "survival_probability", None))
+            and hasattr(curve, "value")
+            and callable(getattr(curve, "value", None))
+        ):
+            raise TypeError(
+                "curve must implement the CreditCurve protocol and provide "
+                "survival_probability and value methods"
             )
 
         new_curves = dict(self.credit_curves)
