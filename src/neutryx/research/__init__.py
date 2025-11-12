@@ -54,6 +54,14 @@ from .walk_forward import (
     WalkForwardResult,
     OptimizationConfig,
 )
+from .multiobjective import (
+    RankedSolution,
+    pareto_front_to_dataframe,
+    rank_pareto_solutions,
+    select_preferred_solution,
+    plot_pareto_front,
+    integrate_model_selection,
+)
 
 __all__ = [
     "BacktestEngine",
@@ -89,4 +97,10 @@ __all__ = [
     "WalkForwardAnalysis",
     "WalkForwardResult",
     "OptimizationConfig",
+    "RankedSolution",
+    "pareto_front_to_dataframe",
+    "rank_pareto_solutions",
+    "select_preferred_solution",
+    "plot_pareto_front",
+    "integrate_model_selection",
 ]

@@ -5,6 +5,8 @@ from .base import (
     CalibrationResult,
     ParameterSpec,
     ParameterTransform,
+    ParetoFront,
+    ParetoSolution,
 )
 from .constraints import (
     g2pp_parameter_specs,
@@ -64,6 +66,8 @@ __all__ = [
     "CalibrationController",
     "CalibrationDiagnostics",
     "CalibrationResult",
+    "ParetoFront",
+    "ParetoSolution",
     "CrossAssetCalibrator",
     "IdentifiabilityMetrics",
     "InstrumentSpec",
