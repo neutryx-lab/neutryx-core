@@ -23,6 +23,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal, Optional
 
+import math
+
 import jax
 import jax.numpy as jnp
 from jax import Array
@@ -30,10 +32,10 @@ from jax.scipy.stats import norm
 
 from neutryx.models.heston import (
     heston_call_price_cf,
-    HestonParams,
-    characteristic_function as heston_characteristic_function
+    HestonParams
 )
 from neutryx.models.sabr import hagan_implied_vol as sabr_implied_vol, SABRParams
+from neutryx.models.fft_pricing import carr_madan_fft, heston_char_func
 from neutryx.products.fx_options import garman_kohlhagen
 
 
@@ -620,35 +622,31 @@ class FXBatesModel:
         Returns:
             Complex characteristic function value
         """
-        # Heston component
-        heston_cf = heston_characteristic_function(
+        # Jump compensation (risk-neutral drift adjustment)
+        m = jnp.exp(self.mu_jump + 0.5 * self.sigma_jump ** 2) - 1.0
+        r_adjusted = self.r_domestic - self.lambda_jump * m
+
+        # Recompute base Heston characteristic function with compensated drift
+        heston_cf = heston_char_func(
             u=u,
-            t=T,
+            S0=S0,
+            T=T,
+            r=r_adjusted,
+            q=self.r_foreign,
             v0=self.v0,
             kappa=self.kappa,
             theta=self.theta,
-            sigma=self.sigma,
-            rho=self.rho,
-            r=self.r_domestic,
-            q=self.r_foreign
+            sigma_v=self.sigma,
+            rho=self.rho
         )
 
-        # Jump compensation (risk-neutral drift adjustment)
-        m = jnp.exp(self.mu_jump + 0.5 * self.sigma_jump ** 2) - 1
-        jump_compensation = jnp.exp(-self.lambda_jump * m * T)
-
-        # Merton jump component
-        # E[exp(iu log(J))] for log(J) ~ N(μ, δ²)
+        # Merton jump component (log-normal jumps)
         jump_cf = jnp.exp(
-            1j * u * self.mu_jump - 0.5 * u ** 2 * self.sigma_jump ** 2
+            1j * u * self.mu_jump - 0.5 * (u ** 2) * self.sigma_jump ** 2
         )
+        jump_component = jnp.exp(self.lambda_jump * T * (jump_cf - 1.0))
 
-        # Combined CF
-        jump_component = jnp.exp(
-            self.lambda_jump * T * (jump_cf - 1)
-        )
-
-        return heston_cf * jump_component * jump_compensation
+        return heston_cf * jump_component
 
     def price(
         self,
@@ -670,24 +668,95 @@ class FXBatesModel:
         Returns:
             Option price
         """
-        # Use Carr-Madan with custom CF
-        # (Implementation would use self.characteristic_function)
-        # For now, placeholder returning Heston + jump premium
+        if T <= 0:
+            intrinsic = jnp.maximum(S - K, 0.0)
+            if not is_call:
+                intrinsic = K - S
+            return float(jnp.maximum(intrinsic, 0.0))
 
-        # Heston base price
-        heston_model = FXHestonModel(
-            v0=self.v0, kappa=self.kappa, theta=self.theta,
-            sigma=self.sigma, rho=self.rho,
-            r_domestic=self.r_domestic,
-            r_foreign=self.r_foreign
+        if abs(self.lambda_jump) < 1e-10:
+            heston_model = FXHestonModel(
+                v0=self.v0,
+                kappa=self.kappa,
+                theta=self.theta,
+                sigma=self.sigma,
+                rho=self.rho,
+                r_domestic=self.r_domestic,
+                r_foreign=self.r_foreign
+            )
+            return float(heston_model.price(S, K, T, is_call=is_call, N=N))
+
+        # Ensure FFT grid is a power of two and sufficiently wide
+        min_points = 512
+        target_points = max(min_points, int(N))
+        fft_power = int(math.ceil(math.log2(target_points)))
+        fft_points = 1 << fft_power
+
+        damping = 1.5
+        eta = 0.10 if T > 0.5 else 0.18
+
+        def char_func(u):
+            return self.characteristic_function(u, T, S)
+
+        # First attempt: Carr-Madan FFT
+        call_price_fft = carr_madan_fft(
+            S0=S,
+            K=K,
+            T=T,
+            r=self.r_domestic,
+            char_func=char_func,
+            N=fft_points,
+            alpha=damping,
+            eta=eta
         )
-        base_price = heston_model.price(S, K, T, is_call, N)
 
-        # Jump premium (simplified approximation)
-        # Full implementation would use FFT with jump CF
-        jump_premium = 0.0  # Placeholder
+        valid_price = jnp.isfinite(call_price_fft) & (call_price_fft >= 0.0)
 
-        return base_price + jump_premium
+        def integration_price() -> float:
+            """Fallback numerical integration for stability."""
+            u_max = 150.0
+            n_points = max(1024, fft_points // 2)
+            u_vals = jnp.linspace(1e-6, u_max, n_points)
+            du = u_vals[1] - u_vals[0]
+
+            phi_minus_i = char_func(-1j)
+
+            def integrand(u_val, shifted: bool):
+                expo = jnp.exp(-1j * u_val * jnp.log(K))
+                if shifted:
+                    numerator = expo * char_func(u_val - 1j)
+                    denominator = 1j * u_val * phi_minus_i
+                else:
+                    numerator = expo * char_func(u_val)
+                    denominator = 1j * u_val
+                return jnp.real(numerator / denominator)
+
+            integrand1 = jax.vmap(lambda u: integrand(u, True))(u_vals)
+            integrand2 = jax.vmap(lambda u: integrand(u, False))(u_vals)
+
+            P1 = 0.5 + (du / jnp.pi) * jnp.sum(integrand1)
+            P2 = 0.5 + (du / jnp.pi) * jnp.sum(integrand2)
+
+            call_val = (
+                S * jnp.exp(-self.r_foreign * T) * P1
+                - K * jnp.exp(-self.r_domestic * T) * P2
+            )
+            return float(jnp.maximum(call_val, 0.0))
+
+        if not bool(valid_price):
+            call_price = integration_price()
+        else:
+            call_price_int = integration_price()
+            if abs(call_price_int - call_price_fft) > 5e-3:
+                call_price = call_price_int
+            else:
+                call_price = float(call_price_fft)
+
+        if not is_call:
+            put_price = call_price - S * jnp.exp(-self.r_foreign * T) + K * jnp.exp(-self.r_domestic * T)
+            return float(put_price)
+
+        return float(call_price)
 
 
 @dataclass
