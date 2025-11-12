@@ -98,12 +98,16 @@ class PortfolioBatch:
         Index into counterparty mapping [n_trades]
     product_type_idx : Array
         Index into product type mapping [n_trades]
+    asset_idx : Array
+        Index into asset mapping [n_trades]
     currency_mapping : IndexMapping
         Bidirectional mapping for currency codes
     counterparty_mapping : IndexMapping
         Bidirectional mapping for counterparty IDs
     product_type_mapping : IndexMapping
         Bidirectional mapping for product types
+    asset_mapping : IndexMapping
+        Bidirectional mapping for asset identifiers
     metadata : dict[str, Any]
         Optional metadata (not part of pytree, for debugging/logging)
 
@@ -120,15 +124,18 @@ class PortfolioBatch:
     >>> currency_idx = jnp.array([0, 1, 0])  # USD, EUR, USD
     >>> cp_idx = jnp.array([0, 0, 1])  # CP1, CP1, CP2
     >>> product_idx = jnp.array([0, 0, 0])  # All vanilla options
+    >>> asset_idx = jnp.array([0, 1, 0])  # SPX, SX5E, SPX
     >>>
     >>> portfolio = PortfolioBatch(
     ...     trade_arrays=trade_arrays,
     ...     currency_idx=currency_idx,
     ...     counterparty_idx=cp_idx,
     ...     product_type_idx=product_idx,
+    ...     asset_idx=asset_idx,
     ...     currency_mapping=IndexMapping.from_values(["USD", "EUR"]),
     ...     counterparty_mapping=IndexMapping.from_values(["CP1", "CP2"]),
     ...     product_type_mapping=IndexMapping.from_values(["VanillaOption"]),
+    ...     asset_mapping=IndexMapping.from_values(["SPX", "SX5E"]),
     ... )
     >>> portfolio.n_trades
     3
@@ -152,9 +159,11 @@ class PortfolioBatch:
     currency_idx: Array
     counterparty_idx: Array
     product_type_idx: Array
+    asset_idx: Array
     currency_mapping: IndexMapping
     counterparty_mapping: IndexMapping
     product_type_mapping: IndexMapping
+    asset_mapping: IndexMapping
     product_ids: Optional[tuple[str, ...]] = None
     product_parameters: Optional[tuple[dict[str, Any], ...]] = None
     metadata: dict[str, Any] = None
@@ -170,6 +179,8 @@ class PortfolioBatch:
             raise ValueError(f"counterparty_idx shape {self.counterparty_idx.shape} != ({n_trades},)")
         if self.product_type_idx.shape != (n_trades,):
             raise ValueError(f"product_type_idx shape {self.product_type_idx.shape} != ({n_trades},)")
+        if self.asset_idx.shape != (n_trades,):
+            raise ValueError(f"asset_idx shape {self.asset_idx.shape} != ({n_trades},)")
 
         # Validate index ranges (skip if inside JAX transformation)
         try:
@@ -179,6 +190,8 @@ class PortfolioBatch:
                 raise ValueError("counterparty_idx contains out-of-range indices")
             if jnp.any(self.product_type_idx < 0) or jnp.any(self.product_type_idx >= len(self.product_type_mapping)):
                 raise ValueError("product_type_idx contains out-of-range indices")
+            if jnp.any(self.asset_idx < 0) or jnp.any(self.asset_idx >= len(self.asset_mapping)):
+                raise ValueError("asset_idx contains out-of-range indices")
         except jax.errors.TracerBoolConversionError:
             # Skip validation inside JAX transformations (e.g., jit, vmap)
             pass
@@ -233,6 +246,11 @@ class PortfolioBatch:
         """Number of unique product types."""
         return len(self.product_type_mapping)
 
+    @property
+    def n_assets(self) -> int:
+        """Number of unique assets."""
+        return len(self.asset_mapping)
+
     def __len__(self) -> int:
         """Return number of trades."""
         return self.n_trades
@@ -259,11 +277,13 @@ class PortfolioBatch:
             self.currency_idx,
             self.counterparty_idx,
             self.product_type_idx,
+            self.asset_idx,
         )
         aux_data = {
             "currency_mapping": self.currency_mapping,
             "counterparty_mapping": self.counterparty_mapping,
             "product_type_mapping": self.product_type_mapping,
+            "asset_mapping": self.asset_mapping,
             "product_ids": self.product_ids,
             "product_parameters": self.product_parameters,
             "metadata": self.metadata,
@@ -298,6 +318,7 @@ class PortfolioBatch:
             currency_idx=children[5],
             counterparty_idx=children[6],
             product_type_idx=children[7],
+            asset_idx=children[8],
             **aux_data,
         )
 
@@ -336,9 +357,11 @@ class PortfolioBatch:
             currency_idx=self.currency_idx[start:end],
             counterparty_idx=self.counterparty_idx[start:end],
             product_type_idx=self.product_type_idx[start:end],
+            asset_idx=self.asset_idx[start:end],
             currency_mapping=self.currency_mapping,
             counterparty_mapping=self.counterparty_mapping,
             product_type_mapping=self.product_type_mapping,
+            asset_mapping=self.asset_mapping,
             product_ids=self.product_ids[start:end],
             product_parameters=tuple(
                 dict(params) for params in self.product_parameters[start:end]
@@ -385,9 +408,11 @@ class PortfolioBatch:
             currency_idx=self.currency_idx[mask],
             counterparty_idx=new_cp_idx,
             product_type_idx=self.product_type_idx[mask],
+            asset_idx=self.asset_idx[mask],
             currency_mapping=self.currency_mapping,
             counterparty_mapping=new_cp_mapping,
             product_type_mapping=self.product_type_mapping,
+            asset_mapping=self.asset_mapping,
             product_ids=tuple(
                 pid for pid, keep in zip(self.product_ids, mask.tolist()) if keep
             ),
@@ -460,6 +485,7 @@ class PortfolioBatch:
             f"  n_trades={self.n_trades:,},\n"
             f"  n_counterparties={self.n_counterparties:,},\n"
             f"  n_currencies={self.n_currencies},\n"
+            f"  n_assets={self.n_assets},\n"
             f"  total_notional={float(jnp.sum(self.trade_arrays.notionals)):,.0f}\n"
             f")"
         )

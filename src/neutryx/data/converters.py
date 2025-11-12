@@ -74,6 +74,7 @@ def trades_to_portfolio_batch(
     currencies = []
     counterparty_ids = []
     product_types = []
+    assets = []
     product_ids = []
     product_parameters = []
 
@@ -94,6 +95,13 @@ def trades_to_portfolio_batch(
         currencies.append(trade["currency"])
         counterparty_ids.append(trade["counterparty_id"])
         product_types.append(trade["product_type"])
+        asset_identifier = (
+            trade.get("asset")
+            or trade.get("underlying")
+            or trade.get("asset_id")
+            or "UNKNOWN_ASSET"
+        )
+        assets.append(str(asset_identifier))
         product_ids.append(str(trade.get("trade_id", f"trade_{idx}")))
         product_parameters.append(dict(trade.get("product_parameters", {})))
 
@@ -101,11 +109,13 @@ def trades_to_portfolio_batch(
     currency_mapping = build_index_mapping(currencies, name="currency")
     counterparty_mapping = build_index_mapping(counterparty_ids, name="counterparty")
     product_type_mapping = build_index_mapping(product_types, name="product_type")
+    asset_mapping = build_index_mapping(assets, name="asset")
 
     # Encode categorical fields
     currency_idx = currency_mapping.encode_batch(currencies)
     counterparty_idx = counterparty_mapping.encode_batch(counterparty_ids)
     product_type_idx = product_type_mapping.encode_batch(product_types)
+    asset_idx = asset_mapping.encode_batch(assets)
 
     # Create trade arrays
     trade_arrays = TradeArrays(
@@ -121,9 +131,11 @@ def trades_to_portfolio_batch(
         currency_idx=currency_idx,
         counterparty_idx=counterparty_idx,
         product_type_idx=product_type_idx,
+        asset_idx=asset_idx,
         currency_mapping=currency_mapping,
         counterparty_mapping=counterparty_mapping,
         product_type_mapping=product_type_mapping,
+        asset_mapping=asset_mapping,
         product_ids=tuple(product_ids),
         product_parameters=tuple(product_parameters),
         metadata={"source": "dict_conversion", "n_original_trades": len(trades)},
@@ -218,6 +230,7 @@ def batch_to_trade_dicts(portfolio_batch: PortfolioBatch) -> list[dict[str, Any]
             "product_type": portfolio_batch.product_type_mapping.decode(
                 [portfolio_batch.product_type_idx[i]]
             )[0],
+            "asset": portfolio_batch.asset_mapping.decode([portfolio_batch.asset_idx[i]])[0],
             "trade_id": portfolio_batch.product_ids[i],
             "product_parameters": dict(portfolio_batch.product_parameters[i]),
         }

@@ -289,26 +289,88 @@ class MarketDataGrid:
     def get_implied_vols_batch(
         self,
         asset_idx: Array,
-        time_idx: Array,
-        strike_idx: Array,
+        maturities: Array,
+        strikes: Array,
     ) -> Array:
-        """Get implied volatilities for multiple queries.
+        """Interpolate implied volatilities for multiple asset/time/strike queries.
 
         Parameters
         ----------
         asset_idx : Array
             Asset indices [n_queries]
-        time_idx : Array
-            Time grid indices [n_queries]
-        strike_idx : Array
-            Strike grid indices [n_queries]
+        maturities : Array
+            Times in years [n_queries]
+        strikes : Array
+            Strike prices [n_queries]
 
         Returns
         -------
         Array
-            Implied volatilities [n_queries]
+            Interpolated implied volatilities [n_queries]
         """
-        return self.implied_vols[asset_idx, time_idx, strike_idx]
+
+        asset_idx = jnp.asarray(asset_idx, dtype=jnp.int32)
+        maturities = jnp.asarray(maturities, dtype=self.time_grid.dtype)
+        strikes = jnp.asarray(strikes, dtype=self.strike_grid.dtype)
+
+        min_time = self.time_grid[0]
+        max_time = self.time_grid[-1]
+        maturities = jnp.clip(maturities, min_time, max_time)
+
+        min_strike = self.strike_grid[0]
+        max_strike = self.strike_grid[-1]
+        strikes = jnp.clip(strikes, min_strike, max_strike)
+
+        eps_time = jnp.array(1e-12, dtype=self.time_grid.dtype)
+        eps_strike = jnp.array(1e-12, dtype=self.strike_grid.dtype)
+
+        if self.n_times == 1:
+            time_left = time_right = jnp.zeros_like(asset_idx, dtype=jnp.int32)
+            time_weight = jnp.zeros_like(maturities)
+        else:
+            time_right = jnp.searchsorted(self.time_grid, maturities, side="right")
+            time_right = jnp.clip(time_right, 1, self.n_times - 1)
+            time_left = time_right - 1
+            t_left = self.time_grid[time_left]
+            t_right = self.time_grid[time_right]
+            denom_t = jnp.where(t_right > t_left, t_right - t_left, eps_time)
+            time_weight = jnp.where(
+                t_right > t_left,
+                (maturities - t_left) / denom_t,
+                jnp.zeros_like(maturities),
+            )
+
+        if self.n_strikes == 1:
+            strike_left = strike_right = jnp.zeros_like(asset_idx, dtype=jnp.int32)
+            strike_weight = jnp.zeros_like(strikes)
+        else:
+            strike_right = jnp.searchsorted(self.strike_grid, strikes, side="right")
+            strike_right = jnp.clip(strike_right, 1, self.n_strikes - 1)
+            strike_left = strike_right - 1
+            k_left = self.strike_grid[strike_left]
+            k_right = self.strike_grid[strike_right]
+            denom_k = jnp.where(k_right > k_left, k_right - k_left, eps_strike)
+            strike_weight = jnp.where(
+                k_right > k_left,
+                (strikes - k_left) / denom_k,
+                jnp.zeros_like(strikes),
+            )
+
+        surfaces = self.implied_vols[asset_idx, :, :]
+
+        def _bilinear(surface, t_l, t_r, k_l, k_r, t_w, k_w):
+            vol_ll = surface[t_l, k_l]
+            vol_lr = surface[t_l, k_r]
+            vol_rl = surface[t_r, k_l]
+            vol_rr = surface[t_r, k_r]
+
+            vol_top = vol_ll + (vol_lr - vol_ll) * k_w
+            vol_bottom = vol_rl + (vol_rr - vol_rl) * k_w
+            return vol_top + (vol_bottom - vol_top) * t_w
+
+        return jax.vmap(_bilinear)(
+            surfaces, time_left, time_right, strike_left, strike_right, time_weight, strike_weight
+        )
 
     def interpolate_strike(self, asset_idx: int, time_idx: int, strike: float) -> float:
         """Interpolate implied vol for a specific strike value.

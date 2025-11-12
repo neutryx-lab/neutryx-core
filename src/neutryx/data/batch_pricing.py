@@ -156,6 +156,7 @@ def price_vanilla_options_batch(
 
     # Get market data indices
     currency_idx = portfolio.currency_idx
+    asset_idx = portfolio.asset_idx
 
     # Find time indices on market grid
     time_indices = market_grid.find_time_indices_batch(maturities)
@@ -163,9 +164,11 @@ def price_vanilla_options_batch(
     # Batch lookup: zero rates for all trades
     zero_rates = market_grid.zero_rates[currency_idx, time_indices]
 
-    # TODO: Batch lookup volatilities (requires asset mapping in portfolio)
-    # For now, use flat 20% vol
-    vols = jnp.full(n_trades, 0.2, dtype=jnp.float32)
+    vols = market_grid.get_implied_vols_batch(
+        asset_idx=asset_idx,
+        maturities=maturities,
+        strikes=strikes,
+    )
 
     # Dividend yields
     if div_yields is None:
