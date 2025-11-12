@@ -17,6 +17,7 @@ import jax.numpy as jnp
 import numpy as np
 from jax import Array
 
+from neutryx.infrastructure.governance import record_artifact
 from neutryx.io.base import DataStore, StorageConfig
 
 try:
@@ -147,9 +148,17 @@ class ZarrStore(DataStore):
             overwrite=True,
         )
 
-        # Save metadata
-        if metadata is not None:
-            self._root[key].attrs.update(metadata)
+        base_metadata: Dict[str, Any] = dict(metadata or {})
+        base_metadata.setdefault("storage_backend", "zarr")
+        base_metadata.setdefault("array_shape", list(np_array.shape))
+        base_metadata.setdefault("array_dtype", str(np_array.dtype))
+        enriched_metadata = record_artifact(
+            key,
+            kind="array",
+            metadata=base_metadata,
+            extra_event_metadata={"storage_backend": "zarr", "array_shape": list(np_array.shape)},
+        )
+        self._root[key].attrs.update(enriched_metadata)
 
     def load_array(self, key: str) -> Array:
         """Load array from Zarr."""
@@ -167,7 +176,13 @@ class ZarrStore(DataStore):
 
         # Store as JSON in a special metadata group
         metadata_group = self._root.require_group("__metadata__")
-        metadata_group.attrs[key] = json.dumps(metadata)
+        enriched_metadata = record_artifact(
+            key,
+            kind="metadata",
+            metadata={"storage_backend": "zarr", **metadata},
+            extra_event_metadata={"storage_backend": "zarr"},
+        )
+        metadata_group.attrs[key] = json.dumps(enriched_metadata)
 
     def load_metadata(self, key: str) -> Dict[str, Any]:
         """Load metadata from Zarr attributes."""

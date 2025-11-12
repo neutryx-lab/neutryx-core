@@ -1,9 +1,11 @@
-"""Data flow lineage recording utilities.
+"""Lightweight data lineage and data-flow recording utilities.
 
-This module provides a lightweight registry for capturing lineage metadata
-produced by compute jobs and API requests.  Downstream services can register
-sinks which receive structured :class:`DataFlowRecord` instances and persist
-or forward them to external governance systems.
+The goal of this module is to provide a minimal yet expressive mechanism to
+capture provenance metadata for computation jobs and API driven workflows.  It
+introduces a lineage context that can be activated while executing a job or
+servicing an API request.  Any storage layer that opts-in can automatically
+enrich persisted metadata with the active lineage identifier, while also
+emitting structured events that downstream governance tooling can consume.
 """
 from __future__ import annotations
 
@@ -11,6 +13,123 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from threading import RLock
+from types import MappingProxyType
+from typing import Any, Callable, Dict, Iterator, List, Mapping, Optional
+from uuid import uuid4
+import contextvars
+
+
+_CURRENT_CONTEXT: contextvars.ContextVar["LineageContext | None"] = contextvars.ContextVar(
+    "neutryx_current_lineage_context", default=None
+)
+
+
+def generate_lineage_id() -> str:
+    """Return a random lineage identifier."""
+
+    return uuid4().hex
+
+
+@dataclass(frozen=True)
+class LineageContext:
+    """Represents the active lineage scope for a job or API request."""
+
+    lineage_id: str
+    source: str | None = None
+    job_id: str | None = None
+    api_request_id: str | None = None
+    attributes: Dict[str, Any] = field(default_factory=dict)
+
+    def to_metadata(self) -> Dict[str, Any]:
+        """Return a metadata dictionary describing the context."""
+
+        metadata: Dict[str, Any] = {"lineage_id": self.lineage_id}
+        if self.source:
+            metadata.setdefault("lineage_source", self.source)
+        if self.job_id:
+            metadata.setdefault("job_id", self.job_id)
+        if self.api_request_id:
+            metadata.setdefault("api_request_id", self.api_request_id)
+        for key, value in self.attributes.items():
+            metadata.setdefault(str(key), value)
+        return metadata
+
+
+@dataclass(frozen=True)
+class DataFlowEvent:
+    """Structured record emitted whenever an artefact is produced."""
+
+    event_type: str
+    lineage_id: str
+    timestamp: datetime
+    metadata: Mapping[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert the event into a serialisable dictionary."""
+
+        return {
+            "event_type": self.event_type,
+            "lineage_id": self.lineage_id,
+            "timestamp": self.timestamp.isoformat(),
+            "metadata": dict(self.metadata),
+        }
+
+
+class DataFlowRecorder:
+    """In-memory recorder that stores data-flow events."""
+
+    def __init__(self) -> None:
+        self._lock = RLock()
+        self._events: List[DataFlowEvent] = []
+        self._subscribers: List[Callable[[DataFlowEvent], None]] = []
+
+    def publish(self, event_type: str, metadata: Optional[Mapping[str, Any]] = None) -> DataFlowEvent:
+        """Create an event and notify all subscribers."""
+
+        enriched = embed_lineage_metadata(metadata)
+        lineage_id = enriched["lineage_id"]
+
+        event = DataFlowEvent(
+            event_type=event_type,
+            lineage_id=lineage_id,
+            timestamp=datetime.now(timezone.utc),
+            metadata=MappingProxyType(dict(enriched)),
+        )
+
+        with self._lock:
+            self._events.append(event)
+            subscribers = list(self._subscribers)
+
+        for callback in subscribers:
+            callback(event)
+
+        return event
+
+    def subscribe(self, callback: Callable[[DataFlowEvent], None]) -> None:
+        """Register a callback invoked whenever an event is published."""
+
+        with self._lock:
+            if callback not in self._subscribers:
+                self._subscribers.append(callback)
+
+    def unsubscribe(self, callback: Callable[[DataFlowEvent], None]) -> None:
+        """Remove a previously registered subscriber."""
+
+        with self._lock:
+            if callback in self._subscribers:
+                self._subscribers.remove(callback)
+
+    def get_events(self) -> List[DataFlowEvent]:
+        """Return a snapshot of all recorded events."""
+
+        with self._lock:
+            return list(self._events)
+
+    def clear(self) -> None:
+        """Remove all stored events."""
+
+        with self._lock:
+            self._events.clear()
 from typing import Any, Dict, Iterable, Iterator, List, MutableMapping, Optional, Protocol
 from uuid import uuid4
 
