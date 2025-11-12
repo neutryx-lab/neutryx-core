@@ -5,7 +5,7 @@ shared across different components to avoid circular dependencies.
 """
 from __future__ import annotations
 
-from typing import Any, List, Sequence
+from typing import Any, Dict, List, Sequence
 
 import jax.numpy as jnp
 from fastapi import HTTPException
@@ -79,6 +79,38 @@ class PortfolioXVARequest(BaseModel):
     compute_mva: bool = Field(False, description="Compute MVA")
     lgd: float = Field(0.6, description="Loss given default (if not in counterparty data)")
     funding_spread_bps: float = Field(50.0, description="Funding spread in bps for FVA")
+    time_grid: List[float] | None = Field(
+        None, description="Optional exposure time grid overriding Monte Carlo steps"
+    )
+    market_data: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="Market data bundle used for exposure simulation",
+    )
+    monte_carlo: Dict[str, int] = Field(
+        default_factory=lambda: {"steps": 32, "paths": 2048, "seed": 0},
+        description="Monte Carlo configuration (steps, paths, seed)",
+    )
+    discount_curve: ProfileRequest | None = Field(
+        None, description="Discount factors aligned with the exposure grid"
+    )
+    counterparty_pd: ProfileRequest | None = Field(
+        None, description="Counterparty cumulative default probabilities"
+    )
+    own_pd: ProfileRequest | None = Field(
+        None, description="Own cumulative default probabilities for DVA"
+    )
+    lgd_curve: ProfileRequest | None = Field(
+        None, description="Term structure of counterparty LGD"
+    )
+    own_lgd_curve: ProfileRequest | None = Field(
+        None, description="Term structure of own LGD"
+    )
+    funding_curve: ProfileRequest | None = Field(
+        None, description="Funding spread profile for FVA (decimal, not bps)"
+    )
+    initial_margin: ProfileRequest | None = Field(
+        None, description="Initial margin profile used for MVA"
+    )
 
 
 class PortfolioSummaryRequest(BaseModel):
