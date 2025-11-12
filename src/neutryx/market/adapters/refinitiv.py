@@ -12,6 +12,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, date
 from typing import Dict, List, Optional, Any
+import time
 import logging
 
 from .base import BaseMarketDataAdapter, AdapterConfig, ConnectionState
@@ -39,16 +40,28 @@ class RefinitivConfig(AdapterConfig):
     Refinitiv-specific configuration.
 
     Attributes:
-        app_key: Refinitiv application key
-        username: Refinitiv username (for RDP)
-        password: Refinitiv password (for RDP)
+        app_key: Legacy application key used when specific app keys are not provided
+        desktop_app_key: Application key for the Eikon desktop API
+        rdp_app_key: Application key for Refinitiv Data Platform access
+        username: Refinitiv username (for password grant authentication)
+        password: Refinitiv password (for password grant authentication)
+        rdp_client_id: OAuth client identifier (for client credentials grant)
+        rdp_client_secret: OAuth client secret (for client credentials grant)
+        rdp_scope: Optional OAuth scopes to request
+        rdp_grant: OAuth grant type to use ("password" or "client_credentials")
         use_desktop: Use Eikon Desktop instead of RDP
         rdp_host: RDP host (for cloud deployment)
         rdp_auth_url: RDP authentication URL
     """
     app_key: str = ""
+    desktop_app_key: str = ""
+    rdp_app_key: str = ""
     username: str = ""
     password: str = ""
+    rdp_client_id: str = ""
+    rdp_client_secret: str = ""
+    rdp_scope: str = ""
+    rdp_grant: str = "password"
     use_desktop: bool = True
     rdp_host: str = "api.refinitiv.com"
     rdp_auth_url: str = "https://api.refinitiv.com/auth/oauth2/v1/token"
@@ -124,7 +137,8 @@ class RefinitivAdapter(BaseMarketDataAdapter):
             return False
 
         try:
-            ek.set_app_key(self.config.app_key)
+            desktop_app_key = self.config.desktop_app_key or self.config.app_key
+            ek.set_app_key(desktop_app_key)
             self._eikon = ek
 
             # Test connection
@@ -155,14 +169,37 @@ class RefinitivAdapter(BaseMarketDataAdapter):
         try:
             self._rdp = rdp
 
-            # Open platform session
-            session = rdp.open_platform_session(
-                self.config.app_key,
-                rdp.GrantPassword(
-                    username=self.config.username,
-                    password=self.config.password
+            app_key = self.config.rdp_app_key or self.config.app_key
+            scope = self.config.rdp_scope or None
+
+            grant_kwargs: Dict[str, Any] = {}
+            if scope:
+                grant_kwargs["scope"] = scope
+
+            grant_type = (self.config.rdp_grant or "password").lower()
+            if grant_type == "client_credentials":
+                client_id = self.config.rdp_client_id or self.config.username
+                client_secret = self.config.rdp_client_secret or self.config.password
+                grant = rdp.GrantClientCredentials(
+                    client_id=client_id,
+                    client_secret=client_secret,
+                    **grant_kwargs,
                 )
-            )
+            else:
+                grant = rdp.GrantPassword(
+                    username=self.config.username,
+                    password=self.config.password,
+                    **grant_kwargs,
+                )
+
+            session_kwargs: Dict[str, Any] = {}
+            if self.config.rdp_host:
+                session_kwargs["host"] = self.config.rdp_host
+            if self.config.rdp_auth_url:
+                session_kwargs["token_endpoint"] = self.config.rdp_auth_url
+
+            # Open platform session
+            session = rdp.open_platform_session(app_key, grant, **session_kwargs)
 
             if session.get_open_state() != rdp.Session.State.Open:
                 raise Exception("Failed to open RDP session")
@@ -686,9 +723,50 @@ class RefinitivAdapter(BaseMarketDataAdapter):
                 return result
 
             elif self._rdp:
-                # Use RDP API
-                # This is a simplified implementation
-                # In practice, you'd use specific RDP endpoints
+                pricing_content = getattr(self._rdp, "content", None)
+                pricing_api = getattr(pricing_content, "pricing", None)
+
+                if pricing_api is None:
+                    logger.error("RDP pricing content is unavailable")
+                    return None
+
+                attempts = max(1, self.config.retry_attempts)
+                delay_seconds = max(0, self.config.retry_delay_ms) / 1000.0
+                last_error: Optional[Exception] = None
+
+                for attempt in range(1, attempts + 1):
+                    try:
+                        response = pricing_api.get_snapshots(
+                            universe=[ric],
+                            fields=fields,
+                        )
+
+                        parsed = self._parse_rdp_snapshot_response(response, ric)
+                        if parsed is not None:
+                            return parsed
+
+                        last_error = ValueError(
+                            f"No data returned for {ric} on attempt {attempt}"
+                        )
+                    except Exception as err:  # pragma: no cover - logged and retried
+                        last_error = err
+                        logger.warning(
+                            "Attempt %s to fetch %s via RDP failed: %s",
+                            attempt,
+                            ric,
+                            err,
+                        )
+
+                    if attempt < attempts and delay_seconds:
+                        time.sleep(delay_seconds)
+
+                if last_error:
+                    logger.error(
+                        "Failed to retrieve data for %s via RDP after %s attempts: %s",
+                        ric,
+                        attempts,
+                        last_error,
+                    )
                 return None
 
             else:
@@ -697,6 +775,88 @@ class RefinitivAdapter(BaseMarketDataAdapter):
         except Exception as e:
             logger.error(f"Error getting data for {ric}: {e}")
             return None
+
+    @staticmethod
+    def _parse_rdp_snapshot_response(
+        response: Any, ric: str
+    ) -> Optional[Dict[str, Any]]:
+        """Parse a snapshot response returned by the RDP pricing API."""
+
+        if response is None:
+            return None
+
+        records: List[Dict[str, Any]] = []
+
+        def _extend_from_candidate(candidate: Any):
+            if isinstance(candidate, list):
+                for item in candidate:
+                    if isinstance(item, dict):
+                        records.append(item)
+            elif isinstance(candidate, dict):
+                records.append(candidate)
+
+        if isinstance(response, dict):
+            for key in ("snapshots", "data", "responses", "items"):
+                if key in response:
+                    _extend_from_candidate(response[key])
+            if not records:
+                _extend_from_candidate(response)
+
+        data_attr = getattr(response, "data", None)
+        if data_attr is not None:
+            raw_attr = getattr(data_attr, "raw", None)
+            if isinstance(raw_attr, dict):
+                for key in ("snapshots", "data", "responses", "items"):
+                    if key in raw_attr:
+                        _extend_from_candidate(raw_attr[key])
+
+            df_attr = getattr(data_attr, "df", None)
+            if df_attr is not None and hasattr(df_attr, "to_dict"):
+                try:
+                    df_records = df_attr.to_dict(orient="records")
+                except TypeError:
+                    df_records = df_attr.to_dict()
+                _extend_from_candidate(df_records)
+
+        if not records and hasattr(response, "to_dict"):
+            try:
+                _extend_from_candidate(response.to_dict())
+            except Exception:  # pragma: no cover - defensive
+                pass
+
+        if not records:
+            return None
+
+        target_ric = ric.lower()
+        for record in records:
+            record_ric = (
+                str(
+                    record.get("ric")
+                    or record.get("RIC")
+                    or record.get("instrument")
+                    or record.get("Instrument")
+                    or ""
+                )
+                .strip()
+                .lower()
+            )
+
+            if record_ric and record_ric != target_ric:
+                continue
+
+            fields = record.get("fields")
+            if isinstance(fields, dict):
+                return fields
+
+            cleaned = {
+                key: value
+                for key, value in record.items()
+                if key not in {"ric", "RIC", "instrument", "Instrument"}
+            }
+            if cleaned:
+                return cleaned
+
+        return None
 
     @staticmethod
     def _format_rate_ric(rate_type: str, currency: str, tenor: str) -> str:
