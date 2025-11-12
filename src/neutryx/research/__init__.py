@@ -30,6 +30,20 @@ from .performance import (
     calculate_max_drawdown,
     calculate_calmar_ratio,
 )
+from .portfolio import (
+    BlackLittermanModel,
+    BlackLittermanPosterior,
+    CovarianceEstimator,
+    MaximumSharpeRatioOptimizer,
+    MinimumVarianceOptimizer,
+    PortfolioView,
+    ViewCollection,
+)
+from .portfolio.advanced import (
+    MarketSimulationEnvironment,
+    ReinforcementLearningPortfolioAgent,
+    RobustMeanVarianceOptimizer,
+)
 from .attribution import (
     PerformanceAttribution,
     AttributionResult,
@@ -59,6 +73,16 @@ __all__ = [
     "calculate_sortino_ratio",
     "calculate_max_drawdown",
     "calculate_calmar_ratio",
+    "BlackLittermanModel",
+    "BlackLittermanPosterior",
+    "CovarianceEstimator",
+    "MaximumSharpeRatioOptimizer",
+    "MinimumVarianceOptimizer",
+    "PortfolioView",
+    "ViewCollection",
+    "MarketSimulationEnvironment",
+    "ReinforcementLearningPortfolioAgent",
+    "RobustMeanVarianceOptimizer",
     "PerformanceAttribution",
     "AttributionResult",
     "risk_decomposition",
