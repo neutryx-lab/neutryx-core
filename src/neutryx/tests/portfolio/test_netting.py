@@ -66,6 +66,75 @@ def test_calculate_net_exposure_by_currency():
     assert net_exposure["GBP"] == 25_000.0
 
 
+def test_calculate_net_exposure_in_base_currency_basic():
+    """Cross-currency conversion aggregates exposure in the base currency."""
+    mtm_by_currency = {
+        "USD": 100_000.0,
+        "EUR": -50_000.0,
+        "JPY": 10_000_000.0,
+    }
+    fx_rates = {"EUR": 1.1, "JPY": 0.009}
+
+    result = netting.calculate_net_exposure_in_base_currency(
+        mtm_by_currency,
+        fx_rates,
+        base_currency="usd",
+        precision=2,
+    )
+
+    assert result["base_currency"] == "USD"
+    assert result["total"] == pytest.approx(135_000.0)
+    assert result["by_currency"] == {
+        "USD": pytest.approx(100_000.0),
+        "EUR": pytest.approx(-55_000.0),
+        "JPY": pytest.approx(90_000.0),
+    }
+
+
+def test_calculate_net_exposure_in_base_currency_fx_sensitivity_and_rounding():
+    """FX rate changes and rounding precision influence totals consistently."""
+    mtm_by_currency = {
+        "EUR": 1_000_000.0,
+        "CHF": -250_000.0,
+    }
+
+    high_rate = {"EUR": 1.12, "CHF": 1.09}
+    low_rate = {"EUR": 1.08, "CHF": 1.05}
+
+    result_high = netting.calculate_net_exposure_in_base_currency(
+        mtm_by_currency,
+        high_rate,
+        base_currency="USD",
+        precision=4,
+    )
+    result_low = netting.calculate_net_exposure_in_base_currency(
+        mtm_by_currency,
+        low_rate,
+        base_currency="USD",
+        precision=4,
+    )
+
+    # Higher EUR and CHF rates should increase the USD exposure.
+    assert result_high["total"] > result_low["total"]
+
+    # Rounding is applied consistently to the converted breakdown.
+    assert result_high["by_currency"]["EUR"] == pytest.approx(1_120_000.0, rel=1e-6)
+    assert result_high["by_currency"]["CHF"] == pytest.approx(-272_500.0, rel=1e-6)
+    assert result_high["total"] == pytest.approx(847_500.0, rel=1e-6)
+
+
+def test_calculate_net_exposure_in_base_currency_missing_rate():
+    """Missing FX rates should raise a descriptive error."""
+    mtm_by_currency = {"USD": 10_000.0, "AUD": -5_000.0}
+
+    with pytest.raises(ValueError, match="Missing FX rate for currency 'AUD'"):
+        netting.calculate_net_exposure_in_base_currency(
+            mtm_by_currency,
+            fx_rates={},
+            base_currency="USD",
+        )
+
+
 def test_calculate_payment_netting_by_currency():
     """Test payment netting with currency separation."""
     cash_flows = [
