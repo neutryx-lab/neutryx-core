@@ -6,7 +6,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Optional, Set
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, field_validator
 
 
 class UserRole(str, Enum):
@@ -130,6 +130,66 @@ class LDAPConfig(BaseModel):
     timeout: int = Field(default=10, description="Connection timeout in seconds")
 
 
+class VerificationCodeSettings(BaseModel):
+    """Configuration for MFA verification code generation and validation."""
+
+    length: int = Field(default=6, ge=4, le=10, description="Number of digits for verification codes")
+    ttl_seconds: int = Field(default=300, gt=0, description="Time-to-live for verification codes")
+    max_attempts: int = Field(default=5, gt=0, description="Maximum verification attempts before reset")
+
+
+class SMSProviderConfig(BaseModel):
+    """SMS provider configuration for MFA delivery."""
+
+    provider_name: str = Field(default="twilio", description="Identifier for the SMS provider implementation")
+    from_number: str = Field(..., description="Sender phone number used for SMS delivery")
+    message_template: str = Field(
+        default="Your verification code is {code}",
+        description="SMS body template (must contain '{code}' placeholder)",
+    )
+    code_settings: VerificationCodeSettings = Field(
+        default_factory=VerificationCodeSettings,
+        description="Verification code generation and validation settings",
+    )
+
+    @field_validator("message_template")
+    @classmethod
+    def validate_template_contains_code(cls, value: str) -> str:
+        """Ensure the SMS message template contains the {code} placeholder."""
+
+        if "{code}" not in value:
+            raise ValueError("message_template must include '{code}' placeholder")
+        return value
+
+
+class EmailProviderConfig(BaseModel):
+    """Email provider configuration for MFA delivery."""
+
+    provider_name: str = Field(default="smtp", description="Identifier for the email provider implementation")
+    from_address: EmailStr = Field(..., description="Sender email address used for MFA messages")
+    subject_template: str = Field(
+        default="Your Neutryx verification code",
+        description="Subject template for MFA emails",
+    )
+    body_template: str = Field(
+        default="Your verification code is {code}",
+        description="Email body template (must contain '{code}' placeholder)",
+    )
+    code_settings: VerificationCodeSettings = Field(
+        default_factory=VerificationCodeSettings,
+        description="Verification code generation and validation settings",
+    )
+
+    @field_validator("body_template")
+    @classmethod
+    def validate_body_contains_code(cls, value: str) -> str:
+        """Ensure the email body template contains the {code} placeholder."""
+
+        if "{code}" not in value:
+            raise ValueError("body_template must include '{code}' placeholder")
+        return value
+
+
 class MFASetupResponse(BaseModel):
     """MFA setup response with QR code data."""
 
@@ -145,6 +205,9 @@ __all__ = [
     "LoginRequest",
     "OAuth2Config",
     "LDAPConfig",
+    "VerificationCodeSettings",
+    "SMSProviderConfig",
+    "EmailProviderConfig",
     "MFASetupResponse",
     "UserRole",
     "AuthProvider",
