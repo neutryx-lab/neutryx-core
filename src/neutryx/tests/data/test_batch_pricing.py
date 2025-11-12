@@ -27,15 +27,18 @@ def test_price_vanilla_options_batch_basic():
     currency_mapping = IndexMapping.from_values(["USD"])
     cp_mapping = IndexMapping.from_values(["CP1"])
     product_mapping = IndexMapping.from_values(["VanillaOption"])
+    asset_mapping = IndexMapping.from_values(["SPX"])
 
     portfolio = PortfolioBatch(
         trade_arrays=trade_arrays,
         currency_idx=jnp.array([0, 0]),
         counterparty_idx=jnp.array([0, 0]),
         product_type_idx=jnp.array([0, 0]),
+        asset_idx=jnp.array([0, 0]),
         currency_mapping=currency_mapping,
         counterparty_mapping=cp_mapping,
         product_type_mapping=product_mapping,
+        asset_mapping=asset_mapping,
     )
 
     # Create market grid
@@ -74,15 +77,18 @@ def test_batch_pricing_multiple_currencies():
     currency_mapping = IndexMapping.from_values(["EUR", "GBP", "USD"])
     cp_mapping = IndexMapping.from_values(["CP1"])
     product_mapping = IndexMapping.from_values(["VanillaOption"])
+    asset_mapping = IndexMapping.from_values(["SPX"])
 
     portfolio = PortfolioBatch(
         trade_arrays=trade_arrays,
         currency_idx=jnp.array([0, 1, 2]),  # Different currencies
         counterparty_idx=jnp.array([0, 0, 0]),
         product_type_idx=jnp.array([0, 0, 0]),
+        asset_idx=jnp.array([0, 0, 0]),
         currency_mapping=currency_mapping,
         counterparty_mapping=cp_mapping,
         product_type_mapping=product_mapping,
+        asset_mapping=asset_mapping,
     )
 
     # Create market grid
@@ -119,18 +125,20 @@ def test_batch_pricing_large_portfolio():
     currency_mapping = IndexMapping.from_values(["USD"])
     cp_mapping = IndexMapping.from_values([f"CP{i}" for i in range(100)])
     product_mapping = IndexMapping.from_values(["VanillaOption"])
+    asset_mapping = IndexMapping.from_values(["SPX"])
 
     portfolio = PortfolioBatch(
         trade_arrays=trade_arrays,
         currency_idx=jnp.zeros(n_trades, dtype=jnp.int32),
         counterparty_idx=jnp.arange(n_trades, dtype=jnp.int32) % 100,
         product_type_idx=jnp.zeros(n_trades, dtype=jnp.int32),
+        asset_idx=jnp.zeros(n_trades, dtype=jnp.int32),
         currency_mapping=currency_mapping,
         counterparty_mapping=cp_mapping,
         product_type_mapping=product_mapping,
+        asset_mapping=asset_mapping,
     )
 
-    # Create market grid
     time_grid = build_time_grid(5.0, n_steps=600)
     market_grid = build_market_data_grid_simple(
         time_grid,
@@ -140,8 +148,63 @@ def test_batch_pricing_large_portfolio():
         flat_vol=0.20,
     )
 
-    # Price portfolio (should complete without error)
     prices = price_vanilla_options_batch(portfolio, market_grid)
 
     assert prices.shape == (n_trades,)
     assert jnp.all(prices > 0)
+
+
+def test_batch_pricing_responds_to_vol_surface_changes():
+    """Verify that pricing responds to changes in market volatility inputs."""
+
+    trade_arrays = TradeArrays(
+        spots=jnp.array([100.0]),
+        strikes=jnp.array([105.0]),
+        maturities=jnp.array([1.25]),
+        notionals=jnp.array([1.0]),
+        option_types=jnp.array([0]),
+    )
+
+    currency_mapping = IndexMapping.from_values(["USD"])
+    cp_mapping = IndexMapping.from_values(["CP1"])
+    product_mapping = IndexMapping.from_values(["VanillaOption"])
+    asset_mapping = IndexMapping.from_values(["SPX"])
+
+    portfolio = PortfolioBatch(
+        trade_arrays=trade_arrays,
+        currency_idx=jnp.array([0]),
+        counterparty_idx=jnp.array([0]),
+        product_type_idx=jnp.array([0]),
+        asset_idx=jnp.array([0]),
+        currency_mapping=currency_mapping,
+        counterparty_mapping=cp_mapping,
+        product_type_mapping=product_mapping,
+        asset_mapping=asset_mapping,
+    )
+
+    time_grid = build_time_grid(2.0, n_steps=10)
+
+    grid_low_vol = build_market_data_grid_simple(
+        time_grid,
+        currencies=["USD"],
+        assets=["SPX"],
+        flat_rate=0.02,
+        flat_vol=0.15,
+    )
+
+    grid_high_vol = build_market_data_grid_simple(
+        time_grid,
+        currencies=["USD"],
+        assets=["SPX"],
+        flat_rate=0.02,
+        flat_vol=0.35,
+    )
+
+    price_low = price_vanilla_options_batch(portfolio, grid_low_vol, use_notional=False)
+    price_high = price_vanilla_options_batch(portfolio, grid_high_vol, use_notional=False)
+
+    assert price_high.shape == (1,)
+    assert float(price_high[0]) > float(price_low[0])
+
+    # Ensure that the interpolated volatility feeds directly into pricing
+    assert float(price_low[0]) > 0

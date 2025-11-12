@@ -66,20 +66,24 @@ def test_portfolio_batch_creation():
     currency_mapping = IndexMapping.from_values(["EUR", "USD"])
     cp_mapping = IndexMapping.from_values(["CP1", "CP2"])
     product_mapping = IndexMapping.from_values(["VanillaOption"])
+    asset_mapping = IndexMapping.from_values(["SPX", "SX5E"])
 
     portfolio = PortfolioBatch(
         trade_arrays=trade_arrays,
         currency_idx=jnp.array([0, 1, 0]),  # EUR, USD, EUR
         counterparty_idx=jnp.array([0, 0, 1]),  # CP1, CP1, CP2
         product_type_idx=jnp.array([0, 0, 0]),
+        asset_idx=jnp.array([0, 1, 0]),
         currency_mapping=currency_mapping,
         counterparty_mapping=cp_mapping,
         product_type_mapping=product_mapping,
+        asset_mapping=asset_mapping,
     )
 
     assert portfolio.n_trades == 3
     assert portfolio.n_currencies == 2
     assert portfolio.n_counterparties == 2
+    assert portfolio.n_assets == 2
     assert len(portfolio) == 3
 
 
@@ -95,6 +99,7 @@ def test_trades_to_portfolio_batch():
             "currency": "USD",
             "counterparty_id": "CP1",
             "product_type": "VanillaOption",
+            "asset": "SPX",
         },
         {
             "spot": 105.0,
@@ -105,6 +110,7 @@ def test_trades_to_portfolio_batch():
             "currency": "EUR",
             "counterparty_id": "CP1",
             "product_type": "VanillaOption",
+            "asset": "SX5E",
         },
     ]
 
@@ -113,6 +119,7 @@ def test_trades_to_portfolio_batch():
     assert portfolio.n_trades == 2
     assert portfolio.n_currencies == 2  # EUR, USD
     assert portfolio.n_counterparties == 1  # CP1
+    assert portfolio.n_assets == 2
     assert float(portfolio.trade_arrays.spots[0]) == 100.0
     assert float(portfolio.trade_arrays.strikes[1]) == 115.0
 
@@ -129,6 +136,7 @@ def test_portfolio_slice():
             "currency": "USD",
             "counterparty_id": "CP1",
             "product_type": "VanillaOption",
+            "asset": "SPX",
         }
         for i in range(10)
     ]
@@ -139,6 +147,7 @@ def test_portfolio_slice():
     assert sliced.n_trades == 5
     assert float(sliced.trade_arrays.spots[0]) == 100.0
     assert float(sliced.trade_arrays.spots[4]) == 104.0
+    assert sliced.n_assets == portfolio.n_assets
 
 
 def test_portfolio_filter_by_counterparty():
@@ -153,6 +162,7 @@ def test_portfolio_filter_by_counterparty():
             "currency": "USD",
             "counterparty_id": f"CP{i % 2}",
             "product_type": "VanillaOption",
+            "asset": "SPX" if i % 2 == 0 else "SX5E",
         }
         for i in range(10)
     ]

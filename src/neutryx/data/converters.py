@@ -74,6 +74,7 @@ def trades_to_portfolio_batch(
     currencies = []
     counterparty_ids = []
     product_types = []
+    assets = []
 
     option_type_map = {"call": 0, "put": 1, None: -1, "": -1}
 
@@ -92,16 +93,25 @@ def trades_to_portfolio_batch(
         currencies.append(trade["currency"])
         counterparty_ids.append(trade["counterparty_id"])
         product_types.append(trade["product_type"])
+        asset_identifier = (
+            trade.get("asset")
+            or trade.get("underlying")
+            or trade.get("asset_id")
+            or "UNKNOWN_ASSET"
+        )
+        assets.append(str(asset_identifier))
 
     # Build index mappings
     currency_mapping = build_index_mapping(currencies, name="currency")
     counterparty_mapping = build_index_mapping(counterparty_ids, name="counterparty")
     product_type_mapping = build_index_mapping(product_types, name="product_type")
+    asset_mapping = build_index_mapping(assets, name="asset")
 
     # Encode categorical fields
     currency_idx = currency_mapping.encode_batch(currencies)
     counterparty_idx = counterparty_mapping.encode_batch(counterparty_ids)
     product_type_idx = product_type_mapping.encode_batch(product_types)
+    asset_idx = asset_mapping.encode_batch(assets)
 
     # Create trade arrays
     trade_arrays = TradeArrays(
@@ -117,9 +127,11 @@ def trades_to_portfolio_batch(
         currency_idx=currency_idx,
         counterparty_idx=counterparty_idx,
         product_type_idx=product_type_idx,
+        asset_idx=asset_idx,
         currency_mapping=currency_mapping,
         counterparty_mapping=counterparty_mapping,
         product_type_mapping=product_type_mapping,
+        asset_mapping=asset_mapping,
         metadata={"source": "dict_conversion", "n_original_trades": len(trades)},
     )
 
@@ -212,6 +224,7 @@ def batch_to_trade_dicts(portfolio_batch: PortfolioBatch) -> list[dict[str, Any]
             "product_type": portfolio_batch.product_type_mapping.decode(
                 [portfolio_batch.product_type_idx[i]]
             )[0],
+            "asset": portfolio_batch.asset_mapping.decode([portfolio_batch.asset_idx[i]])[0],
         }
         trades.append(trade_dict)
 
