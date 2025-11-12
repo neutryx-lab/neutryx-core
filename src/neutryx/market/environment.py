@@ -385,29 +385,6 @@ class MarketDataEnvironment:
         new_curves[underlier] = curve
         return replace(self, dividend_curves=new_curves)
 
-    def with_credit_curve(
-        self,
-        issuer: str,
-        seniority: str,
-        curve: Curve
-    ) -> MarketDataEnvironment:
-        """
-        Return new environment with updated credit curve.
-
-        Args:
-            issuer: Issuer identifier (e.g., "CorpA")
-            seniority: Seniority level (e.g., "Senior")
-            curve: New credit curve
-
-        Returns:
-            New MarketDataEnvironment with updated credit curve
-        """
-
-        key = (issuer, seniority)
-        new_curves = dict(self.credit_curves)
-        new_curves[key] = curve
-        return replace(self, credit_curves=new_curves)
-
     def with_fx_spot(
         self,
         from_ccy: str,

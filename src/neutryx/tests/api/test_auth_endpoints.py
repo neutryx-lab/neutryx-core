@@ -56,7 +56,7 @@ if "prometheus_client" not in sys.modules:
 from neutryx.api.rest import create_app
 from neutryx.api.auth.models import User
 from neutryx.api.auth.jwt_handler import JWTHandler
-from neutryx.api.auth.dependencies import add_user_to_store, register_local_user
+from neutryx.api.auth.dependencies import add_user_to_store, clear_user_store, register_local_user
 
 
 @pytest.fixture

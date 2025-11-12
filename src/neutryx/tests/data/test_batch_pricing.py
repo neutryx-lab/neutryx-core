@@ -236,6 +236,7 @@ def test_price_portfolio_batch_mixed_products():
     product_mapping = IndexMapping.from_values(
         ["VanillaOption", "InterestRateSwap", "FXForward"]
     )
+    asset_mapping = IndexMapping.from_values(["SPX"])
 
     product_parameters = (
         {},
@@ -264,9 +265,11 @@ def test_price_portfolio_batch_mixed_products():
         currency_idx=jnp.array([0, 0, 0], dtype=jnp.int32),
         counterparty_idx=jnp.array([0, 1, 1], dtype=jnp.int32),
         product_type_idx=jnp.array([0, 1, 2], dtype=jnp.int32),
+        asset_idx=jnp.array([0, 0, 0], dtype=jnp.int32),
         currency_mapping=currency_mapping,
         counterparty_mapping=cp_mapping,
         product_type_mapping=product_mapping,
+        asset_mapping=asset_mapping,
         product_ids=("OPT-1", "IRS-1", "FXFWD-1"),
         product_parameters=product_parameters,
     )

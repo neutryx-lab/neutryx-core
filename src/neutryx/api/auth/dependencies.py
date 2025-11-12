@@ -74,6 +74,17 @@ def add_user_to_store(user: User):
     _user_store_by_username[user.username] = user.user_id
 
 
+def clear_user_store() -> None:
+    """Clear all in-memory user stores.
+
+    Used primarily for testing to ensure test isolation.
+    """
+    global _user_store, _user_store_by_username, _credentials_store
+    _user_store.clear()
+    _user_store_by_username.clear()
+    _credentials_store.clear()
+
+
 def register_local_user(user: User, password: str) -> None:
     """Register a local user with hashed credentials."""
 
@@ -283,6 +294,7 @@ __all__ = [
     "get_user_from_store",
     "get_user_by_username",
     "add_user_to_store",
+    "clear_user_store",
     "register_local_user",
     "authenticate_local_user",
 ]
