@@ -30,6 +30,12 @@ from .dataflow import (
     record_artifact,
     set_default_recorder,
     use_recorder,
+    DataFlowRecord,
+    DataFlowRecorder,
+    InMemorySink as DataFlowInMemorySink,
+    dataflow_context,
+    get_dataflow_recorder,
+    set_dataflow_recorder,
 )
 from .rbac import RBACManager, Role
 from .service import GovernanceService
@@ -58,6 +64,10 @@ __all__ = [
     "ComplianceReport",
     "ComplianceReporter",
     "ComplianceRule",
+    "DataFlowRecord",
+    "DataFlowRecorder",
+    "DataFlowInMemorySink",
+    "dataflow_context",
     "AuditCoverageRule",
     "LimitBreachRule",
     "InactivityRule",
@@ -70,6 +80,8 @@ __all__ = [
     "TenantLimits",
     "TenantManager",
     "TenantUsage",
+    "get_dataflow_recorder",
+    "set_dataflow_recorder",
     "current_tenant_id",
     "tenant_scope",
     "DataFlowEvent",

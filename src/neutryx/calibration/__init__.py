@@ -5,6 +5,16 @@ from .base import (
     CalibrationResult,
     ParameterSpec,
     ParameterTransform,
+    ParetoFront,
+    ParetoSolution,
+)
+from .constraints import (
+    g2pp_parameter_specs,
+    quasi_gaussian_parameter_specs,
+)
+from .losses import (
+    g2pp_zero_curve_loss,
+    quasi_gaussian_zero_curve_loss,
 )
 from .diagnostics import (
     CalibrationDiagnostics,
@@ -56,12 +66,18 @@ __all__ = [
     "CalibrationController",
     "CalibrationDiagnostics",
     "CalibrationResult",
+    "ParetoFront",
+    "ParetoSolution",
     "CrossAssetCalibrator",
     "IdentifiabilityMetrics",
     "InstrumentSpec",
     "MultiInstrumentCalibrator",
     "ParameterSpec",
     "ParameterTransform",
+    "g2pp_parameter_specs",
+    "quasi_gaussian_parameter_specs",
+    "g2pp_zero_curve_loss",
+    "quasi_gaussian_zero_curve_loss",
     "ResidualPlotData",
     "TimeDependentCalibrator",
     "TimeSegment",

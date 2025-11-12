@@ -255,7 +255,29 @@ class PollingMarketDataFeed(MarketDataFeed):
             return
 
         try:
-            result = callback(data_point)
+            call_args = (data_point,)
+            if validation_result is not None:
+                try:
+                    signature = inspect.signature(callback)
+                except (TypeError, ValueError):
+                    signature = None
+                else:
+                    if signature is not None:
+                        params = list(signature.parameters.values())
+                        if params and (
+                            any(
+                                param.kind
+                                in (
+                                    inspect.Parameter.VAR_POSITIONAL,
+                                    inspect.Parameter.VAR_KEYWORD,
+                                )
+                                for param in params
+                            )
+                            or len(params) >= 2
+                        ):
+                            call_args = (data_point, validation_result)
+
+            result = callback(*call_args)
             if inspect.isawaitable(result):
                 await result
         except Exception as exc:  # pragma: no cover - defensive

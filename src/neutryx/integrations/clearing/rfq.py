@@ -17,6 +17,7 @@ Supports various auction protocols:
 
 from __future__ import annotations
 
+import asyncio
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
@@ -55,11 +56,14 @@ class QuoteStatus(str, Enum):
 
 class AuctionType(str, Enum):
     """Auction mechanism type."""
+
     SINGLE_PRICE = "single_price"  # Uniform price clearing
-    MULTI_PRICE = "multi_price"    # Discriminatory pricing
-    CONTINUOUS = "continuous"      # Order book matching
-    DUTCH = "dutch"                # Descending price
-    VICKREY = "vickrey"            # Second-price sealed-bid
+    MULTI_PRICE = "multi_price"  # Discriminatory pricing
+    CONTINUOUS = "continuous"  # Order book matching
+    DUTCH = "dutch"  # Descending price
+    VICKREY = "vickrey"  # Second-price sealed-bid
+    SECOND_PRICE = "second_price"  # Multi-unit second price
+    MULTI_ROUND = "multi_round"  # Sequential rounds with price improvement
 
 
 class OrderSide(str, Enum):
@@ -111,6 +115,7 @@ class RFQ(BaseModel):
 
     rfq_id: str = Field(default_factory=lambda: f"RFQ-{uuid4().hex[:12].upper()}")
     status: RFQStatus = Field(default=RFQStatus.DRAFT)
+    status_history: List[Dict[str, Any]] = Field(default_factory=list, description="Lifecycle state transitions")
 
     # Requester information
     requester: Party = Field(..., description="Party requesting quote")
@@ -143,6 +148,27 @@ class RFQ(BaseModel):
     allocated_trades: List[str] = Field(default_factory=list)
 
     metadata: Dict[str, Any] = Field(default_factory=dict)
+
+    def record_status(
+        self,
+        status: RFQStatus,
+        *,
+        reason: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        """Append a status transition to the history and update current status."""
+
+        transition_entry = {
+            "status": status,
+            "timestamp": datetime.utcnow(),
+        }
+        if reason:
+            transition_entry["reason"] = reason
+        if metadata:
+            transition_entry["metadata"] = metadata
+
+        self.status_history.append(transition_entry)
+        self.status = status
 
     @field_validator('quote_deadline', 'expiry_time')
     @classmethod
@@ -755,6 +781,214 @@ class VickreyAuction(AuctionEngine):
         return self.result
 
 
+class SecondPriceAuction(AuctionEngine):
+    """Multi-unit second price auction.
+
+    Winning quotes receive allocations at the price of the best losing quote
+    (or the worst winning price when no losing quote is available).
+    """
+
+    def execute(self) -> AuctionResult:
+        """Execute the second price auction."""
+
+        self._validate_execution()
+        start_time = datetime.utcnow()
+
+        priced_quotes = [q for q in self.quotes if q.price is not None]
+        if not priced_quotes:
+            raise ValueError("No priced quotes available for second price auction")
+
+        if self.rfq.side == OrderSide.BUY:
+            sorted_quotes = sorted(
+                priced_quotes,
+                key=lambda q: (q.price, q.priority),
+            )
+        else:
+            sorted_quotes = sorted(
+                priced_quotes,
+                key=lambda q: (-q.price, q.priority),
+            )
+
+        target_quantity = self.rfq.specification.notional
+        remaining = target_quantity
+        winning_quotes: List[str] = []
+        allocations: List[Dict[str, Any]] = []
+
+        for quote in sorted_quotes:
+            if remaining <= 0:
+                break
+            fill_qty = min(quote.quantity, remaining)
+            if fill_qty <= 0:
+                continue
+
+            allocations.append(
+                {
+                    "quote_id": quote.quote_id,
+                    "quoter_id": quote.quoter.party_id,
+                    "quantity": float(fill_qty),
+                }
+            )
+            quote.filled_quantity = fill_qty
+            quote.status = QuoteStatus.ACCEPTED
+            winning_quotes.append(quote.quote_id)
+            remaining -= fill_qty
+
+        if not winning_quotes:
+            raise ValueError("No winning quotes identified in second price auction")
+
+        losing_quotes = [q for q in sorted_quotes if q.quote_id not in winning_quotes]
+        if losing_quotes:
+            reference_quote = losing_quotes[0]
+            clearing_price = reference_quote.price
+            reference_quote_id = reference_quote.quote_id
+        else:
+            winning_quote_objs = [q for q in sorted_quotes if q.quote_id in winning_quotes]
+            clearing_price = winning_quote_objs[-1].price
+            reference_quote_id = None
+
+        for allocation in allocations:
+            allocation["price"] = float(clearing_price)
+
+        for quote in priced_quotes:
+            if quote.quote_id in winning_quotes:
+                quote.average_fill_price = clearing_price
+            else:
+                quote.status = QuoteStatus.REJECTED
+
+        end_time = datetime.utcnow()
+        duration_ms = (end_time - start_time).total_seconds() * 1000
+
+        self.result = AuctionResult(
+            rfq_id=self.rfq.rfq_id,
+            auction_type=AuctionType.SECOND_PRICE,
+            clearing_price=clearing_price,
+            total_quantity_filled=target_quantity - remaining,
+            num_participants=len(self.quotes),
+            winning_quotes=winning_quotes,
+            allocations=allocations,
+            competition_score=self._calculate_competition_score(),
+            execution_duration_ms=duration_ms,
+            metadata={
+                "second_price_quote_id": reference_quote_id
+            },
+        )
+
+        return self.result
+
+
+class MultiRoundAuction(AuctionEngine):
+    """Auction executed over multiple sequential rounds.
+
+    Quotes should include a ``metadata["round"]`` value to indicate the
+    submission round. Rounds are processed in ascending order and allocations
+    occur per round using price-time priority within each round.
+    """
+
+    def execute(self) -> AuctionResult:
+        """Execute a multi-round auction."""
+
+        self._validate_execution()
+        start_time = datetime.utcnow()
+
+        priced_quotes = [q for q in self.quotes if q.price is not None]
+        if not priced_quotes:
+            raise ValueError("No priced quotes available for multi-round auction")
+
+        target_quantity = self.rfq.specification.notional
+        remaining = target_quantity
+        winning_quotes: List[str] = []
+        allocations: List[Dict[str, Any]] = []
+        round_details: List[Dict[str, Any]] = []
+        final_clearing_price: Optional[Decimal] = None
+
+        rounds = sorted({int(q.metadata.get("round", 1)) for q in priced_quotes})
+
+        for round_number in rounds:
+            round_quotes = [q for q in priced_quotes if int(q.metadata.get("round", 1)) == round_number]
+            if not round_quotes:
+                continue
+
+            if self.rfq.side == OrderSide.BUY:
+                sorted_round = sorted(
+                    round_quotes,
+                    key=lambda q: (q.price, q.priority),
+                )
+            else:
+                sorted_round = sorted(
+                    round_quotes,
+                    key=lambda q: (-q.price, q.priority),
+                )
+
+            round_allocations: List[Dict[str, Any]] = []
+            clearing_price: Optional[Decimal] = None
+
+            for quote in sorted_round:
+                if remaining <= 0:
+                    break
+
+                fill_qty = min(quote.quantity, remaining)
+                if fill_qty <= 0:
+                    continue
+
+                allocation = {
+                    "quote_id": quote.quote_id,
+                    "quoter_id": quote.quoter.party_id,
+                    "quantity": float(fill_qty),
+                    "price": float(quote.price),
+                    "round": round_number,
+                }
+                round_allocations.append(allocation)
+                allocations.append(allocation)
+                quote.filled_quantity = fill_qty
+                quote.average_fill_price = quote.price
+                quote.status = QuoteStatus.ACCEPTED
+                if quote.quote_id not in winning_quotes:
+                    winning_quotes.append(quote.quote_id)
+                remaining -= fill_qty
+                clearing_price = quote.price
+                final_clearing_price = quote.price
+
+            # Mark non-winning quotes in this round as rejected when auction completes
+            for quote in sorted_round:
+                if quote.quote_id not in winning_quotes:
+                    quote.status = QuoteStatus.REJECTED
+
+            round_details.append(
+                {
+                    "round": round_number,
+                    "allocations": round_allocations,
+                    "clearing_price": float(clearing_price) if clearing_price is not None else None,
+                }
+            )
+
+            if remaining <= 0:
+                break
+
+        for quote in priced_quotes:
+            if quote.quote_id not in winning_quotes:
+                quote.status = QuoteStatus.REJECTED
+
+        end_time = datetime.utcnow()
+        duration_ms = (end_time - start_time).total_seconds() * 1000
+
+        self.result = AuctionResult(
+            rfq_id=self.rfq.rfq_id,
+            auction_type=AuctionType.MULTI_ROUND,
+            clearing_price=final_clearing_price,
+            total_quantity_filled=target_quantity - remaining,
+            num_participants=len(self.quotes),
+            winning_quotes=winning_quotes,
+            allocations=allocations,
+            competition_score=self._calculate_competition_score(),
+            execution_duration_ms=duration_ms,
+            metadata={
+                "rounds": round_details,
+            },
+        )
+
+        return self.result
+
+
 class ContinuousAuction(AuctionEngine):
     """Continuous double auction with order book matching.
 
@@ -864,11 +1098,24 @@ class ContinuousAuction(AuctionEngine):
 class RFQManager:
     """RFQ lifecycle manager."""
 
+    _ALLOWED_TRANSITIONS: Dict[RFQStatus, set[RFQStatus]] = {
+        RFQStatus.DRAFT: {RFQStatus.SUBMITTED, RFQStatus.CANCELLED},
+        RFQStatus.SUBMITTED: {RFQStatus.OPEN, RFQStatus.CANCELLED},
+        RFQStatus.OPEN: {RFQStatus.QUOTING, RFQStatus.CLOSED, RFQStatus.CANCELLED, RFQStatus.EXPIRED},
+        RFQStatus.QUOTING: {RFQStatus.CLOSED, RFQStatus.EXECUTED, RFQStatus.CANCELLED, RFQStatus.EXPIRED},
+        RFQStatus.CLOSED: {RFQStatus.EXECUTED, RFQStatus.FAILED, RFQStatus.CANCELLED},
+        RFQStatus.EXECUTED: set(),
+        RFQStatus.CANCELLED: set(),
+        RFQStatus.EXPIRED: set(),
+        RFQStatus.FAILED: set(),
+    }
+
     def __init__(self):
         self.rfqs: Dict[str, RFQ] = {}
         self.quotes: Dict[str, List[Quote]] = {}
         self.auctions: Dict[str, AuctionEngine] = {}
         self.results: Dict[str, AuctionResult] = {}
+        self._state_listeners: Dict[str, List[asyncio.Queue]] = {}
 
     def create_rfq(
         self,
@@ -896,6 +1143,9 @@ class RFQManager:
         self.rfqs[rfq.rfq_id] = rfq
         self.quotes[rfq.rfq_id] = []
 
+        rfq.record_status(RFQStatus.DRAFT, reason="RFQ created")
+        self._notify_state(rfq, reason="RFQ created")
+
         return rfq
 
     def submit_rfq(self, rfq_id: str) -> RFQ:
@@ -907,7 +1157,8 @@ class RFQManager:
         if rfq.status != RFQStatus.DRAFT:
             raise ValueError(f"RFQ {rfq_id} already submitted")
 
-        rfq.status = RFQStatus.OPEN
+        self._transition(rfq, RFQStatus.SUBMITTED, reason="RFQ submitted")
+        self._transition(rfq, RFQStatus.OPEN, reason="RFQ opened for quoting")
         return rfq
 
     def submit_quote(self, rfq_id: str, quote: Quote) -> Quote:
@@ -926,7 +1177,13 @@ class RFQManager:
         quote.status = QuoteStatus.SUBMITTED
         self.quotes[rfq_id].append(quote)
         rfq.quotes_received += 1
-        rfq.status = RFQStatus.QUOTING
+        if rfq.status == RFQStatus.OPEN:
+            self._transition(rfq, RFQStatus.QUOTING, reason="Quotes received")
+        elif rfq.status != RFQStatus.QUOTING:
+            raise ValueError(f"RFQ {rfq_id} cannot accept quotes in status {rfq.status}")
+        else:
+            # Notify listeners for additional quote submissions
+            self._notify_state(rfq, reason="Quote received")
 
         return quote
 
@@ -949,6 +1206,10 @@ class RFQManager:
             engine = DutchAuction(rfq)
         elif rfq.auction_type == AuctionType.VICKREY:
             engine = VickreyAuction(rfq)
+        elif rfq.auction_type == AuctionType.SECOND_PRICE:
+            engine = SecondPriceAuction(rfq)
+        elif rfq.auction_type == AuctionType.MULTI_ROUND:
+            engine = MultiRoundAuction(rfq)
         else:
             raise NotImplementedError(f"Auction type {rfq.auction_type} not implemented")
 
@@ -957,10 +1218,21 @@ class RFQManager:
             engine.add_quote(quote)
 
         # Execute
+        if rfq.status in {RFQStatus.OPEN, RFQStatus.QUOTING}:
+            try:
+                self._transition(rfq, RFQStatus.CLOSED, reason="RFQ closed for execution")
+            except ValueError:
+                # Allow execution if already closed or in terminal state
+                pass
         result = engine.execute()
 
         # Update RFQ
-        rfq.status = RFQStatus.EXECUTED
+        self._transition(
+            rfq,
+            RFQStatus.EXECUTED,
+            reason="RFQ executed",
+            metadata=result.model_dump(mode="json"),
+        )
         rfq.execution_price = result.clearing_price
         rfq.execution_time = result.execution_time
         rfq.best_quote_id = result.winning_quotes[0] if result.winning_quotes else None
@@ -991,8 +1263,101 @@ class RFQManager:
         if rfq.status in [RFQStatus.EXECUTED, RFQStatus.CANCELLED]:
             raise ValueError(f"Cannot cancel RFQ {rfq_id} in status {rfq.status}")
 
-        rfq.status = RFQStatus.CANCELLED
+        self._transition(rfq, RFQStatus.CANCELLED, reason="RFQ cancelled")
         return rfq
+
+    def update_status(
+        self,
+        rfq_id: str,
+        new_status: RFQStatus,
+        *,
+        reason: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> RFQ:
+        """Manually update RFQ status following allowed transitions."""
+
+        rfq = self.rfqs.get(rfq_id)
+        if not rfq:
+            raise ValueError(f"RFQ {rfq_id} not found")
+
+        self._transition(rfq, new_status, reason=reason, metadata=metadata)
+        return rfq
+
+    def register_state_listener(self, rfq_id: str) -> asyncio.Queue:
+        """Register a listener for RFQ state updates."""
+
+        queue: asyncio.Queue = asyncio.Queue()
+        self._state_listeners.setdefault(rfq_id, []).append(queue)
+
+        rfq = self.rfqs.get(rfq_id)
+        if rfq:
+            queue.put_nowait(self._serialize_status(rfq))
+
+        return queue
+
+    def unregister_state_listener(self, rfq_id: str, queue: asyncio.Queue) -> None:
+        """Remove a previously registered state listener."""
+
+        listeners = self._state_listeners.get(rfq_id, [])
+        if queue in listeners:
+            listeners.remove(queue)
+        if not listeners and rfq_id in self._state_listeners:
+            del self._state_listeners[rfq_id]
+
+    def _transition(
+        self,
+        rfq: RFQ,
+        new_status: RFQStatus,
+        *,
+        reason: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        """Validate and apply a state transition."""
+
+        current = rfq.status
+        allowed = self._ALLOWED_TRANSITIONS.get(current, set())
+        if new_status not in allowed:
+            raise ValueError(
+                f"Invalid RFQ status transition from {current} to {new_status}"
+            )
+
+        rfq.record_status(new_status, reason=reason, metadata=metadata)
+        self._notify_state(rfq, reason=reason, metadata=metadata)
+
+    def _notify_state(
+        self,
+        rfq: RFQ,
+        *,
+        reason: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        """Notify registered listeners of a state change."""
+
+        payload = self._serialize_status(rfq, reason=reason, metadata=metadata)
+        for queue in self._state_listeners.get(rfq.rfq_id, []):
+            queue.put_nowait(payload)
+
+    @staticmethod
+    def _serialize_status(
+        rfq: RFQ,
+        *,
+        reason: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """Serialize RFQ status information for API delivery."""
+
+        serialized = {
+            "rfq_id": rfq.rfq_id,
+            "status": rfq.status.value,
+            "timestamp": datetime.utcnow().isoformat(),
+            "quotes_received": rfq.quotes_received,
+            "execution_price": float(rfq.execution_price) if rfq.execution_price else None,
+        }
+        if reason:
+            serialized["reason"] = reason
+        if metadata:
+            serialized["metadata"] = metadata
+        return serialized
 
 
 __all__ = [
@@ -1012,6 +1377,8 @@ __all__ = [
     "MultiPriceAuction",
     "DutchAuction",
     "VickreyAuction",
+    "SecondPriceAuction",
+    "MultiRoundAuction",
     "ContinuousAuction",
     "RFQManager",
 ]

@@ -2,8 +2,56 @@
 
 from __future__ import annotations
 
+import sys
+import types
+
 import pytest
+import pyotp
 from fastapi.testclient import TestClient
+
+# Provide a lightweight prometheus_client stub if the dependency is unavailable.
+if "prometheus_client" not in sys.modules:
+    prometheus_stub = types.ModuleType("prometheus_client")
+
+    class _DummyMetric:
+        def labels(self, *args, **kwargs):
+            return self
+
+        def observe(self, *args, **kwargs):  # type: ignore[no-untyped-def]
+            return None
+
+        def inc(self, *args, **kwargs):  # type: ignore[no-untyped-def]
+            return None
+
+    class _Registry:
+        def __init__(self) -> None:
+            self._names_to_collectors: dict[str, _DummyMetric] = {}
+
+        def register(self, collector):  # type: ignore[no-untyped-def]
+            name = getattr(collector, "_metric_id", getattr(collector, "name", str(id(collector))))
+            self._names_to_collectors[name] = collector
+
+        def unregister(self, collector):  # type: ignore[no-untyped-def]
+            name = getattr(collector, "_metric_id", getattr(collector, "name", str(id(collector))))
+            self._names_to_collectors.pop(name, None)
+
+    def _metric_factory(*args, **kwargs):  # type: ignore[no-untyped-def]
+        metric = _DummyMetric()
+        namespace = kwargs.get("namespace", "")
+        subsystem = kwargs.get("subsystem", "")
+        name = args[0] if args else kwargs.get("name", "")
+        metric_id_parts = [part for part in (namespace, subsystem, name) if part]
+        metric._metric_id = "_".join(metric_id_parts) if metric_id_parts else name  # type: ignore[attr-defined]
+        prometheus_stub.REGISTRY._names_to_collectors[metric._metric_id] = metric  # type: ignore[attr-defined]
+        return metric
+
+    prometheus_stub.CONTENT_TYPE_LATEST = "text/plain"
+    prometheus_stub.Counter = _metric_factory  # type: ignore[attr-defined]
+    prometheus_stub.Histogram = _metric_factory  # type: ignore[attr-defined]
+    prometheus_stub.REGISTRY = _Registry()
+    prometheus_stub.generate_latest = lambda *args, **kwargs: b""  # type: ignore[attr-defined]
+
+    sys.modules["prometheus_client"] = prometheus_stub
 
 from neutryx.api.rest import create_app
 from neutryx.api.auth.models import User
@@ -21,6 +69,15 @@ def app():
 def client(app):
     """Create test client."""
     return TestClient(app)
+
+
+@pytest.fixture(autouse=True)
+def reset_user_store():
+    """Ensure the in-memory user store is isolated across tests."""
+
+    clear_user_store()
+    yield
+    clear_user_store()
 
 
 @pytest.fixture
@@ -48,6 +105,91 @@ def auth_token(test_user):
 
 class TestAuthEndpoints:
     """Test authentication endpoints."""
+
+    def test_login_local_user(self, client):
+        """Local users can authenticate via the token endpoint."""
+
+        password = "Sup3rSecret!"
+        user = User(
+            user_id="local123",
+            username="localuser",
+            email="local@example.com",
+            full_name="Local User",
+            roles={"viewer"},
+        )
+        register_local_user(user, password)
+
+        response = client.post(
+            "/auth/token",
+            data={"username": user.username, "password": password},
+        )
+
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["token_type"] == "bearer"
+        assert payload["access_token"]
+        assert payload["refresh_token"]
+
+    def test_login_local_user_invalid_password(self, client):
+        """Invalid credentials for a local user should fail."""
+
+        user = User(user_id="local124", username="localuser2")
+        register_local_user(user, "CorrectHorseBatteryStaple")
+
+        response = client.post(
+            "/auth/token",
+            data={"username": user.username, "password": "wrong"},
+        )
+
+        assert response.status_code == 401
+        assert response.json()["detail"] == "Incorrect username or password"
+
+    def test_login_local_user_mfa(self, client):
+        """Local users with MFA must provide the correct TOTP code."""
+
+        password = "Another$ecret1"
+        secret = pyotp.random_base32()
+        user = User(
+            user_id="local125",
+            username="localmfa",
+            mfa_enabled=True,
+            mfa_secret=secret,
+        )
+        register_local_user(user, password)
+
+        totp = pyotp.TOTP(secret)
+
+        response = client.post(
+            "/auth/token",
+            data={
+                "username": user.username,
+                "password": f"{password}:{totp.now()}",
+            },
+        )
+
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["access_token"]
+
+    def test_login_local_user_missing_mfa_code(self, client):
+        """Fail login when MFA enabled but code is missing."""
+
+        password = "NoMFACode123"
+        user = User(
+            user_id="local126",
+            username="localmissingmfa",
+            mfa_enabled=True,
+            mfa_secret=pyotp.random_base32(),
+        )
+        register_local_user(user, password)
+
+        response = client.post(
+            "/auth/token",
+            data={"username": user.username, "password": password},
+        )
+
+        assert response.status_code == 401
+        assert response.json()["detail"] == "MFA code required. Format: password:mfa_code"
 
     def test_get_current_user(self, client, test_user, auth_token):
         """Test getting current user info."""

@@ -7,7 +7,6 @@ servicing an API request.  Any storage layer that opts-in can automatically
 enrich persisted metadata with the active lineage identifier, while also
 emitting structured events that downstream governance tooling can consume.
 """
-
 from __future__ import annotations
 
 from contextlib import contextmanager
@@ -131,154 +130,135 @@ class DataFlowRecorder:
 
         with self._lock:
             self._events.clear()
+from typing import Any, Dict, Iterable, Iterator, List, MutableMapping, Optional, Protocol
+from uuid import uuid4
+
+
+class DataFlowSink(Protocol):
+    """Protocol describing sinks that can consume lineage records."""
+
+    def emit(self, record: "DataFlowRecord") -> None:
+        """Persist or forward the lineage record."""
+
+
+@dataclass(slots=True)
+class DataFlowRecord:
+    """Structured lineage information for a single data flow event."""
+
+    lineage_id: str
+    job_id: str
+    source: str
+    timestamp: datetime
+    inputs: Dict[str, Any] = field(default_factory=dict)
+    outputs: Dict[str, Any] = field(default_factory=dict)
+    context: Dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Return a serialisable dictionary representation."""
+
+        return {
+            "lineage_id": self.lineage_id,
+            "job_id": self.job_id,
+            "source": self.source,
+            "timestamp": self.timestamp.isoformat(),
+            "inputs": dict(self.inputs),
+            "outputs": dict(self.outputs),
+            "context": dict(self.context),
+        }
+
+
+class InMemorySink(DataFlowSink):
+    """Simple sink storing lineage records for inspection (e.g. in tests)."""
+
+    def __init__(self) -> None:
+        self._records: List[DataFlowRecord] = []
+        self._lock = RLock()
+
+    def emit(self, record: DataFlowRecord) -> None:
+        with self._lock:
+            self._records.append(record)
+
+    def records(self) -> List[DataFlowRecord]:
+        with self._lock:
+            return list(self._records)
+
+
+class DataFlowRecorder:
+    """Registry coordinating lineage ID generation and sink fan-out."""
+
+    def __init__(self, sinks: Optional[Iterable[DataFlowSink]] = None) -> None:
+        self._sinks: List[DataFlowSink] = list(sinks or [])
+        self._lock = RLock()
+
+    def register_sink(self, sink: DataFlowSink) -> None:
+        """Register an additional sink."""
+
+        with self._lock:
+            self._sinks.append(sink)
+
+    def record_flow(
+        self,
+        *,
+        job_id: str,
+        source: str,
+        inputs: Optional[Dict[str, Any]] = None,
+        outputs: Optional[Dict[str, Any]] = None,
+        context: Optional[Dict[str, Any]] = None,
+        lineage_id: Optional[str] = None,
+    ) -> DataFlowRecord:
+        """Create a lineage record and notify registered sinks."""
+
+        record = DataFlowRecord(
+            lineage_id=lineage_id or str(uuid4()),
+            job_id=job_id,
+            source=source,
+            timestamp=datetime.now(timezone.utc),
+            inputs=dict(inputs or {}),
+            outputs=dict(outputs or {}),
+            context=dict(context or {}),
+        )
+        self._notify(record)
+        return record
+
+    def _notify(self, record: DataFlowRecord) -> None:
+        with self._lock:
+            sinks = list(self._sinks)
+        for sink in sinks:
+            sink.emit(record)
+
+    @staticmethod
+    def inject_lineage(metadata: MutableMapping[str, Any], lineage_id: str) -> None:
+        """Inject the lineage identifier into the provided metadata mapping."""
+
+        metadata["lineage_id"] = lineage_id
 
 
 _DEFAULT_RECORDER = DataFlowRecorder()
 
 
-def get_default_recorder() -> DataFlowRecorder:
-    """Return the process-wide default recorder."""
+def get_dataflow_recorder() -> DataFlowRecorder:
+    """Return the global data flow recorder instance."""
 
     return _DEFAULT_RECORDER
 
 
-def set_default_recorder(recorder: DataFlowRecorder) -> DataFlowRecorder:
-    """Replace the global recorder, returning the previous instance."""
+def set_dataflow_recorder(recorder: DataFlowRecorder) -> None:
+    """Replace the global data flow recorder (primarily for testing)."""
 
-    global _DEFAULT_RECORDER
-    previous = _DEFAULT_RECORDER
+    global _DEFAULT_RECORDER  # noqa: PLW0603 - module level singleton override
     _DEFAULT_RECORDER = recorder
-    return previous
 
 
 @contextmanager
-def use_recorder(recorder: DataFlowRecorder) -> Iterator[DataFlowRecorder]:
-    """Context manager installing a temporary default recorder."""
-
-    previous = set_default_recorder(recorder)
-    try:
-        yield recorder
-    finally:
-        set_default_recorder(previous)
-
-
-def embed_lineage_metadata(metadata: Optional[Mapping[str, Any]] = None) -> Dict[str, Any]:
-    """Merge lineage information into ``metadata``."""
-
-    base: Dict[str, Any] = dict(metadata or {})
-    context = _CURRENT_CONTEXT.get()
-
-    lineage_id = base.get("lineage_id")
-    if context is not None:
-        lineage_id = context.lineage_id
-
-    if lineage_id is None:
-        lineage_id = generate_lineage_id()
-
-    base["lineage_id"] = lineage_id
-
-    if context is not None:
-        context_metadata = context.to_metadata()
-        context_metadata["lineage_id"] = lineage_id
-        for key, value in context_metadata.items():
-            base.setdefault(key, value)
-
-    return base
-
-
-def publish_event(event_type: str, metadata: Optional[Mapping[str, Any]] = None) -> DataFlowEvent:
-    """Publish an event to the default recorder."""
-
-    recorder = get_default_recorder()
-    return recorder.publish(event_type, metadata)
-
-
-def record_artifact(
-    artifact_id: str,
+def dataflow_context(
     *,
-    kind: str,
-    metadata: Optional[Mapping[str, Any]] = None,
-    extra_event_metadata: Optional[Mapping[str, Any]] = None,
-) -> Dict[str, Any]:
-    """Record the creation of an artefact and return enriched metadata."""
+    job_id: str,
+    source: str,
+    inputs: Optional[Dict[str, Any]] = None,
+    recorder: Optional[DataFlowRecorder] = None,
+) -> Iterator[DataFlowRecord]:
+    """Context manager that yields a lineage record for the enclosed work."""
 
-    enriched_metadata = embed_lineage_metadata(metadata)
-    event_payload: Dict[str, Any] = dict(enriched_metadata)
-    event_payload.setdefault("artifact_id", artifact_id)
-    event_payload.setdefault("artifact_kind", kind)
-    if extra_event_metadata:
-        for key, value in extra_event_metadata.items():
-            event_payload.setdefault(str(key), value)
-
-    publish_event("data_artifact_saved", event_payload)
-    return enriched_metadata
-
-
-@contextmanager
-def data_flow_context(
-    *,
-    lineage_id: Optional[str] = None,
-    source: Optional[str] = None,
-    job_id: Optional[str] = None,
-    api_request_id: Optional[str] = None,
-    attributes: Optional[Mapping[str, Any]] = None,
-    emit_events: bool = True,
-) -> Iterator[LineageContext]:
-    """Activate a lineage context for the duration of the ``with`` block."""
-
-    resolved_lineage = lineage_id or generate_lineage_id()
-    context = LineageContext(
-        lineage_id=resolved_lineage,
-        source=source,
-        job_id=job_id,
-        api_request_id=api_request_id,
-        attributes=dict(attributes or {}),
-    )
-
-    token = _CURRENT_CONTEXT.set(context)
-
-    if emit_events:
-        publish_event(
-            "data_flow_context_started",
-            {"lineage_id": resolved_lineage, "source": source, "job_id": job_id, "api_request_id": api_request_id},
-        )
-
-    try:
-        yield context
-    finally:
-        _CURRENT_CONTEXT.reset(token)
-        if emit_events:
-            publish_event(
-                "data_flow_context_finished",
-                {"lineage_id": resolved_lineage, "source": source, "job_id": job_id, "api_request_id": api_request_id},
-            )
-
-
-def current_context() -> Optional[LineageContext]:
-    """Return the currently active lineage context, if any."""
-
-    return _CURRENT_CONTEXT.get()
-
-
-def is_context_active() -> bool:
-    """Return ``True`` when a lineage context is active."""
-
-    return current_context() is not None
-
-
-__all__ = [
-    "DataFlowEvent",
-    "DataFlowRecorder",
-    "LineageContext",
-    "current_context",
-    "data_flow_context",
-    "embed_lineage_metadata",
-    "generate_lineage_id",
-    "get_default_recorder",
-    "is_context_active",
-    "publish_event",
-    "record_artifact",
-    "set_default_recorder",
-    "use_recorder",
-]
-
+    active_recorder = recorder or get_dataflow_recorder()
+    record = active_recorder.record_flow(job_id=job_id, source=source, inputs=inputs)
+    yield record

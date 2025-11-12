@@ -8,6 +8,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, MutableMapping, Optional, Tuple
 
+from neutryx.infrastructure.governance import DataFlowRecorder, get_dataflow_recorder
+
 State = MutableMapping[str, Any]
 StepFn = Callable[[int, State], State]
 
@@ -37,6 +39,20 @@ class CheckpointManager:
 
     def save(self, completed_steps: int, state: State) -> None:
         """Persist the provided state and completed step count."""
+
+        recorder = get_dataflow_recorder()
+        record = recorder.record_flow(
+            job_id=f"checkpoint:{self.prefix}",
+            source="neutryx.infrastructure.workflows.CheckpointManager.save",
+            inputs={"step": completed_steps},
+            outputs={"state_keys": sorted(state.keys())},
+            context={"directory": str(self.directory)},
+        )
+        metadata = state.setdefault("_metadata", {})
+        if isinstance(metadata, MutableMapping):
+            DataFlowRecorder.inject_lineage(metadata, record.lineage_id)
+        else:
+            state["_metadata"] = {"lineage_id": record.lineage_id}
 
         payload = {"step": completed_steps, "state": copy.deepcopy(state)}
         path = self._state_path(completed_steps)
