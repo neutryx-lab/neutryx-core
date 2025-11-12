@@ -51,7 +51,12 @@ from typing import Callable, Optional
 
 import jax
 import jax.numpy as jnp
+import numpy as np
 from jax import lax
+from scipy.optimize import least_squares
+from scipy.stats import norm
+
+from neutryx.products.swaptions import black_swaption_price
 
 
 @dataclass
@@ -455,8 +460,6 @@ def caplet_price(
     Caplet = (1 + K*τ) * Put_on_bond(P(T, T+τ), K_bond)
     where K_bond = 1 / (1 + K*τ)
     """
-    from scipy.stats import norm
-
     T = caplet_maturity
     tau = tenor
 
@@ -499,6 +502,168 @@ def caplet_price(
     return float(caplet_value)
 
 
+def _discount_factor_from_forward(
+    forward_curve_fn: Callable[[float], float], maturity: float
+) -> float:
+    """Approximate discount factor using the provided forward curve."""
+
+    if maturity <= 0.0:
+        return 1.0
+
+    avg_forward = forward_curve_fn(maturity / 2.0)
+    return float(np.exp(-avg_forward * maturity))
+
+
+def _construct_swaption_instrument(
+    forward_curve_fn: Callable[[float], float],
+    option_expiry: float,
+    swap_tenor: float,
+    payment_interval: float,
+) -> dict[str, float | np.ndarray]:
+    """Pre-compute schedule quantities used during calibration."""
+
+    if payment_interval <= 0.0:
+        raise ValueError("payment_interval must be positive")
+
+    if option_expiry <= 0.0:
+        raise ValueError("Swaption expiry must be positive")
+
+    n_payments = int(np.round(swap_tenor / payment_interval))
+    if n_payments < 1:
+        raise ValueError("Swap tenor must be at least one payment interval")
+
+    payment_times = option_expiry + payment_interval * np.arange(1, n_payments + 1)
+    discount_factors = np.array(
+        [_discount_factor_from_forward(forward_curve_fn, t) for t in payment_times]
+    )
+
+    year_fractions = np.full(n_payments, payment_interval, dtype=float)
+    annuity = float(np.dot(discount_factors, year_fractions))
+
+    df_expiry = _discount_factor_from_forward(forward_curve_fn, option_expiry)
+    forward_rate = float((df_expiry - discount_factors[-1]) / max(annuity, 1e-12))
+
+    return {
+        "option_expiry": option_expiry,
+        "swap_tenor": swap_tenor,
+        "forward_rate": forward_rate,
+        "strike": forward_rate,  # Assume ATM surface for calibration
+        "annuity": annuity,
+        "discount_factors": discount_factors,
+        "year_fractions": year_fractions,
+        "payment_times": payment_times,
+        "weights": discount_factors * year_fractions,
+    }
+
+
+def _bachelier_swaption_price(
+    forward_swap_rate: float,
+    strike: float,
+    option_maturity: float,
+    volatility: float,
+    annuity: float,
+    notional: float,
+    is_payer: bool = True,
+) -> float:
+    """Price a swaption using Bachelier (normal) model."""
+
+    if option_maturity <= 0.0:
+        intrinsic = max(forward_swap_rate - strike, 0.0)
+        if not is_payer:
+            intrinsic = max(strike - forward_swap_rate, 0.0)
+        return notional * annuity * intrinsic
+
+    sqrt_T = float(np.sqrt(option_maturity))
+    vol_sqrt_T = float(volatility * sqrt_T)
+
+    if vol_sqrt_T < 1e-12:
+        intrinsic = max(forward_swap_rate - strike, 0.0)
+        if not is_payer:
+            intrinsic = max(strike - forward_swap_rate, 0.0)
+        return notional * annuity * intrinsic
+
+    d = (forward_swap_rate - strike) / vol_sqrt_T
+    pdf = norm.pdf(d)
+    if is_payer:
+        price = (forward_swap_rate - strike) * norm.cdf(d) + vol_sqrt_T * pdf
+    else:
+        price = (strike - forward_swap_rate) * norm.cdf(-d) + vol_sqrt_T * pdf
+
+    return float(notional * annuity * price)
+
+
+def _swaption_price_from_vol(
+    instrument: dict[str, float | np.ndarray],
+    volatility: float,
+    vol_type: str,
+    notional: float,
+) -> float:
+    """Convert a market volatility to a swaption price."""
+
+    forward_rate = float(instrument["forward_rate"])
+    strike = float(instrument["strike"])
+    option_expiry = float(instrument["option_expiry"])
+    annuity = float(instrument["annuity"])
+
+    if vol_type == "normal":
+        return _bachelier_swaption_price(
+            forward_rate,
+            strike,
+            option_expiry,
+            float(volatility),
+            annuity,
+            notional,
+            True,
+        )
+
+    if vol_type == "lognormal":
+        return float(
+            black_swaption_price(
+                forward_rate,
+                strike,
+                option_expiry,
+                float(volatility),
+                annuity,
+                notional,
+                is_payer=True,
+            )
+        )
+
+    raise ValueError("vol_type must be either 'normal' or 'lognormal'")
+
+
+def _compute_swaption_normal_variance(
+    alpha: float,
+    sigma: float,
+    option_expiry: float,
+    payment_times: np.ndarray,
+    weights: np.ndarray,
+    annuity: float,
+    integration_points: int = 128,
+) -> float:
+    """Compute the variance of the forward swap rate under the LGM model."""
+
+    if option_expiry <= 0.0:
+        return 0.0
+
+    t_grid = np.linspace(0.0, option_expiry, integration_points)
+    exposures_sq = np.zeros_like(t_grid)
+
+    for idx, t in enumerate(t_grid):
+        dt = np.maximum(payment_times - t, 0.0)
+        if alpha > 1e-12:
+            B_vals = (1.0 - np.exp(-alpha * dt)) / alpha
+        else:
+            B_vals = dt
+
+        numerator = float(np.dot(weights, B_vals))
+        instantaneous_vol = sigma * numerator / max(annuity, 1e-12)
+        exposures_sq[idx] = instantaneous_vol * instantaneous_vol
+
+    variance = float(np.trapezoid(exposures_sq, t_grid))
+    return max(variance, 0.0)
+
+
 def calibrate_to_swaption_vols(
     forward_curve_fn: Callable[[float], float],
     r0: float,
@@ -507,11 +672,17 @@ def calibrate_to_swaption_vols(
     market_vols: jnp.ndarray,
     initial_alpha: float = 0.1,
     initial_sigma: float = 0.01,
+    *,
+    vol_type: str = "normal",
+    payment_interval: float = 0.5,
+    notional: float = 1.0,
+    integration_points: int = 128,
 ) -> LGMParams:
     """Calibrate LGM model to market swaption volatilities.
 
-    This is a simplified calibration routine. Production implementations
-    would use more sophisticated optimization and multiple factors.
+    This routine assumes a single-factor LGM model with piecewise
+    constant parameters and calibrates constant α and σ values by
+    minimizing pricing errors against an ATM swaption surface.
 
     Parameters
     ----------
@@ -529,6 +700,15 @@ def calibrate_to_swaption_vols(
         Initial guess for mean reversion (default: 0.1)
     initial_sigma : float, optional
         Initial guess for volatility (default: 0.01)
+    vol_type : {"normal", "lognormal"}, optional
+        Type of the provided market volatilities (default: "normal").
+    payment_interval : float, optional
+        Year fraction between swap payments (default: 0.5 for semi-annual).
+    notional : float, optional
+        Notional used for pricing in the objective (default: 1.0).
+    integration_points : int, optional
+        Number of discretization points used when integrating the swap
+        rate variance (default: 128).
 
     Returns
     -------
@@ -544,27 +724,98 @@ def calibrate_to_swaption_vols(
 
     This simplified version uses constant parameters.
     """
-    # Simplified: use constant α and σ
-    # Full implementation would optimize time-dependent functions
 
-    def alpha_fn(t: float) -> float:
-        return initial_alpha
+    vol_type = vol_type.lower()
 
-    def sigma_fn(t: float) -> float:
-        return initial_sigma
+    expiries = np.asarray(jnp.atleast_1d(swaption_expiries), dtype=float)
+    tenors = np.asarray(jnp.atleast_1d(swaption_tenors), dtype=float)
+    market_vols_arr = np.asarray(market_vols, dtype=float)
 
-    params = LGMParams(
+    if expiries.ndim != 1 or tenors.ndim != 1:
+        raise ValueError("swaption_expiries and swaption_tenors must be 1-D arrays")
+
+    if market_vols_arr.shape != (expiries.size, tenors.size):
+        raise ValueError(
+            "market_vols must be of shape (n_expiries, n_tenors)"
+        )
+
+    instruments: list[dict[str, float | np.ndarray]] = []
+    market_prices: list[float] = []
+
+    for i, expiry in enumerate(expiries):
+        for j, tenor in enumerate(tenors):
+            instrument = _construct_swaption_instrument(
+                forward_curve_fn, float(expiry), float(tenor), payment_interval
+            )
+            market_vol = float(market_vols_arr[i, j])
+            market_price = _swaption_price_from_vol(
+                instrument, market_vol, vol_type, notional
+            )
+            instrument["market_vol"] = market_vol
+            instrument["market_price"] = market_price
+            instruments.append(instrument)
+            market_prices.append(market_price)
+
+    market_prices_arr = np.asarray(market_prices, dtype=float)
+
+    def objective(x: np.ndarray) -> np.ndarray:
+        alpha, sigma = float(x[0]), float(x[1])
+
+        if alpha <= 0.0 or sigma <= 0.0:
+            return market_prices_arr * 10.0
+
+        residuals = []
+        for instrument in instruments:
+            variance = _compute_swaption_normal_variance(
+                alpha,
+                sigma,
+                float(instrument["option_expiry"]),
+                instrument["payment_times"],
+                instrument["weights"],
+                float(instrument["annuity"]),
+                integration_points=integration_points,
+            )
+            normal_vol = float(np.sqrt(max(variance, 0.0)))
+            model_price = _bachelier_swaption_price(
+                float(instrument["forward_rate"]),
+                float(instrument["strike"]),
+                float(instrument["option_expiry"]),
+                normal_vol,
+                float(instrument["annuity"]),
+                notional,
+                True,
+            )
+            residuals.append(model_price - float(instrument["market_price"]))
+
+        return np.asarray(residuals, dtype=float)
+
+    x0 = np.array([initial_alpha, initial_sigma], dtype=float)
+    lower_bounds = np.array([1e-6, 1e-6], dtype=float)
+    upper_bounds = np.array([5.0, 1.0], dtype=float)
+
+    result = least_squares(objective, x0=x0, bounds=(lower_bounds, upper_bounds))
+
+    if not result.success:
+        raise RuntimeError(
+            f"Swaption calibration failed to converge: {result.message}"
+        )
+
+    calibrated_alpha = float(result.x[0])
+    calibrated_sigma = float(result.x[1])
+
+    def alpha_fn(_: float) -> float:
+        return calibrated_alpha
+
+    def sigma_fn(_: float) -> float:
+        return calibrated_sigma
+
+    return LGMParams(
         alpha_fn=alpha_fn,
         sigma_fn=sigma_fn,
         forward_curve_fn=forward_curve_fn,
         r0=r0,
         n_factors=1,
     )
-
-    # TODO: Implement optimization loop to match market_vols
-    # For now, return initial parameters
-
-    return params
 
 
 __all__ = [
