@@ -7,6 +7,7 @@ from typing import Optional
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import JWTError
+from passlib.context import CryptContext
 
 from neutryx.infrastructure.governance.rbac import RBACManager
 
@@ -21,6 +22,11 @@ security = HTTPBearer()
 # In-memory user storage (for demo purposes)
 # In production, this would be a database
 _user_store: dict[str, User] = {}
+_user_store_by_username: dict[str, str] = {}
+_credentials_store: dict[str, str] = {}
+
+
+_password_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
 # RBAC manager (should be injected from app state in production)
@@ -49,6 +55,15 @@ def get_user_from_store(user_id: str) -> Optional[User]:
     return _user_store.get(user_id)
 
 
+def get_user_by_username(username: str) -> Optional[User]:
+    """Get user from in-memory store by username."""
+
+    user_id = _user_store_by_username.get(username)
+    if not user_id:
+        return None
+    return _user_store.get(user_id)
+
+
 def add_user_to_store(user: User):
     """Add user to in-memory store.
 
@@ -56,6 +71,31 @@ def add_user_to_store(user: User):
         user: User object
     """
     _user_store[user.user_id] = user
+    _user_store_by_username[user.username] = user.user_id
+
+
+def register_local_user(user: User, password: str) -> None:
+    """Register a local user with hashed credentials."""
+
+    add_user_to_store(user)
+    hashed_password = _password_context.hash(password)
+    _credentials_store[user.username] = hashed_password
+
+
+def authenticate_local_user(username: str, password: str) -> Optional[User]:
+    """Authenticate a local user against the credential store."""
+
+    hashed_password = _credentials_store.get(username)
+    if not hashed_password:
+        return None
+
+    try:
+        if not _password_context.verify(password, hashed_password):
+            return None
+    except ValueError:
+        return None
+
+    return get_user_by_username(username)
 
 
 async def get_current_user(
@@ -241,5 +281,8 @@ __all__ = [
     "require_tenant",
     "set_rbac_manager",
     "get_user_from_store",
+    "get_user_by_username",
     "add_user_to_store",
+    "register_local_user",
+    "authenticate_local_user",
 ]
