@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
@@ -12,6 +12,8 @@ from .dependencies import (
     get_current_active_user,
     get_current_user,
     add_user_to_store,
+    get_user_by_username,
+    verify_local_user_password,
 )
 from .jwt_handler import JWTHandler
 from .models import (
@@ -64,15 +66,27 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()) -> Token:
 
     Returns access token for subsequent API calls.
     """
+    # Support MFA code appended to password as password:mfa_code
+    raw_password = form_data.password
+    password = raw_password
+    mfa_code: Optional[str] = None
+    if ":" in raw_password:
+        password, mfa_code = raw_password.rsplit(":", 1)
+
     # Try LDAP authentication first if configured
     user = None
     if _ldap_handler:
         try:
-            user = _ldap_handler.authenticate_user(form_data.username, form_data.password)
+            user = _ldap_handler.authenticate_user(form_data.username, password)
         except Exception:
-            pass  # Fall through to local auth
+            user = None  # Fall through to local auth
 
     # Local authentication fallback (for demo - in production use proper user db)
+    if not user:
+        local_user = get_user_by_username(form_data.username)
+        if local_user and verify_local_user_password(local_user, password):
+            user = local_user
+
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -84,13 +98,12 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()) -> Token:
     if user.mfa_enabled:
         # In a real implementation, this would be a two-step process
         # For now, we'll require MFA code in the password field format: password:mfa_code
-        if ":" not in form_data.password:
+        if not mfa_code:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="MFA code required. Format: password:mfa_code",
             )
 
-        password, mfa_code = form_data.password.rsplit(":", 1)
         if not await _mfa_handler.verify_mfa(user, mfa_code):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -98,6 +111,7 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()) -> Token:
             )
 
     # Store user and create tokens
+    user.last_login = datetime.utcnow()
     add_user_to_store(user)
 
     access_token = _jwt_handler.create_access_token(user)
