@@ -541,6 +541,220 @@ class MultiPriceAuction(AuctionEngine):
         return self.result
 
 
+class DutchAuction(AuctionEngine):
+    """Descending price auction execution.
+
+    Starts from the highest quoted price and descends until the requested
+    quantity is filled. Records the price path and allocates at the clearing
+    price once sufficient liquidity is available.
+    """
+
+    def execute(self) -> AuctionResult:
+        """Execute Dutch auction."""
+        self._validate_execution()
+        start_time = datetime.utcnow()
+
+        priced_quotes = [q for q in self.quotes if q.price is not None]
+        if not priced_quotes:
+            raise ValueError("No priced quotes available for Dutch auction")
+
+        # Determine ordering and price levels
+        if self.rfq.side == OrderSide.BUY:
+            sorted_quotes = sorted(
+                priced_quotes,
+                key=lambda q: (q.price, q.priority)
+            )
+            is_active = lambda quote, level: quote.price <= level
+        else:
+            sorted_quotes = sorted(
+                priced_quotes,
+                key=lambda q: (-q.price, q.priority)
+            )
+            is_active = lambda quote, level: quote.price >= level
+
+        price_levels = sorted({q.price for q in priced_quotes}, reverse=True)
+
+        target_quantity = self.rfq.specification.notional
+        remaining = target_quantity
+        winning_quotes: List[str] = []
+        allocations: List[Dict[str, Any]] = []
+        clearing_price: Optional[Decimal] = None
+        price_path: List[Dict[str, Any]] = []
+
+        for step, level in enumerate(price_levels):
+            price_path.append({"step": step, "price": float(level)})
+
+            eligible_quotes = [q for q in sorted_quotes if is_active(q, level)]
+            cumulative = sum((q.quantity for q in eligible_quotes), Decimal("0"))
+
+            if cumulative >= target_quantity:
+                clearing_price = level
+                remaining = target_quantity
+                for quote in eligible_quotes:
+                    if remaining <= 0:
+                        break
+                    fill_qty = min(quote.quantity, remaining)
+                    if fill_qty <= 0:
+                        continue
+
+                    allocations.append({
+                        "quote_id": quote.quote_id,
+                        "quoter_id": quote.quoter.party_id,
+                        "quantity": float(fill_qty),
+                        "price": float(level)
+                    })
+                    quote.filled_quantity = fill_qty
+                    quote.average_fill_price = level
+                    quote.status = QuoteStatus.ACCEPTED
+                    if quote.quote_id not in winning_quotes:
+                        winning_quotes.append(quote.quote_id)
+                    remaining -= fill_qty
+                break
+
+        if clearing_price is None:
+            # Not enough liquidity; allocate what is available at final level
+            final_level = price_levels[-1]
+            clearing_price = final_level
+            eligible_quotes = [q for q in sorted_quotes if is_active(q, final_level)]
+            remaining = target_quantity
+
+            for quote in eligible_quotes:
+                if remaining <= 0:
+                    break
+                fill_qty = min(quote.quantity, remaining)
+                if fill_qty <= 0:
+                    continue
+
+                allocations.append({
+                    "quote_id": quote.quote_id,
+                    "quoter_id": quote.quoter.party_id,
+                    "quantity": float(fill_qty),
+                    "price": float(final_level)
+                })
+                quote.filled_quantity = fill_qty
+                quote.average_fill_price = final_level
+                quote.status = QuoteStatus.ACCEPTED
+                if quote.quote_id not in winning_quotes:
+                    winning_quotes.append(quote.quote_id)
+                remaining -= fill_qty
+
+        # Mark non-winning quotes as rejected
+        for quote in priced_quotes:
+            if quote.quote_id not in winning_quotes:
+                quote.status = QuoteStatus.REJECTED
+
+        end_time = datetime.utcnow()
+        duration_ms = (end_time - start_time).total_seconds() * 1000
+
+        self.result = AuctionResult(
+            rfq_id=self.rfq.rfq_id,
+            auction_type=AuctionType.DUTCH,
+            clearing_price=clearing_price,
+            total_quantity_filled=target_quantity - remaining,
+            num_participants=len(self.quotes),
+            winning_quotes=winning_quotes,
+            allocations=allocations,
+            competition_score=self._calculate_competition_score(),
+            execution_duration_ms=duration_ms,
+            metadata={
+                "price_path": price_path,
+                "start_price": float(price_levels[0]) if price_levels else None
+            }
+        )
+
+        return self.result
+
+
+class VickreyAuction(AuctionEngine):
+    """Second-price sealed-bid auction implementation."""
+
+    def execute(self) -> AuctionResult:
+        """Execute Vickrey auction."""
+        self._validate_execution()
+        start_time = datetime.utcnow()
+
+        priced_quotes = [q for q in self.quotes if q.price is not None]
+        if not priced_quotes:
+            raise ValueError("No priced quotes available for Vickrey auction")
+
+        if self.rfq.side == OrderSide.BUY:
+            sorted_quotes = sorted(
+                priced_quotes,
+                key=lambda q: (q.price, q.priority)
+            )
+        else:
+            sorted_quotes = sorted(
+                priced_quotes,
+                key=lambda q: (-q.price, q.priority)
+            )
+
+        target_quantity = self.rfq.specification.notional
+        remaining = target_quantity
+        winning_quotes: List[str] = []
+        allocations: List[Dict[str, Any]] = []
+
+        for quote in sorted_quotes:
+            if remaining <= 0:
+                break
+            fill_qty = min(quote.quantity, remaining)
+            if fill_qty <= 0:
+                continue
+
+            allocations.append({
+                "quote_id": quote.quote_id,
+                "quoter_id": quote.quoter.party_id,
+                "quantity": float(fill_qty)
+            })
+            quote.filled_quantity = fill_qty
+            quote.status = QuoteStatus.ACCEPTED
+            winning_quotes.append(quote.quote_id)
+            remaining -= fill_qty
+
+        if not winning_quotes:
+            raise ValueError("No winning quotes identified in Vickrey auction")
+
+        losing_quotes = [q for q in sorted_quotes if q.quote_id not in winning_quotes]
+        if losing_quotes:
+            reference_quote = losing_quotes[0]
+            clearing_price = reference_quote.price
+            reference_quote_id = reference_quote.quote_id
+        else:
+            # Fallback to last winning quote price when no losing quotes exist
+            winning_quote_objs = [q for q in sorted_quotes if q.quote_id in winning_quotes]
+            clearing_price = winning_quote_objs[-1].price
+            reference_quote_id = None
+
+        # Update allocation prices and winner fill prices
+        for allocation in allocations:
+            allocation["price"] = float(clearing_price)
+
+        for quote in priced_quotes:
+            if quote.quote_id in winning_quotes:
+                quote.average_fill_price = clearing_price
+            else:
+                quote.status = QuoteStatus.REJECTED
+
+        end_time = datetime.utcnow()
+        duration_ms = (end_time - start_time).total_seconds() * 1000
+
+        self.result = AuctionResult(
+            rfq_id=self.rfq.rfq_id,
+            auction_type=AuctionType.VICKREY,
+            clearing_price=clearing_price,
+            total_quantity_filled=target_quantity - remaining,
+            num_participants=len(self.quotes),
+            winning_quotes=winning_quotes,
+            allocations=allocations,
+            competition_score=self._calculate_competition_score(),
+            execution_duration_ms=duration_ms,
+            metadata={
+                "second_price_quote_id": reference_quote_id
+            }
+        )
+
+        return self.result
+
+
 class ContinuousAuction(AuctionEngine):
     """Continuous double auction with order book matching.
 
@@ -731,6 +945,10 @@ class RFQManager:
             engine = MultiPriceAuction(rfq)
         elif rfq.auction_type == AuctionType.CONTINUOUS:
             engine = ContinuousAuction(rfq)
+        elif rfq.auction_type == AuctionType.DUTCH:
+            engine = DutchAuction(rfq)
+        elif rfq.auction_type == AuctionType.VICKREY:
+            engine = VickreyAuction(rfq)
         else:
             raise NotImplementedError(f"Auction type {rfq.auction_type} not implemented")
 
@@ -792,6 +1010,8 @@ __all__ = [
     "AuctionEngine",
     "SinglePriceAuction",
     "MultiPriceAuction",
+    "DutchAuction",
+    "VickreyAuction",
     "ContinuousAuction",
     "RFQManager",
 ]
