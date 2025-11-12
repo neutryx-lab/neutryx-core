@@ -8,6 +8,7 @@ This module provides functions for:
 from __future__ import annotations
 
 from datetime import date
+from decimal import Decimal, ROUND_HALF_UP
 from typing import Dict, List, Optional
 
 import jax.numpy as jnp
@@ -89,10 +90,107 @@ def calculate_net_exposure_by_currency(
     Notes
     -----
     This function performs netting within each currency. For cross-currency
-    netting, FX conversion would be needed (not implemented here).
+    netting, use :func:`calculate_net_exposure_in_base_currency` to convert
+    exposures to a common currency before aggregation.
     """
     # For bilateral netting within currency, net exposure is just the MTM
     return mtm_by_currency.copy()
+
+
+def calculate_net_exposure_in_base_currency(
+    mtm_by_currency: Dict[str, float],
+    fx_rates: Dict[str, float],
+    base_currency: str,
+    *,
+    precision: Optional[int] = None,
+) -> Dict[str, Dict[str, float] | float | str]:
+    """Convert net exposures to a base currency and aggregate totals.
+
+    Parameters
+    ----------
+    mtm_by_currency : dict[str, float]
+        Map of currency -> net MTM in that currency.
+    fx_rates : dict[str, float]
+        Mapping of currency -> FX rate quoted as ``base_currency`` per unit of
+        ``currency``. The ``base_currency`` itself does not need to be present
+        in this mapping. Rates are treated case-insensitively.
+    base_currency : str
+        Currency code used as the aggregation currency.
+    precision : int, optional
+        Number of decimal places to round the converted exposures to. When not
+        provided, no rounding is applied.
+
+    Returns
+    -------
+    dict
+        Dictionary containing the converted exposures under the keys:
+
+        ``"base_currency"``
+            The base currency code.
+        ``"by_currency"``
+            Mapping of original currencies to their value expressed in the base
+            currency.
+        ``"total"``
+            Aggregate exposure expressed in the base currency.
+
+    Raises
+    ------
+    ValueError
+        If an FX rate is missing for a currency other than the base currency.
+
+    Notes
+    -----
+    The calculation leverages :class:`decimal.Decimal` to limit cumulative
+    floating-point error and applies rounding at the end if ``precision`` is
+    provided. This makes the output more robust to FX rate changes and
+    rounding concerns when aggregating large notionals.
+    """
+
+    if not mtm_by_currency:
+        return {
+            "base_currency": base_currency,
+            "by_currency": {},
+            "total": 0.0,
+        }
+
+    base_ccy = base_currency.upper()
+    decimal_fx_rates = {
+        currency.upper(): Decimal(str(rate)) for currency, rate in fx_rates.items()
+    }
+
+    converted_values: Dict[str, Decimal] = {}
+    total = Decimal("0")
+
+    for currency, amount in mtm_by_currency.items():
+        currency_upper = currency.upper()
+        amount_decimal = Decimal(str(amount))
+
+        if currency_upper == base_ccy:
+            rate = Decimal("1")
+        else:
+            if currency_upper not in decimal_fx_rates:
+                raise ValueError(
+                    f"Missing FX rate for currency '{currency_upper}' to convert into {base_ccy}."
+                )
+            rate = decimal_fx_rates[currency_upper]
+
+        base_amount = amount_decimal * rate
+        converted_values[currency_upper] = base_amount
+        total += base_amount
+
+    if precision is not None:
+        quantize_exp = Decimal("1").scaleb(-precision)
+        converted_values = {
+            currency: value.quantize(quantize_exp, rounding=ROUND_HALF_UP)
+            for currency, value in converted_values.items()
+        }
+        total = total.quantize(quantize_exp, rounding=ROUND_HALF_UP)
+
+    return {
+        "base_currency": base_ccy,
+        "by_currency": {currency: float(value) for currency, value in converted_values.items()},
+        "total": float(total),
+    }
 
 
 def calculate_payment_netting(
