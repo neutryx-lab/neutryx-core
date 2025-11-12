@@ -159,7 +159,7 @@ class TestPosition:
         pos.update(trade)
 
         assert pos.quantity == 50
-        assert pos.realized_pnl == 250.0  # 50 * (55 - 50)
+        assert pos.realized_pnl == pytest.approx(247.5)
 
     def test_position_mark_to_market(self):
         """Test marking position to market."""
@@ -343,6 +343,70 @@ class TestBacktestEngine:
 
         # Should have no trades since short selling is disabled
         assert result.num_trades == 0
+
+    def test_round_trip_trade_pnl(self):
+        """Ensure realized PnL is captured for a round-trip trade."""
+
+        class RoundTripStrategy(Strategy):
+            def __init__(self):
+                super().__init__("RoundTrip")
+                self.step = 0
+
+            def generate_signals(self, timestamp, market_data, positions, portfolio_value):
+                signals = []
+                if self.step == 0:
+                    signals.append({
+                        "symbol": "TEST",
+                        "side": OrderSide.BUY,
+                        "quantity": 1.0,
+                        "order_type": OrderType.MARKET,
+                    })
+                elif self.step == 1:
+                    signals.append({
+                        "symbol": "TEST",
+                        "side": OrderSide.SELL,
+                        "quantity": 1.0,
+                        "order_type": OrderType.MARKET,
+                    })
+                self.step += 1
+                return signals
+
+        dates = pd.date_range(start="2020-01-01", periods=3, freq="D")
+        prices = [100.0, 110.0, 110.0]
+        market_data = pd.DataFrame({
+            "close": prices,
+            "open": prices,
+            "high": prices,
+            "low": prices,
+            "volume": [1000, 1000, 1000],
+        }, index=dates)
+
+        strategy = RoundTripStrategy()
+        config = BacktestConfig(
+            initial_capital=1000.0,
+            commission_bps=0.0,
+            slippage_bps=0.0,
+        )
+
+        engine = BacktestEngine(
+            strategy=strategy,
+            market_data=market_data,
+            config=config,
+        )
+
+        result = engine.run()
+
+        trades_df = result.trades
+        assert len(trades_df) == 2
+
+        buy_trade = trades_df[trades_df["side"] == OrderSide.BUY.value].iloc[0]
+        sell_trade = trades_df[trades_df["side"] == OrderSide.SELL.value].iloc[0]
+
+        assert buy_trade["pnl"] == pytest.approx(0.0)
+        assert sell_trade["pnl"] == pytest.approx(10.0)
+        assert result.win_rate == pytest.approx(1.0)
+        assert result.profit_factor == float("inf")
+        assert result.avg_trade_pnl == pytest.approx(10.0)
 
 
 class TestBacktestConfig:

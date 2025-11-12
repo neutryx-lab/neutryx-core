@@ -42,6 +42,7 @@ class Trade:
     commission: float = 0.0
     slippage: float = 0.0
     market_impact: float = 0.0
+    pnl: float = 0.0
 
     @property
     def total_cost(self) -> float:
@@ -71,25 +72,70 @@ class Position:
     avg_price: float = 0.0
     realized_pnl: float = 0.0
     unrealized_pnl: float = 0.0
+    open_commission: float = 0.0
 
-    def update(self, trade: Trade):
-        """Update position with new trade."""
-        if trade.side == OrderSide.BUY:
-            # Buying - increase position
-            total_cost = self.quantity * self.avg_price + trade.quantity * trade.effective_price
-            self.quantity += trade.quantity
-            self.avg_price = total_cost / self.quantity if self.quantity != 0 else 0.0
-        else:
-            # Selling - decrease position
-            realized = trade.quantity * (trade.effective_price - self.avg_price)
-            self.realized_pnl += realized
-            self.quantity -= trade.quantity
+    def update(self, trade: Trade) -> float:
+        """Update position with new trade.
 
-            # Handle position reversal
-            if self.quantity < 0:
-                self.avg_price = trade.effective_price
-            elif self.quantity == 0:
-                self.avg_price = 0.0
+        Returns:
+            Realized P&L attributed to this trade.
+        """
+        realized = 0.0
+        prev_qty = self.quantity
+        trade_qty = trade.quantity if trade.side == OrderSide.BUY else -trade.quantity
+        new_qty = prev_qty + trade_qty
+
+        closing_qty = 0.0
+        exit_commission_used = 0.0
+
+        if prev_qty > 0 and trade.side == OrderSide.SELL:
+            closing_qty = min(prev_qty, trade.quantity)
+            closing_fraction = closing_qty / trade.quantity if trade.quantity != 0 else 0.0
+            exit_commission_used = trade.commission * closing_fraction
+            realized += closing_qty * (trade.effective_price - self.avg_price)
+            commission_share = self.open_commission * (closing_qty / prev_qty) if prev_qty != 0 else 0.0
+            self.open_commission -= commission_share
+            realized -= commission_share
+            realized -= exit_commission_used
+        elif prev_qty < 0 and trade.side == OrderSide.BUY:
+            closing_qty = min(abs(prev_qty), trade.quantity)
+            closing_fraction = closing_qty / trade.quantity if trade.quantity != 0 else 0.0
+            exit_commission_used = trade.commission * closing_fraction
+            realized += closing_qty * (self.avg_price - trade.effective_price)
+            commission_share = self.open_commission * (closing_qty / abs(prev_qty)) if prev_qty != 0 else 0.0
+            self.open_commission -= commission_share
+            realized -= commission_share
+            realized -= exit_commission_used
+
+        self.realized_pnl += realized
+        self.quantity = new_qty
+
+        remaining_commission = trade.commission - exit_commission_used
+
+        if self.quantity == 0:
+            self.avg_price = 0.0
+            self.open_commission = 0.0
+        elif prev_qty == 0:
+            self.avg_price = trade.effective_price
+            self.open_commission = remaining_commission
+        elif prev_qty > 0 and self.quantity > 0 and trade.side == OrderSide.BUY:
+            total_cost = prev_qty * self.avg_price + trade.quantity * trade.effective_price
+            self.avg_price = total_cost / self.quantity
+            self.open_commission += remaining_commission
+        elif prev_qty < 0 and self.quantity < 0 and trade.side == OrderSide.SELL:
+            total_proceeds = abs(prev_qty) * self.avg_price + trade.quantity * trade.effective_price
+            self.avg_price = total_proceeds / abs(self.quantity)
+            self.open_commission += remaining_commission
+        elif prev_qty > 0 and self.quantity < 0:
+            self.avg_price = trade.effective_price
+            self.open_commission = remaining_commission
+        elif prev_qty < 0 and self.quantity > 0:
+            self.avg_price = trade.effective_price
+            self.open_commission = remaining_commission
+
+        self.open_commission = max(self.open_commission, 0.0)
+
+        return realized
 
     def mark_to_market(self, current_price: float):
         """Mark position to market."""
@@ -405,7 +451,8 @@ class BacktestEngine:
         if trade.symbol not in self.positions:
             self.positions[trade.symbol] = Position(symbol=trade.symbol)
 
-        self.positions[trade.symbol].update(trade)
+        realized = self.positions[trade.symbol].update(trade)
+        trade.pnl = realized
 
     def _mark_to_market(self, bar: pd.Series):
         """Mark all positions to market."""
@@ -472,7 +519,7 @@ class BacktestEngine:
                 "side": t.side.value,
                 "quantity": t.quantity,
                 "price": t.price,
-                "pnl": 0.0,  # Would need to calculate based on position
+                "pnl": t.pnl,
                 "commission": t.commission,
                 "slippage": t.slippage,
                 "market_impact": t.market_impact,
@@ -482,13 +529,19 @@ class BacktestEngine:
 
         win_rate = 0.0
         profit_factor = 0.0
-        if len(self.trades) > 0:
-            winning_trades = sum(1 for t in self.trades if getattr(t, "pnl", 0) > 0)
-            win_rate = winning_trades / len(self.trades)
-
-            gross_profit = sum(getattr(t, "pnl", 0) for t in self.trades if getattr(t, "pnl", 0) > 0)
-            gross_loss = abs(sum(getattr(t, "pnl", 0) for t in self.trades if getattr(t, "pnl", 0) < 0))
-            profit_factor = gross_profit / gross_loss if gross_loss != 0 else 0.0
+        avg_trade_pnl = 0.0
+        if not trades_df.empty:
+            closed_trades = trades_df[trades_df["pnl"] != 0]
+            if not closed_trades.empty:
+                win_rate = (closed_trades["pnl"] > 0).mean()
+                gross_profit = closed_trades.loc[closed_trades["pnl"] > 0, "pnl"].sum()
+                gross_loss = closed_trades.loc[closed_trades["pnl"] < 0, "pnl"].sum()
+                profit_factor = (
+                    gross_profit / abs(gross_loss)
+                    if gross_loss < 0
+                    else (float("inf") if gross_profit > 0 else 0.0)
+                )
+                avg_trade_pnl = closed_trades["pnl"].mean()
 
         # Rolling Sharpe
         rolling_sharpe = returns.rolling(window=252).apply(
@@ -510,7 +563,7 @@ class BacktestEngine:
             win_rate=win_rate,
             profit_factor=profit_factor,
             num_trades=len(self.trades),
-            avg_trade_pnl=sum(getattr(t, "pnl", 0) for t in self.trades) / len(self.trades) if self.trades else 0.0,
+            avg_trade_pnl=avg_trade_pnl,
             total_commission=sum(t.commission for t in self.trades),
             total_slippage=sum(abs(t.slippage) for t in self.trades),
             total_market_impact=sum(abs(t.market_impact) for t in self.trades),
