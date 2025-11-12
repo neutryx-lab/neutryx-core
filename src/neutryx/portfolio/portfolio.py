@@ -6,7 +6,8 @@ of counterparties, master agreements, CSAs, netting sets, and trades.
 from __future__ import annotations
 
 from datetime import date
-from typing import Dict, List, Optional, Sequence
+from decimal import Decimal
+from typing import Any, Dict, List, Optional, Sequence
 
 import jax.numpy as jnp
 from pydantic import BaseModel, ConfigDict, Field
@@ -16,6 +17,7 @@ from neutryx.portfolio.contracts.csa import CSA
 from neutryx.portfolio.contracts.master_agreement import MasterAgreement
 from neutryx.portfolio.contracts.trade import Trade, ProductType, TradeStatus
 from neutryx.portfolio.netting_set import NettingSet
+from neutryx.portfolio.positions import PortfolioPosition
 
 
 class Portfolio(BaseModel):
@@ -59,6 +61,9 @@ class Portfolio(BaseModel):
     netting_sets: Dict[str, NettingSet] = Field(default_factory=dict)
     trades: Dict[str, Trade] = Field(default_factory=dict)
     base_currency: str = Field(default="USD", min_length=3, max_length=3)
+    positions: Dict[str, PortfolioPosition] = Field(default_factory=dict)
+    cash_balances: Dict[str, Decimal] = Field(default_factory=dict)
+    metadata: Dict[str, Any] = Field(default_factory=dict)
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
@@ -109,6 +114,77 @@ class Portfolio(BaseModel):
             netting_set = self.netting_sets.get(trade.netting_set_id)
             if netting_set:
                 netting_set.add_trade(trade.id)
+
+    # ------------------------------------------------------------------
+    # Position and cash management
+    # ------------------------------------------------------------------
+
+    def get_position(self, security_id: str) -> Optional[PortfolioPosition]:
+        """Return a position by security identifier."""
+
+        return self.positions.get(security_id)
+
+    def upsert_position(
+        self,
+        security_id: str,
+        *,
+        quantity: Decimal,
+        cost_basis: Optional[Decimal] = None,
+    ) -> PortfolioPosition:
+        """Create or update a position in place."""
+
+        position = self.positions.get(security_id)
+        if position is None:
+            position = PortfolioPosition(
+                security_id=security_id,
+                quantity=quantity,
+                cost_basis=cost_basis or Decimal("0"),
+            )
+            self.positions[security_id] = position
+        else:
+            position.quantity = quantity
+            if cost_basis is not None:
+                position.cost_basis = cost_basis
+
+        return position
+
+    def adjust_position(
+        self,
+        security_id: str,
+        quantity_delta: Decimal,
+        *,
+        cost_basis: Optional[Decimal] = None,
+    ) -> PortfolioPosition:
+        """Adjust an existing position quantity by a delta."""
+
+        position = self.positions.get(security_id)
+        if position is None:
+            position = PortfolioPosition(
+                security_id=security_id,
+                quantity=Decimal("0"),
+                cost_basis=cost_basis or Decimal("0"),
+            )
+            self.positions[security_id] = position
+
+        position.adjust_quantity(quantity_delta)
+        if cost_basis is not None:
+            position.cost_basis = cost_basis
+
+        if position.quantity == Decimal("0") and not position.metadata:
+            del self.positions[security_id]
+
+        return position
+
+    def record_cash_flow(self, currency: str, amount: Decimal) -> None:
+        """Record a cash movement impacting the portfolio."""
+
+        current = self.cash_balances.get(currency, Decimal("0"))
+        self.cash_balances[currency] = current + amount
+
+    def get_cash_balance(self, currency: str) -> Decimal:
+        """Retrieve the current cash balance for a currency."""
+
+        return self.cash_balances.get(currency, Decimal("0"))
 
     def remove_trade(self, trade_id: str) -> bool:
         """Remove a trade from the portfolio.

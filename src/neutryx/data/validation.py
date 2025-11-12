@@ -11,10 +11,15 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum, auto
-from typing import Any, Dict, Iterable, List, Optional, Sequence
+from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 import logging
 
 from neutryx.market.data_models import DataQuality, MarketDataPoint
+from neutryx.data.security_master import (
+    SecurityInactiveError,
+    SecurityMaster,
+    SecurityNotFoundError,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -215,6 +220,117 @@ class StalenessRule(ValidationRule):
         return []
 
 
+class SecurityReferenceRule(ValidationRule):
+    """Ensure market data references securities in the master."""
+
+    name = "security_master_reference"
+
+    def __init__(
+        self,
+        security_master: SecurityMaster,
+        *,
+        identifier_fields: Sequence[str] = ("security_id", "ticker", "isin", "cusip"),
+        attach_metadata: bool = True,
+    ):
+        self.security_master = security_master
+        self.identifier_fields = list(identifier_fields)
+        self.attach_metadata = attach_metadata
+
+    def _identifier_candidates(
+        self, data_point: MarketDataPoint
+    ) -> List[Tuple[str, str]]:
+        metadata: Dict[str, Any] = getattr(data_point, "metadata", {}) or {}
+        candidates: List[Tuple[str, str]] = []
+
+        for field in self.identifier_fields:
+            value: Optional[str]
+            if field == "security_id":
+                value = metadata.get("security_id")
+            else:
+                value = getattr(data_point, field, None) or metadata.get(field)
+
+            if value:
+                candidates.append((field, str(value)))
+
+        # Maintain input order but remove duplicates
+        seen: set[Tuple[str, str]] = set()
+        unique_candidates: List[Tuple[str, str]] = []
+        for candidate in candidates:
+            key = (candidate[0], candidate[1].upper())
+            if key not in seen:
+                seen.add(key)
+                unique_candidates.append(candidate)
+
+        return unique_candidates
+
+    def evaluate(self, data_point: MarketDataPoint) -> Sequence[ValidationIssue]:
+        candidates = self._identifier_candidates(data_point)
+        as_of_date = None
+        timestamp = getattr(data_point, "timestamp", None)
+        if hasattr(timestamp, "date"):
+            as_of_date = timestamp.date()
+
+        metadata: Dict[str, Any] = getattr(data_point, "metadata", {}) or {}
+
+        for identifier_type, identifier_value in candidates:
+            lookup_type = identifier_type if identifier_type != "security_id" else "security_id"
+            try:
+                record = self.security_master.lookup(
+                    identifier_value,
+                    identifier_type=lookup_type,
+                    as_of=as_of_date,
+                    require_active=False,
+                )
+            except SecurityNotFoundError:
+                continue
+            except SecurityInactiveError:
+                return [
+                    ValidationIssue(
+                        rule=self.name,
+                        message=(
+                            f"Security '{identifier_value}' inactive for identifier "
+                            f"'{identifier_type}'"
+                        ),
+                        field=identifier_type,
+                        value=identifier_value,
+                        severity=Severity.ERROR,
+                    )
+                ]
+
+            if as_of_date and not record.is_active(as_of=as_of_date):
+                return [
+                    ValidationIssue(
+                        rule=self.name,
+                        message=(
+                            f"Security '{record.security_id}' inactive on {as_of_date.isoformat()}"
+                        ),
+                        field=identifier_type,
+                        value=identifier_value,
+                        severity=Severity.ERROR,
+                    )
+                ]
+
+            if self.attach_metadata:
+                enriched = dict(metadata)
+                enriched.setdefault("security_master", record.to_summary())
+                enriched.setdefault(
+                    "security_master_lookup",
+                    {"identifier_type": identifier_type, "identifier_value": identifier_value},
+                )
+                data_point.metadata = enriched
+                metadata = enriched
+
+            return []
+
+        return [
+            ValidationIssue(
+                rule=self.name,
+                message="Security reference not found in security master",
+                severity=Severity.ERROR,
+            )
+        ]
+
+
 class DataValidator:
     """Rule-based validator for market data points."""
 
@@ -224,9 +340,17 @@ class DataValidator:
         *,
         quality_overrides: Optional[Dict[Severity, DataQuality]] = None,
         attach_metadata: bool = True,
+        security_master: Optional[SecurityMaster] = None,
+        security_identifier_fields: Sequence[str] = (
+            "security_id",
+            "ticker",
+            "isin",
+            "cusip",
+        ),
     ):
         self._rules: List[ValidationRule] = list(rules) if rules else []
         self._attach_metadata = attach_metadata
+        self._security_master = security_master
         self._quality_overrides = {
             Severity.INFO: None,
             Severity.WARNING: DataQuality.INDICATIVE,
@@ -235,6 +359,14 @@ class DataValidator:
 
         if quality_overrides:
             self._quality_overrides.update(quality_overrides)
+
+        if self._security_master is not None:
+            security_rule = SecurityReferenceRule(
+                self._security_master,
+                identifier_fields=security_identifier_fields,
+                attach_metadata=attach_metadata,
+            )
+            self._rules.insert(0, security_rule)
 
     def add_rule(self, rule: ValidationRule) -> None:
         """Register a validation rule."""
@@ -295,4 +427,5 @@ __all__ = [
     "RequiredFieldRule",
     "RangeRule",
     "StalenessRule",
+    "SecurityReferenceRule",
 ]

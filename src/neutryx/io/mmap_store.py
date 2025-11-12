@@ -20,6 +20,7 @@ import jax.numpy as jnp
 import numpy as np
 from jax import Array
 
+from neutryx.infrastructure.governance import record_artifact
 from neutryx.io.base import DataStore, StorageConfig
 
 
@@ -117,11 +118,19 @@ class MMapStore(DataStore):
         # Close the memmap
         del mmap_array
 
-        # Save metadata if provided
-        if metadata is not None:
-            metadata_path = self._get_metadata_path(key)
-            with open(metadata_path, "w") as f:
-                json.dump(metadata, f, indent=2)
+        metadata_path = self._get_metadata_path(key)
+        base_metadata: Dict[str, Any] = dict(metadata or {})
+        base_metadata.setdefault("storage_backend", "mmap")
+        base_metadata.setdefault("array_shape", list(np_array.shape))
+        base_metadata.setdefault("array_dtype", str(np_array.dtype))
+        enriched_metadata = record_artifact(
+            key,
+            kind="array",
+            metadata=base_metadata,
+            extra_event_metadata={"storage_backend": "mmap", "array_shape": list(np_array.shape)},
+        )
+        with open(metadata_path, "w", encoding="utf-8") as f:
+            json.dump(enriched_metadata, f, indent=2)
 
     def load_array(self, key: str) -> Array:
         """Load array from memory-mapped file.
@@ -184,8 +193,14 @@ class MMapStore(DataStore):
 
         metadata_path = self._get_metadata_path(key)
 
-        with open(metadata_path, "w") as f:
-            json.dump(metadata, f, indent=2)
+        enriched_metadata = record_artifact(
+            key,
+            kind="metadata",
+            metadata={"storage_backend": "mmap", **metadata},
+            extra_event_metadata={"storage_backend": "mmap"},
+        )
+        with open(metadata_path, "w", encoding="utf-8") as f:
+            json.dump(enriched_metadata, f, indent=2)
 
     def load_metadata(self, key: str) -> Dict[str, Any]:
         """Load metadata from JSON file."""

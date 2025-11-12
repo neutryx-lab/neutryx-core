@@ -7,6 +7,14 @@ from .base import (
     FeedError,
 )
 from .realtime import PollingMarketDataFeed, FeedMetrics
+from .vendors import (
+    BloombergMarketDataFeed,
+    RefinitivMarketDataFeed,
+    SimulatedMarketDataFeed,
+    ValidationCallback,
+    VendorPollingFeed,
+    VendorSubscription,
+)
 
 __all__ = [
     "FeedError",
@@ -15,4 +23,10 @@ __all__ = [
     "FeedSubscription",
     "MarketDataFeed",
     "PollingMarketDataFeed",
+    "BloombergMarketDataFeed",
+    "RefinitivMarketDataFeed",
+    "SimulatedMarketDataFeed",
+    "ValidationCallback",
+    "VendorPollingFeed",
+    "VendorSubscription",
 ]

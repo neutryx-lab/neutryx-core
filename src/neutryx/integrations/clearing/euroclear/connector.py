@@ -4,15 +4,24 @@ from __future__ import annotations
 
 import asyncio
 import uuid
-from datetime import datetime, date
-from typing import Any, Dict, List, Optional
+from datetime import date, datetime
+from decimal import Decimal
+from typing import Any, Dict, Optional, Sequence
+
+import httpx
 
 from ..base import (
+    CCPAuthenticationError,
     CCPConfig,
     CCPConnector,
     CCPConnectionError,
     CCPError,
+    CCPMetrics,
+    CCPTimeoutError,
+    CCPTradeRejectionError,
+    Trade,
     TradeStatus,
+    TradeSubmissionResponse,
 )
 from .messages import (
     EuroclearConfirmation,
@@ -23,197 +32,162 @@ from .messages import (
 
 
 class EuroclearConnector(CCPConnector):
-    """Connector for Euroclear integration.
+    """Connector for Euroclear integration."""
 
-    Provides connectivity to Euroclear for securities settlement instructions,
-    status queries, and confirmation processing.
-    """
-
-    def __init__(self, config: CCPConfig):
-        """Initialize Euroclear connector.
-
-        Args:
-            config: CCP configuration with Euroclear-specific settings
-        """
+    def __init__(
+        self,
+        config: CCPConfig,
+        *,
+        transport: Optional[httpx.AsyncBaseTransport] = None,
+    ):
         super().__init__(config)
         self._session_token: Optional[str] = None
         self._instructions: Dict[str, EuroclearSettlementInstruction] = {}
+        self._client: Optional[httpx.AsyncClient] = None
+        self._transport = transport
+        self.metrics = CCPMetrics()
 
     async def connect(self) -> bool:
-        """Establish connection to Euroclear.
+        """Establish connection to Euroclear."""
 
-        Returns:
-            True if connection successful
-
-        Raises:
-            CCPConnectionError: If connection fails
-        """
         try:
-            # Simulate connection to Euroclear API
-            # In production, this would:
-            # 1. Establish secure connection (SWIFT Alliance Lite2 or API)
-            # 2. Authenticate with certificates
-            # 3. Obtain session token
-            # 4. Subscribe to settlement updates
+            headers = {
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+                "X-Euroclear-Member-ID": self.config.member_id,
+            }
 
-            await asyncio.sleep(0.1)
+            if self.config.api_key:
+                headers["X-API-Key"] = self.config.api_key
 
-            self._session_id = str(uuid.uuid4())
-            self._session_token = f"EUROCLEAR_TOKEN_{self._session_id[:8]}"
+            timeout = httpx.Timeout(self.config.timeout, connect=10.0)
+
+            self._client = httpx.AsyncClient(
+                base_url=self.config.api_endpoint,
+                headers=headers,
+                timeout=timeout,
+                transport=self._transport,
+            )
+
+            auth_payload = {
+                "member_id": self.config.member_id,
+                "environment": self.config.environment,
+                "timestamp": datetime.utcnow().isoformat(),
+            }
+
+            response = await self._perform_request(
+                "POST",
+                "/auth/session",
+                json=auth_payload,
+                expected_status=(200, 201),
+                allow_retries=False,
+            )
+
+            data = response.json()
+            self._session_id = data.get("session_id") or str(uuid.uuid4())
+            self._session_token = data.get("session_token")
             self._connected = True
-
+            self.metrics.last_heartbeat = datetime.utcnow()
             return True
 
-        except Exception as e:
-            raise CCPConnectionError(f"Failed to connect to Euroclear: {e}")
+        except CCPAuthenticationError:
+            raise
+        except CCPTimeoutError as exc:
+            raise CCPConnectionError(f"Euroclear authentication timed out: {exc}")
+        except CCPConnectionError:
+            raise
+        except Exception as exc:  # pragma: no cover - defensive fallback
+            raise CCPConnectionError(f"Failed to connect to Euroclear: {exc}")
 
     async def disconnect(self) -> bool:
-        """Disconnect from Euroclear.
+        """Disconnect from Euroclear."""
 
-        Returns:
-            True if disconnection successful
-        """
         try:
+            if self._client:
+                await self._client.aclose()
+            self._client = None
             self._connected = False
             self._session_id = None
             self._session_token = None
             return True
 
-        except Exception as e:
+        except Exception as e:  # pragma: no cover - defensive fallback
             raise CCPError(f"Failed to disconnect from Euroclear: {e}")
 
     async def submit_settlement_instruction(
         self,
-        instruction: EuroclearSettlementInstruction
+        instruction: EuroclearSettlementInstruction,
     ) -> EuroclearConfirmation:
-        """Submit securities settlement instruction to Euroclear.
+        """Submit securities settlement instruction to Euroclear."""
 
-        Args:
-            instruction: Settlement instruction
-
-        Returns:
-            Settlement confirmation
-
-        Raises:
-            CCPConnectionError: If not connected
-            CCPError: If submission fails
-        """
-        if not self._connected:
+        if not self._connected or not self._client:
             raise CCPConnectionError("Not connected to Euroclear")
 
         try:
-            # Validate instruction
             instruction.validate_dvp_fields()
+            instruction.validate_dfp_fields()
 
-            # Store instruction
-            self._instructions[instruction.instruction_id] = instruction
+            payload = instruction.model_dump(mode="json")
+            if self._session_id:
+                payload["session_id"] = self._session_id
 
-            # Simulate submission to Euroclear
-            await asyncio.sleep(0.05)
-
-            # Create confirmation
-            confirmation = EuroclearConfirmation(
-                confirmation_id=f"EurConf_{uuid.uuid4().hex[:12]}",
-                instruction_id=instruction.instruction_id,
-                sender_reference=instruction.sender_reference,
-                settlement_date=instruction.settlement_date,
-                isin=instruction.isin,
-                quantity_settled=Decimal(0),  # Not yet settled
-                quantity_instructed=instruction.quantity,
-                settlement_amount=instruction.settlement_amount,
-                settlement_currency=instruction.settlement_currency,
-                status=SettlementStatus.MATCHED,
-                euroclear_reference=f"EUR{uuid.uuid4().hex[:10].upper()}",
+            response = await self._perform_request(
+                "POST",
+                "/settlements/securities",
+                json=payload,
+                expected_status=(200, 201, 202),
             )
 
-            # Update instruction status
-            instruction.status = SettlementStatus.MATCHED
-
+            confirmation = EuroclearConfirmation(**response.json())
+            instruction.status = confirmation.status
+            self._instructions[instruction.instruction_id] = instruction
             return confirmation
 
+        except CCPTradeRejectionError:
+            raise
+        except CCPTimeoutError:
+            raise
         except Exception as e:
             raise CCPError(f"Failed to submit settlement instruction: {e}")
 
-    async def get_settlement_status(
-        self,
-        instruction_id: str
-    ) -> EuroclearStatus:
-        """Get current settlement status.
+    async def get_settlement_status(self, instruction_id: str) -> EuroclearStatus:
+        """Get current settlement status."""
 
-        Args:
-            instruction_id: Settlement instruction ID
-
-        Returns:
-            Current settlement status
-
-        Raises:
-            CCPError: If query fails
-        """
-        if not self._connected:
+        if not self._connected or not self._client:
             raise CCPConnectionError("Not connected to Euroclear")
 
         try:
-            instruction = self._instructions.get(instruction_id)
-
-            if instruction is None:
-                raise CCPError(f"Instruction not found: {instruction_id}")
-
-            # Simulate status query
-            await asyncio.sleep(0.02)
-
-            return EuroclearStatus(
-                instruction_id=instruction_id,
-                sender_reference=instruction.sender_reference,
-                status=instruction.status,
-                last_updated=datetime.utcnow(),
-                matched=instruction.status in (
-                    SettlementStatus.MATCHED,
-                    SettlementStatus.AFFIRMED,
-                    SettlementStatus.SETTLED,
-                ),
-                affirmed=instruction.status in (SettlementStatus.AFFIRMED, SettlementStatus.SETTLED),
-                securities_delivered=instruction.status == SettlementStatus.SETTLED,
-                payment_received=instruction.status == SettlementStatus.SETTLED,
-                status_message=f"Status: {instruction.status.value}",
-                expected_settlement_date=instruction.settlement_date,
+            response = await self._perform_request(
+                "GET",
+                f"/settlements/securities/{instruction_id}",
+                expected_status=(200,),
             )
+
+            status = EuroclearStatus(**response.json())
+            if instruction_id in self._instructions:
+                self._instructions[instruction_id].status = status.status
+            return status
 
         except Exception as e:
             raise CCPError(f"Failed to get settlement status: {e}")
 
-    async def cancel_settlement_instruction(
-        self,
-        instruction_id: str
-    ) -> bool:
-        """Cancel a pending settlement instruction.
+    async def cancel_settlement_instruction(self, instruction_id: str) -> bool:
+        """Cancel a pending settlement instruction."""
 
-        Args:
-            instruction_id: Instruction ID to cancel
-
-        Returns:
-            True if cancellation successful
-
-        Raises:
-            CCPError: If cancellation fails
-        """
-        if not self._connected:
+        if not self._connected or not self._client:
             raise CCPConnectionError("Not connected to Euroclear")
 
         try:
-            instruction = self._instructions.get(instruction_id)
+            response = await self._perform_request(
+                "POST",
+                f"/settlements/securities/{instruction_id}/cancel",
+                expected_status=(200, 202, 204),
+            )
 
-            if instruction is None:
-                raise CCPError(f"Instruction not found: {instruction_id}")
+            if instruction_id in self._instructions:
+                self._instructions[instruction_id].status = SettlementStatus.CANCELLED
 
-            # Can only cancel if not yet settled
-            if instruction.status == SettlementStatus.SETTLED:
-                raise CCPError("Cannot cancel already settled instruction")
-
-            # Simulate cancellation
-            await asyncio.sleep(0.02)
-
-            instruction.status = SettlementStatus.CANCELLED
-            return True
+            return response.status_code in (200, 202, 204)
 
         except Exception as e:
             raise CCPError(f"Failed to cancel instruction: {e}")
@@ -224,53 +198,32 @@ class EuroclearConnector(CCPConnector):
         new_settlement_date: Optional[date] = None,
         new_quantity: Optional[Decimal] = None,
     ) -> EuroclearConfirmation:
-        """Amend a pending settlement instruction.
+        """Amend a pending settlement instruction."""
 
-        Args:
-            instruction_id: Instruction ID to amend
-            new_settlement_date: New settlement date
-            new_quantity: New quantity
-
-        Returns:
-            Amendment confirmation
-
-        Raises:
-            CCPError: If amendment fails
-        """
-        if not self._connected:
+        if not self._connected or not self._client:
             raise CCPConnectionError("Not connected to Euroclear")
 
         try:
-            instruction = self._instructions.get(instruction_id)
+            payload: Dict[str, Any] = {}
+            if new_settlement_date is not None:
+                payload["settlement_date"] = new_settlement_date.isoformat()
+            if new_quantity is not None:
+                payload["quantity"] = str(new_quantity)
 
-            if instruction is None:
-                raise CCPError(f"Instruction not found: {instruction_id}")
-
-            if instruction.status == SettlementStatus.SETTLED:
-                raise CCPError("Cannot amend already settled instruction")
-
-            # Update fields
-            if new_settlement_date:
-                instruction.settlement_date = new_settlement_date
-            if new_quantity:
-                instruction.quantity = new_quantity
-
-            # Simulate amendment
-            await asyncio.sleep(0.03)
-
-            return EuroclearConfirmation(
-                confirmation_id=f"EurAmend_{uuid.uuid4().hex[:12]}",
-                instruction_id=instruction_id,
-                sender_reference=instruction.sender_reference,
-                settlement_date=instruction.settlement_date,
-                isin=instruction.isin,
-                quantity_settled=Decimal(0),
-                quantity_instructed=instruction.quantity,
-                settlement_amount=instruction.settlement_amount,
-                settlement_currency=instruction.settlement_currency,
-                status=instruction.status,
-                euroclear_reference=f"EUR{uuid.uuid4().hex[:10].upper()}",
+            response = await self._perform_request(
+                "PATCH",
+                f"/settlements/securities/{instruction_id}",
+                json=payload,
+                expected_status=(200, 202),
             )
+
+            confirmation = EuroclearConfirmation(**response.json())
+            if instruction_id in self._instructions:
+                instruction = self._instructions[instruction_id]
+                instruction.settlement_date = confirmation.settlement_date
+                instruction.quantity = confirmation.quantity_instructed
+                instruction.status = confirmation.status
+            return confirmation
 
         except Exception as e:
             raise CCPError(f"Failed to amend instruction: {e}")
@@ -278,126 +231,225 @@ class EuroclearConnector(CCPConnector):
     async def get_holdings(
         self,
         account_id: str,
-        as_of_date: Optional[date] = None
+        as_of_date: Optional[date] = None,
     ) -> Dict[str, Any]:
-        """Get securities holdings for an account.
+        """Get securities holdings for an account."""
 
-        Args:
-            account_id: Euroclear account ID
-            as_of_date: As-of date (defaults to today)
-
-        Returns:
-            Dictionary with holdings information
-        """
-        if not self._connected:
+        if not self._connected or not self._client:
             raise CCPConnectionError("Not connected to Euroclear")
 
-        # Simulate holdings query
-        await asyncio.sleep(0.02)
+        params: Dict[str, Any] = {}
+        if as_of_date:
+            params["as_of_date"] = as_of_date.isoformat()
 
-        return {
-            "account_id": account_id,
-            "as_of_date": (as_of_date or date.today()).isoformat(),
-            "holdings": [
-                {
-                    "isin": "US0378331005",
-                    "security_name": "Apple Inc",
-                    "quantity": 1000.0,
-                    "market_value": 150000.0,
-                    "currency": "USD",
-                },
-                {
-                    "isin": "US5949181045",
-                    "security_name": "Microsoft Corporation",
-                    "quantity": 500.0,
-                    "market_value": 180000.0,
-                    "currency": "USD",
-                },
-            ],
-            "total_market_value": 330000.0,
-            "timestamp": datetime.utcnow().isoformat(),
-        }
+        response = await self._perform_request(
+            "GET",
+            f"/accounts/{account_id}/holdings",
+            params=params,
+            expected_status=(200,),
+        )
 
-    # Implement abstract methods from CCPConnector
+        return response.json()
 
-    async def submit_trade(self, trade: Any) -> Any:
-        """Submit trade - delegates to submit_settlement_instruction."""
-        raise NotImplementedError("Use submit_settlement_instruction for Euroclear")
+    async def submit_trade(self, trade: Trade) -> TradeSubmissionResponse:
+        """Submit trade for clearing."""
+
+        if not self._connected or not self._client:
+            raise CCPConnectionError("Not connected to Euroclear")
+
+        start_time = datetime.utcnow()
+
+        try:
+            payload = trade.to_dict()
+            payload["member_id"] = self.config.member_id
+            if self._session_id:
+                payload["session_id"] = self._session_id
+
+            response = await self._perform_request(
+                "POST",
+                "/trades",
+                json=payload,
+                expected_status=(200, 201, 202),
+            )
+
+            duration = (datetime.utcnow() - start_time).total_seconds() * 1000
+            submission = TradeSubmissionResponse(**response.json())
+            self.metrics.record_submission(True, duration)
+            return submission
+
+        except CCPTradeRejectionError as exc:
+            duration = (datetime.utcnow() - start_time).total_seconds() * 1000
+            self.metrics.record_submission(False, duration, rejected=True)
+            raise exc
+        except (CCPTimeoutError, CCPConnectionError) as exc:
+            duration = (datetime.utcnow() - start_time).total_seconds() * 1000
+            self.metrics.record_submission(False, duration)
+            raise exc
 
     async def get_trade_status(self, trade_id: str) -> TradeStatus:
-        """Get trade status."""
-        # Map Euroclear instructions by sender_reference (acting as trade_id)
-        for instruction in self._instructions.values():
-            if instruction.sender_reference == trade_id:
-                status_map = {
-                    SettlementStatus.PENDING: TradeStatus.PENDING,
-                    SettlementStatus.MATCHED: TradeStatus.ACCEPTED,
-                    SettlementStatus.AFFIRMED: TradeStatus.ACCEPTED,
-                    SettlementStatus.SETTLED: TradeStatus.SETTLED,
-                    SettlementStatus.FAILING: TradeStatus.FAILED,
-                    SettlementStatus.CANCELLED: TradeStatus.CANCELLED,
-                    SettlementStatus.REJECTED: TradeStatus.REJECTED,
-                }
-                return status_map.get(instruction.status, TradeStatus.PENDING)
+        """Get current trade status."""
 
-        return TradeStatus.PENDING
+        if not self._connected or not self._client:
+            raise CCPConnectionError("Not connected to Euroclear")
+
+        response = await self._perform_request(
+            "GET",
+            f"/trades/{trade_id}/status",
+            expected_status=(200,),
+        )
+
+        data = response.json()
+        status_value = data.get("status", TradeStatus.PENDING.value)
+        return TradeStatus(status_value)
 
     async def cancel_trade(self, trade_id: str) -> bool:
-        """Cancel trade by trade_id (sender_reference)."""
-        for instruction in self._instructions.values():
-            if instruction.sender_reference == trade_id:
-                return await self.cancel_settlement_instruction(instruction.instruction_id)
-        return False
+        """Cancel a pending trade."""
+
+        if not self._connected or not self._client:
+            raise CCPConnectionError("Not connected to Euroclear")
+
+        response = await self._perform_request(
+            "POST",
+            f"/trades/{trade_id}/cancel",
+            expected_status=(200, 202, 204),
+        )
+
+        return response.status_code in (200, 202, 204)
 
     async def get_margin_requirements(
         self,
-        member_id: Optional[str] = None
+        member_id: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """Get margin requirements - not applicable for Euroclear."""
-        return {
-            "member_id": member_id or self.config.member_id,
-            "initial_margin": 0.0,
-            "variation_margin": 0.0,
-            "note": "Euroclear uses DVP settlement - no margin required",
-        }
+        """Get margin requirements for the member."""
+
+        if not self._connected or not self._client:
+            raise CCPConnectionError("Not connected to Euroclear")
+
+        response = await self._perform_request(
+            "GET",
+            "/margin",
+            params={"member_id": member_id or self.config.member_id},
+            expected_status=(200,),
+        )
+
+        return response.json()
 
     async def get_position_report(
         self,
-        as_of_date: Optional[datetime] = None
-    ) -> Any:
-        """Get position report - returns settlement instructions."""
-        return {
-            "report_id": str(uuid.uuid4()),
-            "member_id": self.config.member_id,
-            "as_of_date": (as_of_date or datetime.utcnow()).isoformat(),
-            "instructions": [
-                {
-                    "instruction_id": inst.instruction_id,
-                    "sender_reference": inst.sender_reference,
-                    "isin": inst.isin,
-                    "quantity": float(inst.quantity),
-                    "settlement_date": inst.settlement_date.isoformat(),
-                    "status": inst.status.value,
-                }
-                for inst in self._instructions.values()
-            ],
-            "total_instructions": len(self._instructions),
-        }
+        as_of_date: Optional[datetime] = None,
+    ) -> Dict[str, Any]:
+        """Get position report from Euroclear."""
+
+        if not self._connected or not self._client:
+            raise CCPConnectionError("Not connected to Euroclear")
+
+        params: Dict[str, Any] = {}
+        if as_of_date:
+            params["as_of_date"] = as_of_date.isoformat()
+
+        response = await self._perform_request(
+            "GET",
+            "/reports/positions",
+            params=params,
+            expected_status=(200,),
+        )
+
+        return response.json()
 
     async def healthcheck(self) -> bool:
-        """Check Euroclear connectivity health."""
-        if not self._connected:
+        """Run Euroclear healthcheck."""
+
+        if not self._connected or not self._client:
             return False
 
         try:
-            await asyncio.sleep(0.01)
-            return True
-        except Exception:
+            response = await self._perform_request(
+                "GET",
+                "/health",
+                expected_status=(200,),
+            )
+            return response.status_code == 200
+        except CCPError:
             return False
 
+    async def _perform_request(
+        self,
+        method: str,
+        endpoint: str,
+        *,
+        expected_status: Sequence[int],
+        allow_retries: bool = True,
+        **kwargs: Any,
+    ) -> httpx.Response:
+        """Execute HTTP request with retry and error handling."""
 
-# Import Decimal here to avoid circular import
-from decimal import Decimal
+        if not self._client:
+            raise CCPConnectionError("HTTP client not initialized")
+
+        attempts = self.config.max_retries if allow_retries else 1
+        last_error: Optional[Exception] = None
+
+        for attempt in range(1, attempts + 1):
+            try:
+                response = await self._client.request(method, endpoint, **kwargs)
+
+                if response.status_code in expected_status:
+                    return response
+
+                if response.status_code in (400, 422):
+                    payload = self._safe_json(response)
+                    message = payload.get("message") if isinstance(payload, dict) else response.text
+                    code = payload.get("code") if isinstance(payload, dict) else None
+                    raise CCPTradeRejectionError(message or "Euroclear request rejected", code)
+
+                if response.status_code in (401, 403):
+                    raise CCPAuthenticationError("Euroclear authentication failed")
+
+                if response.status_code == 408:
+                    raise CCPTimeoutError("Euroclear request timed out")
+
+                if response.status_code >= 500:
+                    response.raise_for_status()
+
+                raise CCPConnectionError(
+                    f"Unexpected response {response.status_code}: {response.text}"
+                )
+
+            except CCPTradeRejectionError:
+                raise
+            except CCPAuthenticationError:
+                raise
+            except CCPTimeoutError as exc:
+                last_error = exc
+            except httpx.TimeoutException as exc:
+                last_error = CCPTimeoutError(f"Euroclear request timed out: {exc}")
+            except httpx.HTTPStatusError as exc:
+                last_error = CCPConnectionError(
+                    f"Euroclear server error {exc.response.status_code}: {exc.response.text}"
+                )
+            except httpx.RequestError as exc:
+                last_error = CCPConnectionError(f"Euroclear request failed: {exc}")
+
+            if attempt < attempts:
+                await asyncio.sleep(self.config.retry_delay * attempt)
+
+        if isinstance(last_error, CCPTimeoutError):
+            raise last_error
+        if isinstance(last_error, CCPConnectionError):
+            raise last_error
+        if last_error is not None:
+            raise CCPConnectionError(str(last_error))
+
+        raise CCPConnectionError("Euroclear request failed without response")
+
+    @staticmethod
+    def _safe_json(response: httpx.Response) -> Any:
+        """Safely parse JSON payload."""
+
+        try:
+            return response.json()
+        except Exception:  # pragma: no cover - defensive fallback
+            return response.text
 
 
 __all__ = ["EuroclearConnector"]

@@ -20,7 +20,29 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Iterable, Protocol
 
+from neutryx.infrastructure.governance import record_artifact
 from neutryx.portfolio.portfolio import Portfolio
+from neutryx.infrastructure.governance import DataFlowRecorder, get_dataflow_recorder
+
+
+def _record_portfolio_lineage(portfolio: Portfolio, backend: str) -> None:
+    """Record lineage metadata for portfolio persistence operations."""
+
+    recorder = get_dataflow_recorder()
+    record = recorder.record_flow(
+        job_id=f"portfolio:{portfolio.name}",
+        source=f"neutryx.api.portfolio_store.{backend}",
+        inputs={"portfolio_id": portfolio.name},
+        outputs={
+            "counterparties": len(portfolio.counterparties),
+            "netting_sets": len(portfolio.netting_sets),
+            "trades": len(portfolio.trades),
+        },
+        context={"backend": backend},
+    )
+    metadata = dict(portfolio.metadata)
+    DataFlowRecorder.inject_lineage(metadata, record.lineage_id)
+    portfolio.metadata = metadata
 
 
 class PortfolioStore(Protocol):
@@ -48,8 +70,14 @@ class InMemoryPortfolioStore(PortfolioStore):
 
     def save_portfolio(self, portfolio: Portfolio) -> None:
         with self._lock:
+            _record_portfolio_lineage(portfolio, backend="memory")
             # Store a deep copy to prevent accidental mutation by callers.
-            self._portfolios[portfolio.name] = portfolio.model_copy(deep=True)
+            metadata = record_artifact(
+                portfolio.name,
+                kind="portfolio",
+                metadata={"store_backend": "memory", **(portfolio.lineage or {})},
+            )
+            self._portfolios[portfolio.name] = portfolio.model_copy(update={"lineage": metadata}, deep=True)
 
     def get_portfolio(self, portfolio_id: str) -> Portfolio | None:
         with self._lock:
@@ -106,6 +134,13 @@ class FileSystemPortfolioStore(PortfolioStore):
 
     def save_portfolio(self, portfolio: Portfolio) -> None:
         with self._lock:
+            metadata = record_artifact(
+                portfolio.name,
+                kind="portfolio",
+                metadata={"store_backend": "filesystem", **(portfolio.lineage or {})},
+            )
+            self._portfolios[portfolio.name] = portfolio.model_copy(update={"lineage": metadata}, deep=True)
+            _record_portfolio_lineage(portfolio, backend="filesystem")
             self._portfolios[portfolio.name] = portfolio.model_copy(deep=True)
             self._flush()
 
