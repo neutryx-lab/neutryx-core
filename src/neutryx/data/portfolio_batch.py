@@ -13,7 +13,7 @@ Key Design Principles:
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any, Optional, Sequence
 
 import jax
 import jax.numpy as jnp
@@ -155,6 +155,8 @@ class PortfolioBatch:
     currency_mapping: IndexMapping
     counterparty_mapping: IndexMapping
     product_type_mapping: IndexMapping
+    product_ids: Optional[tuple[str, ...]] = None
+    product_parameters: Optional[tuple[dict[str, Any], ...]] = None
     metadata: dict[str, Any] = None
 
     def __post_init__(self) -> None:
@@ -184,6 +186,32 @@ class PortfolioBatch:
         # Initialize metadata if None
         if self.metadata is None:
             object.__setattr__(self, "metadata", {})
+
+        # Initialize product identifiers
+        if self.product_ids is None:
+            object.__setattr__(self, "product_ids", tuple(f"trade_{i}" for i in range(n_trades)))
+        else:
+            product_ids: Sequence[str] = self.product_ids
+            if len(product_ids) != n_trades:
+                raise ValueError(
+                    f"product_ids length {len(product_ids)} does not match number of trades {n_trades}"
+                )
+            object.__setattr__(self, "product_ids", tuple(str(pid) for pid in product_ids))
+
+        if self.product_parameters is None:
+            object.__setattr__(self, "product_parameters", tuple({} for _ in range(n_trades)))
+        else:
+            product_params: Sequence[dict[str, Any]] = self.product_parameters
+            if len(product_params) != n_trades:
+                raise ValueError(
+                    "product_parameters length "
+                    f"{len(product_params)} does not match number of trades {n_trades}"
+                )
+            object.__setattr__(
+                self,
+                "product_parameters",
+                tuple(dict(params) for params in product_params),
+            )
 
     @property
     def n_trades(self) -> int:
@@ -236,6 +264,8 @@ class PortfolioBatch:
             "currency_mapping": self.currency_mapping,
             "counterparty_mapping": self.counterparty_mapping,
             "product_type_mapping": self.product_type_mapping,
+            "product_ids": self.product_ids,
+            "product_parameters": self.product_parameters,
             "metadata": self.metadata,
         }
         return children, aux_data
@@ -309,6 +339,10 @@ class PortfolioBatch:
             currency_mapping=self.currency_mapping,
             counterparty_mapping=self.counterparty_mapping,
             product_type_mapping=self.product_type_mapping,
+            product_ids=self.product_ids[start:end],
+            product_parameters=tuple(
+                dict(params) for params in self.product_parameters[start:end]
+            ),
             metadata={**self.metadata, "slice": f"[{start}:{end}]"},
         )
 
@@ -354,7 +388,52 @@ class PortfolioBatch:
             currency_mapping=self.currency_mapping,
             counterparty_mapping=new_cp_mapping,
             product_type_mapping=self.product_type_mapping,
+            product_ids=tuple(
+                pid for pid, keep in zip(self.product_ids, mask.tolist()) if keep
+            ),
+            product_parameters=tuple(
+                dict(self.product_parameters[i])
+                for i, keep in enumerate(mask.tolist())
+                if keep
+            ),
             metadata={**self.metadata, "filter_cp": cp_id},
+        )
+
+    def select_trades_by_mask(self, mask: Array) -> PortfolioBatch:
+        """Return a new portfolio containing only trades where mask is True."""
+
+        bool_mask = jnp.asarray(mask, dtype=bool)
+        if bool_mask.shape != (self.n_trades,):
+            raise ValueError(
+                f"Mask shape {bool_mask.shape} does not match number of trades {self.n_trades}"
+            )
+
+        if not bool(bool_mask.any()):
+            raise ValueError("Mask selects no trades")
+
+        trade_arrays = TradeArrays(
+            spots=self.trade_arrays.spots[bool_mask],
+            strikes=self.trade_arrays.strikes[bool_mask],
+            maturities=self.trade_arrays.maturities[bool_mask],
+            notionals=self.trade_arrays.notionals[bool_mask],
+            option_types=self.trade_arrays.option_types[bool_mask],
+        )
+
+        mask_list = bool_mask.tolist()
+
+        return PortfolioBatch(
+            trade_arrays=trade_arrays,
+            currency_idx=self.currency_idx[bool_mask],
+            counterparty_idx=self.counterparty_idx[bool_mask],
+            product_type_idx=self.product_type_idx[bool_mask],
+            currency_mapping=self.currency_mapping,
+            counterparty_mapping=self.counterparty_mapping,
+            product_type_mapping=self.product_type_mapping,
+            product_ids=tuple(pid for pid, keep in zip(self.product_ids, mask_list) if keep),
+            product_parameters=tuple(
+                dict(self.product_parameters[i]) for i, keep in enumerate(mask_list) if keep
+            ),
+            metadata={**self.metadata, "mask_selection": True},
         )
 
     def get_counterparty_indices(self) -> Array:
