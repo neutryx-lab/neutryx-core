@@ -16,6 +16,8 @@ from jax import Array
 
 from neutryx.data.market_grid import MarketDataGrid
 from neutryx.data.portfolio_batch import PortfolioBatch
+from neutryx.products.fx_vanilla_exotic import FXForward
+from neutryx.products.swap import price_vanilla_swap
 
 
 @jax.jit
@@ -186,7 +188,6 @@ def price_vanilla_options_batch(
         return prices_per_unit
 
 
-@partial(jax.jit, static_argnames=("use_notional",))
 def price_portfolio_batch(
     portfolio: PortfolioBatch,
     market_grid: MarketDataGrid,
@@ -228,13 +229,139 @@ def price_portfolio_batch(
     - Mixed portfolio support
     - Custom payoff functions
     """
-    # For now, assume all trades are vanilla options
-    # TODO: Add product type dispatch when multiple products supported
-    return price_vanilla_options_batch(
-        portfolio=portfolio,
-        market_grid=market_grid,
-        use_notional=use_notional,
-    )
+    option_type_aliases = {"VanillaOption", "EuropeanOption", "Option"}
+    swap_type_aliases = {"InterestRateSwap", "IRS", "VanillaSwap"}
+    fx_forward_aliases = {"FXForward", "FX Forward", "FX_FORWARD"}
+
+    prices = jnp.zeros(portfolio.n_trades, dtype=jnp.float32)
+
+    unique_type_indices = jnp.unique(portfolio.product_type_idx).tolist()
+    type_values = portfolio.product_type_mapping.idx_to_value
+
+    for type_idx in unique_type_indices:
+        int_type_idx = int(type_idx)
+        product_type = str(type_values[int_type_idx])
+        mask = portfolio.product_type_idx == int_type_idx
+        bool_mask = jnp.asarray(mask, dtype=bool)
+
+        if not bool(bool_mask.any()):
+            continue
+
+        indices = jnp.where(bool_mask)[0]
+
+        if product_type in option_type_aliases:
+            sub_portfolio = portfolio.select_trades_by_mask(bool_mask)
+            sub_prices = price_vanilla_options_batch(
+                portfolio=sub_portfolio,
+                market_grid=market_grid,
+                use_notional=use_notional,
+            )
+        elif product_type in swap_type_aliases:
+            sub_prices = _price_interest_rate_swaps(
+                portfolio=portfolio,
+                indices=indices,
+                use_notional=use_notional,
+            )
+        elif product_type in fx_forward_aliases:
+            sub_prices = _price_fx_forwards(
+                portfolio=portfolio,
+                indices=indices,
+                use_notional=use_notional,
+            )
+        else:
+            raise ValueError(f"Unsupported product type: {product_type}")
+
+        prices = prices.at[indices].set(jnp.asarray(sub_prices, dtype=jnp.float32))
+
+    return prices
+
+
+def _price_interest_rate_swaps(
+    portfolio: PortfolioBatch,
+    indices: Array,
+    use_notional: bool,
+) -> Array:
+    """Price interest rate swaps using the vanilla swap engine."""
+
+    results = []
+    for trade_idx in map(int, indices.tolist()):
+        params = portfolio.product_parameters[trade_idx]
+
+        if "fixed_rate" not in params or "floating_rate" not in params or "maturity" not in params:
+            raise ValueError(
+                f"Missing swap parameters for trade {portfolio.product_ids[trade_idx]}"
+            )
+
+        notional = float(
+            params.get("notional", float(portfolio.trade_arrays.notionals[trade_idx]))
+        )
+        payment_frequency = int(params.get("payment_frequency", 2))
+        discount_rate = float(params.get("discount_rate", params["floating_rate"]))
+        pay_fixed = bool(params.get("pay_fixed", True))
+
+        price = float(
+            price_vanilla_swap(
+                notional=notional,
+                fixed_rate=float(params["fixed_rate"]),
+                floating_rate=float(params["floating_rate"]),
+                maturity=float(params["maturity"]),
+                payment_frequency=payment_frequency,
+                discount_rate=discount_rate,
+                pay_fixed=pay_fixed,
+            )
+        )
+
+        if not use_notional and notional != 0.0:
+            price /= notional
+
+        results.append(price)
+
+    return jnp.asarray(results, dtype=jnp.float32)
+
+
+def _price_fx_forwards(
+    portfolio: PortfolioBatch,
+    indices: Array,
+    use_notional: bool,
+) -> Array:
+    """Price FX forwards using the FXForward mark-to-market implementation."""
+
+    results = []
+    for trade_idx in map(int, indices.tolist()):
+        params = portfolio.product_parameters[trade_idx]
+
+        required_keys = {"spot", "forward_rate", "expiry", "domestic_rate", "foreign_rate"}
+        missing = required_keys.difference(params)
+        if missing:
+            raise ValueError(
+                f"Missing FX forward parameters {sorted(missing)} for trade {portfolio.product_ids[trade_idx]}"
+            )
+
+        notional = float(
+            params.get(
+                "notional_foreign",
+                params.get("notional", float(portfolio.trade_arrays.notionals[trade_idx])),
+            )
+        )
+
+        contract = FXForward(
+            spot=float(params["spot"]),
+            forward_rate=float(params["forward_rate"]),
+            expiry=float(params["expiry"]),
+            domestic_rate=float(params["domestic_rate"]),
+            foreign_rate=float(params["foreign_rate"]),
+            notional_foreign=notional,
+            is_long=bool(params.get("is_long", True)),
+        )
+
+        price = float(contract.mark_to_market())
+
+        if not use_notional and notional != 0.0:
+            price /= notional
+
+        results.append(price)
+
+    return jnp.asarray(results, dtype=jnp.float32)
 
 
 @jax.jit
@@ -318,6 +445,8 @@ def compute_portfolio_delta_batch(
         currency_mapping=portfolio.currency_mapping,
         counterparty_mapping=portfolio.counterparty_mapping,
         product_type_mapping=portfolio.product_type_mapping,
+        product_ids=portfolio.product_ids,
+        product_parameters=portfolio.product_parameters,
         metadata=portfolio.metadata,
     )
 
