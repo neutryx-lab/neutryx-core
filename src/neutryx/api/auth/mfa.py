@@ -3,12 +3,19 @@
 from __future__ import annotations
 
 import secrets
-from typing import List
-from urllib.parse import quote
+import time
+from dataclasses import dataclass
+from typing import Callable, Dict, List, Optional, Protocol
 
 import pyotp
 
-from .models import User, MFASetupResponse
+from .models import (
+    EmailProviderConfig,
+    MFASetupResponse,
+    SMSProviderConfig,
+    User,
+    VerificationCodeSettings,
+)
 
 
 class MFAHandler:
@@ -157,47 +164,157 @@ class MFAHandler:
         return self.verify_code(user.mfa_secret, code)
 
 
-# SMS/Email MFA Support (placeholder for future implementation)
-class SMSMFAHandler:
-    """Handle SMS-based MFA (future implementation)."""
+# SMS/Email MFA support
+@dataclass
+class _VerificationState:
+    """Track outstanding verification codes for a destination."""
 
-    def __init__(self, sms_provider_config: dict):
+    code: str
+    expires_at: float
+    attempts: int = 0
+
+
+class _BaseCodeHandler:
+    """Shared functionality for SMS and email MFA handlers."""
+
+    def __init__(
+        self,
+        code_settings: VerificationCodeSettings,
+        clock: Optional[Callable[[], float]] = None,
+        code_generator: Optional[Callable[[int], str]] = None,
+    ) -> None:
+        self._code_settings = code_settings
+        self._clock = clock or time.time
+        self._generate_code = code_generator or self._default_code_generator
+        self._pending_codes: Dict[str, _VerificationState] = {}
+
+    def _default_code_generator(self, length: int) -> str:
+        return f"{secrets.randbelow(10 ** length):0{length}d}"
+
+    def _record_code(self, destination: str, code: str) -> str:
+        expires_at = self._clock() + self._code_settings.ttl_seconds
+        self._pending_codes[destination] = _VerificationState(code=code, expires_at=expires_at)
+        # A unique identifier can be useful for observability/logging purposes.
+        return secrets.token_urlsafe(16)
+
+    def _validate_code(self, destination: str, code: str) -> bool:
+        state = self._pending_codes.get(destination)
+        if not state:
+            return False
+
+        now = self._clock()
+        if now >= state.expires_at:
+            # Expired codes are removed immediately.
+            self._pending_codes.pop(destination, None)
+            return False
+
+        if secrets.compare_digest(code, state.code):
+            self._pending_codes.pop(destination, None)
+            return True
+
+        state.attempts += 1
+        if state.attempts >= self._code_settings.max_attempts:
+            self._pending_codes.pop(destination, None)
+        return False
+
+
+class SMSProvider(Protocol):
+    """Abstract SMS provider for MFA code delivery."""
+
+    async def send_sms(self, to: str, body: str, from_number: str) -> None:
+        """Send an SMS message."""
+
+
+class EmailProvider(Protocol):
+    """Abstract Email provider for MFA code delivery."""
+
+    async def send_email(self, to: str, subject: str, body: str, from_address: str) -> None:
+        """Send an email message."""
+
+
+class SMSMFAHandler(_BaseCodeHandler):
+    """Handle SMS-based MFA using an injected SMS provider."""
+
+    def __init__(
+        self,
+        sms_provider_config: SMSProviderConfig | dict,
+        sms_provider: SMSProvider,
+        clock: Optional[Callable[[], float]] = None,
+        code_generator: Optional[Callable[[int], str]] = None,
+    ) -> None:
         """Initialize SMS MFA handler.
 
         Args:
-            sms_provider_config: SMS provider configuration (Twilio, etc.)
+            sms_provider_config: SMS provider configuration (Twilio, etc.).
+            sms_provider: Provider implementation responsible for sending SMS messages.
+            clock: Optional callable returning the current timestamp (for testing).
+            code_generator: Optional deterministic code generator (for testing).
         """
-        self.config = sms_provider_config
-        raise NotImplementedError("SMS MFA not yet implemented")
+
+        config = sms_provider_config
+        if isinstance(config, dict):
+            config = SMSProviderConfig(**config)
+
+        self.config = config
+        self._provider = sms_provider
+        super().__init__(config.code_settings, clock=clock, code_generator=code_generator)
 
     async def send_verification_code(self, phone_number: str) -> str:
-        """Send verification code via SMS."""
-        raise NotImplementedError()
+        """Generate and send a verification code via SMS."""
+
+        code = self._generate_code(self._code_settings.length)
+        message = self.config.message_template.format(code=code)
+        message_id = self._record_code(phone_number, code)
+        await self._provider.send_sms(phone_number, message, self.config.from_number)
+        return message_id
 
     async def verify_code(self, phone_number: str, code: str) -> bool:
-        """Verify SMS code."""
-        raise NotImplementedError()
+        """Verify an SMS-delivered MFA code."""
+
+        return self._validate_code(phone_number, code)
 
 
-class EmailMFAHandler:
-    """Handle Email-based MFA (future implementation)."""
+class EmailMFAHandler(_BaseCodeHandler):
+    """Handle Email-based MFA using an injected email provider."""
 
-    def __init__(self, email_provider_config: dict):
+    def __init__(
+        self,
+        email_provider_config: EmailProviderConfig | dict,
+        email_provider: EmailProvider,
+        clock: Optional[Callable[[], float]] = None,
+        code_generator: Optional[Callable[[int], str]] = None,
+    ) -> None:
         """Initialize Email MFA handler.
 
         Args:
-            email_provider_config: Email provider configuration
+            email_provider_config: Email provider configuration.
+            email_provider: Provider implementation responsible for sending emails.
+            clock: Optional callable returning the current timestamp (for testing).
+            code_generator: Optional deterministic code generator (for testing).
         """
-        self.config = email_provider_config
-        raise NotImplementedError("Email MFA not yet implemented")
+
+        config = email_provider_config
+        if isinstance(config, dict):
+            config = EmailProviderConfig(**config)
+
+        self.config = config
+        self._provider = email_provider
+        super().__init__(config.code_settings, clock=clock, code_generator=code_generator)
 
     async def send_verification_code(self, email: str) -> str:
-        """Send verification code via email."""
-        raise NotImplementedError()
+        """Generate and send a verification code via email."""
+
+        code = self._generate_code(self._code_settings.length)
+        subject = self.config.subject_template.format(code=code)
+        body = self.config.body_template.format(code=code)
+        message_id = self._record_code(email, code)
+        await self._provider.send_email(email, subject, body, self.config.from_address)
+        return message_id
 
     async def verify_code(self, email: str, code: str) -> bool:
-        """Verify email code."""
-        raise NotImplementedError()
+        """Verify an email-delivered MFA code."""
+
+        return self._validate_code(email, code)
 
 
 __all__ = [
