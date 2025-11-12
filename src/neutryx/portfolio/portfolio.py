@@ -6,8 +6,9 @@ of counterparties, master agreements, CSAs, netting sets, and trades.
 from __future__ import annotations
 
 from datetime import date
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Sequence
 
+import jax.numpy as jnp
 from pydantic import BaseModel, ConfigDict, Field
 
 from neutryx.portfolio.contracts.counterparty import Counterparty
@@ -211,6 +212,32 @@ class Portfolio(BaseModel):
             List of trades with the specified product type
         """
         return [t for t in self.trades.values() if t.product_type == product_type]
+
+    # -------------------------------------------------------------------------
+    # Credit profile helpers
+    # -------------------------------------------------------------------------
+
+    def get_counterparty_default_probabilities(
+        self, counterparty_id: str, times: Sequence[float]
+    ) -> jnp.ndarray | None:
+        """Return cumulative default probabilities for the given counterparty."""
+
+        counterparty = self.get_counterparty(counterparty_id)
+        if counterparty and counterparty.has_credit_curve():
+            curve = counterparty.credit.hazard_curve  # type: ignore[union-attr]
+            return jnp.asarray(curve.default_probability(jnp.asarray(times)))
+        return None
+
+    def get_counterparty_lgd_curve(
+        self, counterparty_id: str, times: Sequence[float]
+    ) -> jnp.ndarray | None:
+        """Return the LGD profile for a counterparty if available."""
+
+        counterparty = self.get_counterparty(counterparty_id)
+        if counterparty and counterparty.credit is not None:
+            lgd = counterparty.credit.get_lgd()
+            return jnp.full((len(times),), float(lgd), dtype=jnp.float32)
+        return None
 
     def get_active_trades(self) -> List[Trade]:
         """Get all active trades.
