@@ -91,7 +91,7 @@ curl -X POST "http://localhost:8000/portfolio/register" \
   "portfolio_id": "fictional_global_trading",
   "status": "registered",
   "summary": {
-    "trades": 13,
+    "trades": 11,
     "counterparties": 6,
     "netting_sets": 6
   }
@@ -123,7 +123,7 @@ print(f"Total MTM: ${summary['total_mtm']:,.2f}")
   "portfolio_id": "fictional_global_trading",
   "counterparties": 6,
   "netting_sets": 6,
-  "trades": 13,
+  "trades": 11,
   "total_mtm": 1247380.00,
   "gross_notional": 152000000.00,
   "base_currency": "USD"
@@ -196,7 +196,7 @@ print(f"Total XVA: ${xva['total_xva']:,.2f}")
   "portfolio_id": "fictional_global_trading",
   "valuation_date": "2024-01-15",
   "scope": "portfolio",
-  "num_trades": 13,
+  "num_trades": 11,
   "net_mtm": 1247380.00,
   "positive_exposure": 2450000.00,
   "negative_exposure": -1202620.00,

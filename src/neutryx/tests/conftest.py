@@ -4,10 +4,13 @@ from pathlib import Path
 
 import pytest
 
-ROOT = Path(__file__).resolve().parents[1]
-SRC = ROOT / "src"
-if SRC.exists() and str(SRC) not in sys.path:
-    sys.path.insert(0, str(SRC))
+REPO_ROOT = Path(__file__).resolve().parents[3]
+SRC = REPO_ROOT / "src"
+DEV = REPO_ROOT / "dev"
+
+for path in (SRC, DEV):
+    if path.exists() and str(path) not in sys.path:
+        sys.path.insert(0, str(path))
 
 
 @pytest.fixture(scope="session")

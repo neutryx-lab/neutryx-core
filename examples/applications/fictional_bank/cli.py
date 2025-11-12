@@ -360,7 +360,7 @@ def info():
     info_table.add_row("Traders", "6")
     info_table.add_row("Counterparties", "6 (diverse credit ratings)")
     info_table.add_row("CSA Coverage", "4 counterparties with CSA agreements")
-    info_table.add_row("Total Trades", "13 trades")
+    info_table.add_row("Total Trades", "11 trades")
     info_table.add_row(
         "Products",
         "IRS, Swaptions, FX Options, Equity Options, Variance Swaps",

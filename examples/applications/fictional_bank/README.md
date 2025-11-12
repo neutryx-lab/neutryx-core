@@ -38,7 +38,7 @@ This example showcases a complete enterprise-grade risk management system for a 
 | Global Insurance Group | AA | Financial | ✓ | Swaptions, Var Swaps |
 
 ### Trade Statistics
-- **Total Trades**: 13 across multiple asset classes
+- **Total Trades**: 11 across multiple asset classes
 - **Product Mix**:
   - Interest Rate Swaps: 3
   - Swaptions: 1
