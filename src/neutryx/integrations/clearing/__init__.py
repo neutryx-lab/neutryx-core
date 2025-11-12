@@ -202,6 +202,7 @@ from .base import (
     TradeSubmissionResponse,
 )
 from .cme import CMEClearingConfig, CMEClearingConnector, CMECOREAnalytics, CMESPANMargin
+from .confirmation import AffirmationMethod
 from .eurex import (
     EurexAssetClass,
     EurexClearingConfig,
@@ -216,6 +217,15 @@ from .ice import (
     ICEMarginBreakdown,
 )
 from .lch import LCHSwapClearConfig, LCHSwapClearConnector, LCHTradeDetails
+from .settlement_instructions import SettlementMethod, SettlementStatus, SettlementType
+from .rfq import OrderSide
+from .workflow import (
+    PostTradeProcessingService,
+    RFQWorkflowError,
+    RFQWorkflowService,
+    RFQWorkflowState,
+    WorkflowSnapshot,
+)
 
 __version__ = "0.1.0"
 
@@ -238,6 +248,16 @@ __all__ = [
     "PositionReport",
     "MessageType",
     "ProductType",
+    "AffirmationMethod",
+    "OrderSide",
+    "PostTradeProcessingService",
+    "RFQWorkflowError",
+    "RFQWorkflowService",
+    "RFQWorkflowState",
+    "WorkflowSnapshot",
+    "SettlementMethod",
+    "SettlementStatus",
+    "SettlementType",
     # LCH SwapClear
     "LCHSwapClearConnector",
     "LCHSwapClearConfig",
