@@ -237,6 +237,249 @@ class TestCorporateActions:
         assert entitlement.entitled_quantity == Decimal("1000")
         assert entitlement.cash_entitlement == Decimal("250")  # 1000 * 0.25
 
+    def test_cash_and_stock_dividend_entitlement(self):
+        """Test mixed cash and stock dividend entitlements."""
+        processor = CorporateActionProcessor()
+
+        event = CorporateActionEvent(
+            event_type=CorporateActionType.SPECIAL_DIVIDEND,
+            security_id="US5949181045",
+            security_name="Microsoft Corp",
+            issuer="Microsoft Corp",
+            announcement_date=date.today(),
+            ex_date=date.today() + timedelta(days=5),
+            record_date=date.today() + timedelta(days=6),
+            payment_date=date.today() + timedelta(days=20),
+            election_type=ElectionType.MANDATORY,
+            terms={},
+            description="Special mixed dividend",
+            new_security_id="US5949182043",
+        )
+        processor.add_event(event)
+
+        holder = Party(party_id="HOLD002", name="Mixed Holder", bic="MIXHXXXX")
+        position = Position(
+            security_id="US5949181045",
+            holder=holder,
+            quantity=Decimal("150"),
+            account="ACC002",
+            as_of_date=date.today() + timedelta(days=6),
+            record_date_position=True,
+        )
+        processor.add_position(position)
+
+        terms = DividendTerms(
+            dividend_rate=Decimal("1.50"),
+            cash_dividend_rate=Decimal("1.50"),
+            new_shares_per_old=Decimal("0.05"),
+            currency="USD",
+            payment_type=PaymentType.CASH_AND_STOCK,
+            withholding_rate=Decimal("0.10"),
+            drip_price=Decimal("250"),
+        )
+
+        entitlement = processor.calculate_dividend_entitlement(
+            event.event_id,
+            position,
+            terms,
+        )
+
+        assert entitlement.cash_entitlement == Decimal("202.50")  # 150 * 1.50 * (1-0.1)
+        assert entitlement.stock_entitlement == Decimal("7")  # floor(150 * 0.05)
+        assert entitlement.fractional_shares == Decimal("0.50")
+        assert entitlement.metadata["cash_component"]["rate_per_share"] == Decimal("1.50")
+        assert processor.statistics.total_entitlements == 1
+        assert processor.statistics.total_entitlement_value == entitlement.net_amount
+
+    def test_rights_distribution_entitlement(self):
+        """Test rights distribution entitlement calculation."""
+        processor = CorporateActionProcessor()
+
+        event = CorporateActionEvent(
+            event_type=CorporateActionType.RIGHTS_ISSUE,
+            security_id="US4592001014",
+            security_name="IBM Corp",
+            issuer="IBM Corp",
+            announcement_date=date.today(),
+            ex_date=date.today() + timedelta(days=3),
+            record_date=date.today() + timedelta(days=4),
+            payment_date=date.today() + timedelta(days=15),
+            election_type=ElectionType.MANDATORY,
+            terms={},
+            description="Rights issue",
+            new_security_id="US4592002012",
+        )
+        processor.add_event(event)
+
+        holder = Party(party_id="HOLD003", name="Rights Holder", bic="RIGHXXXX")
+        position = Position(
+            security_id="US4592001014",
+            holder=holder,
+            quantity=Decimal("200"),
+            account="ACC003",
+            as_of_date=date.today() + timedelta(days=4),
+            record_date_position=True,
+        )
+        processor.add_position(position)
+
+        terms = DividendTerms(
+            dividend_rate=Decimal("0"),
+            currency="USD",
+            payment_type=PaymentType.RIGHTS,
+            rights_ratio=Decimal("0.25"),
+            rights_subscription_price=Decimal("50"),
+            rights_max_allocation=Decimal("40"),
+        )
+
+        entitlement = processor.calculate_dividend_entitlement(
+            event.event_id,
+            position,
+            terms,
+        )
+
+        assert entitlement.stock_entitlement == Decimal("40")  # capped from 200 * 0.25 = 50
+        assert entitlement.metadata["rights"]["subscription_price"] == Decimal("50")
+        assert entitlement.net_amount == Decimal("0")
+        assert processor.statistics.total_entitlements == 1
+        assert processor.statistics.total_entitlement_value == Decimal("0")
+
+    def test_warrants_distribution_entitlement(self):
+        """Test warrants distribution entitlement calculation."""
+        processor = CorporateActionProcessor()
+
+        event = CorporateActionEvent(
+            event_type=CorporateActionType.BONUS_ISSUE,
+            security_id="US0231351067",
+            security_name="Amazon.com Inc",
+            issuer="Amazon.com Inc",
+            announcement_date=date.today(),
+            ex_date=date.today() + timedelta(days=2),
+            record_date=date.today() + timedelta(days=3),
+            payment_date=date.today() + timedelta(days=10),
+            election_type=ElectionType.MANDATORY,
+            terms={},
+            description="Bonus warrant issue",
+            new_security_id="US0231352065",
+        )
+        processor.add_event(event)
+
+        holder = Party(party_id="HOLD004", name="Warrant Holder", bic="WARRXXXX")
+        position = Position(
+            security_id="US0231351067",
+            holder=holder,
+            quantity=Decimal("120"),
+            account="ACC004",
+            as_of_date=date.today() + timedelta(days=3),
+            record_date_position=True,
+        )
+        processor.add_position(position)
+
+        terms = DividendTerms(
+            dividend_rate=Decimal("0"),
+            currency="USD",
+            payment_type=PaymentType.WARRANTS,
+            warrant_ratio=Decimal("0.5"),
+            warrant_exercise_price=Decimal("20"),
+        )
+
+        entitlement = processor.calculate_dividend_entitlement(
+            event.event_id,
+            position,
+            terms,
+        )
+
+        assert entitlement.stock_entitlement == Decimal("60")
+        assert entitlement.metadata["warrants"]["exercise_price"] == Decimal("20")
+        assert entitlement.net_amount == Decimal("0")
+        assert processor.statistics.total_entitlements == 1
+        assert processor.statistics.total_entitlement_value == Decimal("0")
+
+    def test_entitlement_validation_errors(self):
+        """Ensure informative validation errors for mixed instruments."""
+        processor = CorporateActionProcessor()
+
+        event = CorporateActionEvent(
+            event_type=CorporateActionType.SPECIAL_DIVIDEND,
+            security_id="US0378331005",
+            security_name="Apple Inc",
+            issuer="Apple Inc",
+            announcement_date=date.today(),
+            ex_date=date.today() + timedelta(days=1),
+            record_date=date.today() + timedelta(days=2),
+            payment_date=date.today() + timedelta(days=10),
+            election_type=ElectionType.MANDATORY,
+            terms={},
+            description="Validation test event",
+        )
+        processor.add_event(event)
+
+        holder = Party(party_id="HOLDVAL", name="Validator", bic="VALIXXXX")
+        position = Position(
+            security_id="US0378331005",
+            holder=holder,
+            quantity=Decimal("10"),
+            account="ACCVAL",
+            as_of_date=date.today() + timedelta(days=2),
+            record_date_position=True,
+        )
+
+        # Missing stock ratio for mixed payment
+        cash_stock_terms = DividendTerms(
+            dividend_rate=Decimal("1"),
+            currency="USD",
+            payment_type=PaymentType.CASH_AND_STOCK,
+        )
+
+        with pytest.raises(ValueError) as excinfo:
+            processor.calculate_dividend_entitlement(event.event_id, position, cash_stock_terms)
+        assert "new_shares_per_old" in str(excinfo.value)
+
+        rights_terms = DividendTerms(
+            dividend_rate=Decimal("0"),
+            currency="USD",
+            payment_type=PaymentType.RIGHTS,
+        )
+
+        with pytest.raises(ValueError) as excinfo:
+            processor.calculate_dividend_entitlement(event.event_id, position, rights_terms)
+        assert "rights_ratio" in str(excinfo.value)
+
+        rights_limit_terms = DividendTerms(
+            dividend_rate=Decimal("0"),
+            currency="USD",
+            payment_type=PaymentType.RIGHTS,
+            rights_ratio=Decimal("0.1"),
+            rights_subscription_price=Decimal("10"),
+            rights_max_allocation=Decimal("0"),
+        )
+
+        with pytest.raises(ValueError) as excinfo:
+            processor.calculate_dividend_entitlement(event.event_id, position, rights_limit_terms)
+        assert "rights_max_allocation" in str(excinfo.value)
+
+        warrants_terms = DividendTerms(
+            dividend_rate=Decimal("0"),
+            currency="USD",
+            payment_type=PaymentType.WARRANTS,
+        )
+
+        with pytest.raises(ValueError) as excinfo:
+            processor.calculate_dividend_entitlement(event.event_id, position, warrants_terms)
+        assert "warrant_ratio" in str(excinfo.value)
+
+        warrants_limit_terms = DividendTerms(
+            dividend_rate=Decimal("0"),
+            currency="USD",
+            payment_type=PaymentType.WARRANTS,
+            warrant_ratio=Decimal("0.1"),
+            warrant_exercise_price=Decimal("5"),
+            warrant_max_allocation=Decimal("-1"),
+        )
+
+        with pytest.raises(ValueError) as excinfo:
+            processor.calculate_dividend_entitlement(event.event_id, position, warrants_limit_terms)
+        assert "warrant_max_allocation" in str(excinfo.value)
+
     def test_stock_split(self):
         """Test stock split processing."""
         processor = CorporateActionProcessor()
