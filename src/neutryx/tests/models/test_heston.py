@@ -7,6 +7,7 @@ from neutryx.models.heston import (
     HestonParams,
     simulate_heston,
     heston_call_price_cf,
+    heston_call_price_semi_analytical,
     calibrate_heston,
 )
 
@@ -80,26 +81,38 @@ def test_simulate_heston_qe():
     assert jnp.all(v_paths >= 0.0)
 
 
-@pytest.mark.skip(reason="Heston FFT implementation needs fixing - returns near-zero prices")
 def test_heston_call_price_cf():
     """Test Heston call pricing with characteristic function."""
     params = HestonParams(v0=0.04, kappa=2.0, theta=0.04, sigma=0.3, rho=-0.5)
 
-    price = heston_call_price_cf(
+    price_fft = heston_call_price_cf(
         S0=100.0,
         K=100.0,
         T=1.0,
         r=0.05,
         q=0.02,
         params=params,
-        n_points=1024,
+        n_points=2048,
+    )
+
+    price_ref = heston_call_price_semi_analytical(
+        S0=100.0,
+        K=100.0,
+        T=1.0,
+        r=0.05,
+        q=0.02,
+        params=params,
+        n_points=4096,
     )
 
     # Price should be reasonable for ATM option
-    assert 5.0 < price < 20.0
+    assert 5.0 < price_fft < 20.0
+
+    # FFT price should align with semi-analytical benchmark within a few cents
+    assert jnp.isclose(price_fft, price_ref, rtol=0.0, atol=0.15)
 
     # OTM option should be cheaper
-    price_otm = heston_call_price_cf(
+    price_otm_fft = heston_call_price_cf(
         S0=100.0,
         K=120.0,
         T=1.0,
@@ -108,15 +121,25 @@ def test_heston_call_price_cf():
         params=params,
     )
 
-    assert price_otm < price
+    price_otm_ref = heston_call_price_semi_analytical(
+        S0=100.0,
+        K=120.0,
+        T=1.0,
+        r=0.05,
+        q=0.02,
+        params=params,
+        n_points=4096,
+    )
+
+    assert price_otm_fft < price_fft
+    assert jnp.isclose(price_otm_fft, price_otm_ref, rtol=0.0, atol=0.15)
 
 
-@pytest.mark.skip(reason="Heston FFT implementation needs fixing - returns near-zero prices")
 def test_heston_call_price_itm():
     """Test Heston call pricing for ITM option."""
     params = HestonParams(v0=0.04, kappa=2.0, theta=0.04, sigma=0.3, rho=-0.5)
 
-    price_itm = heston_call_price_cf(
+    price_itm_fft = heston_call_price_cf(
         S0=100.0,
         K=80.0,
         T=1.0,
@@ -127,7 +150,19 @@ def test_heston_call_price_itm():
 
     # ITM option should have intrinsic value
     intrinsic = 100.0 * jnp.exp(-0.02 * 1.0) - 80.0 * jnp.exp(-0.05 * 1.0)
-    assert price_itm > intrinsic
+    assert price_itm_fft > intrinsic
+
+    price_itm_ref = heston_call_price_semi_analytical(
+        S0=100.0,
+        K=80.0,
+        T=1.0,
+        r=0.05,
+        q=0.02,
+        params=params,
+        n_points=4096,
+    )
+
+    assert jnp.isclose(price_itm_fft, price_itm_ref, rtol=0.0, atol=0.1)
 
 
 @pytest.mark.slow
