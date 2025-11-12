@@ -27,7 +27,7 @@ from typing import Any, Dict, Optional, Tuple
 import jax.numpy as jnp
 from jax import Array
 
-from .base import Curve, DiscountCurve, Surface, VolatilitySurface
+from .base import CreditCurve, Curve, DiscountCurve, Surface, VolatilitySurface
 
 
 @dataclass(frozen=True)
@@ -63,7 +63,7 @@ class MarketDataEnvironment:
     dividend_curves: Dict[str, Curve] = field(default_factory=dict)
     forward_curves: Dict[Tuple[str, str], Curve] = field(default_factory=dict)
     vol_surfaces: Dict[str, VolatilitySurface] = field(default_factory=dict)
-    credit_curves: Dict[Tuple[str, str], Curve] = field(default_factory=dict)
+    credit_curves: Dict[Tuple[str, str], CreditCurve] = field(default_factory=dict)
     fx_spots: Dict[Tuple[str, str], float] = field(default_factory=dict)
     fx_forward_curves: Dict[Tuple[str, str], Curve] = field(default_factory=dict)
     fx_vol_surfaces: Dict[Tuple[str, str], VolatilitySurface] = field(default_factory=dict)
@@ -306,14 +306,25 @@ class MarketDataEnvironment:
             raise KeyError(
                 f"No credit curve found for issuer: {issuer}, seniority: {seniority}"
             )
-        # Assume credit curves have survival_probability method
-        # (to be implemented in hazard.py when integrated)
-        if hasattr(curve, 'survival_probability'):
-            return curve.survival_probability(t)  # type: ignore
-        else:
-            raise NotImplementedError(
-                "Credit curve does not implement survival_probability"
+        return curve.survival_probability(t)
+
+    def with_credit_curve(
+        self,
+        issuer: str,
+        seniority: str,
+        curve: CreditCurve,
+    ) -> "MarketDataEnvironment":
+        """Return new environment with updated credit curve."""
+
+        if not isinstance(curve, CreditCurve):
+            raise TypeError(
+                "curve must implement the CreditCurve protocol and provide "
+                "survival_probability/default_probability methods"
             )
+
+        new_curves = dict(self.credit_curves)
+        new_curves[(issuer, seniority)] = curve
+        return replace(self, credit_curves=new_curves)
 
     # Mutation methods (return new environment)
 
