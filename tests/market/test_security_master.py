@@ -1,118 +1,90 @@
-from datetime import datetime, timedelta
-from pathlib import Path
-import sys
+from datetime import date
 
-sys.path.append(str(Path(__file__).resolve().parents[2] / "src"))
+import pytest
 
-from neutryx.market.data_models import AssetClass
 from neutryx.market.storage.security_master import (
-    CorporateActionEvent,
-    CorporateActionType,
     SecurityMaster,
+    SecurityIdentifier,
+    SecurityIdentifierType,
+)
+from neutryx.market.adapters.corporate_actions import (
+    BloombergCorporateActionParser,
+    RefinitivCorporateActionParser,
 )
 
 
-def _dt(year: int, month: int, day: int) -> datetime:
-    return datetime(year, month, day)
+@pytest.fixture
+def security_master() -> SecurityMaster:
+    return SecurityMaster()
 
 
-def test_register_and_lookup_security():
-    master = SecurityMaster()
-    inception = _dt(2024, 1, 1)
-
-    record = master.register_security(
-        security_id="SEC-1",
-        asset_class=AssetClass.EQUITY,
-        name="Acme Corp",
-        identifiers={"isin": "US0000000001", "ticker": "ACME"},
-        metadata={"country": "US"},
-        effective_from=inception,
+def test_registration_update_and_corporate_actions(security_master: SecurityMaster) -> None:
+    record = security_master.register_security(
+        security_id="SEC-001",
+        name="Neutryx Holdings",
+        asset_class="equity",
+        identifiers=[
+            SecurityIdentifier(SecurityIdentifierType.TICKER, "NTX", primary=True),
+            SecurityIdentifier(SecurityIdentifierType.ISIN, "US1234567890"),
+        ],
+        attributes={"ticker": "NTX", "currency": "USD"},
+        effective_date=date(2023, 1, 2),
     )
 
-    assert record.version == 1
-    assert record.metadata["country"] == "US"
+    assert security_master.get_security("SEC-001") is record
+    assert (
+        security_master.get_security_by_identifier("ntx", SecurityIdentifierType.TICKER)
+        is record
+    )
+    assert record.versions[-1].version == 1
+    assert record.get_attributes()["ticker"] == "NTX"
 
-    lookup_by_id = master.get_security_by_id("SEC-1")
-    assert lookup_by_id is record
+    # Update record and ensure versioning retains previous attributes
+    updated_version = security_master.update_security(
+        "SEC-001", {"industry": "Technology"}, effective_date=date(2023, 6, 1)
+    )
+    assert updated_version.version == 2
+    assert record.get_attributes()["industry"] == "Technology"
+    assert record.get_attributes(date(2023, 3, 1))["ticker"] == "NTX"
 
-    lookup_by_identifier = master.get_security_by_identifier("isin", "US0000000001")
-    assert lookup_by_identifier is record
+    # Apply Bloomberg symbol change event
+    bloomberg_parser = BloombergCorporateActionParser()
+    bloomberg_event = bloomberg_parser.parse(
+        {
+            "event_type": "Name/Ticker Change",
+            "effective_date": "2023-10-01",
+            "old_ticker": "NTX",
+            "new_ticker": "NYX",
+            "description": "Ticker updated",
+        }
+    )
+    security_master.apply_corporate_action("SEC-001", bloomberg_event)
 
-
-def test_update_creates_new_version():
-    master = SecurityMaster()
-    inception = _dt(2024, 1, 1)
-    master.register_security(
-        security_id="SEC-2",
-        asset_class=AssetClass.EQUITY,
-        name="Beta Corp",
-        identifiers={"ticker": "BETA"},
-        effective_from=inception,
+    record_after_symbol_change = security_master.get_security("SEC-001")
+    assert record_after_symbol_change.corporate_actions[-1] == bloomberg_event
+    assert record_after_symbol_change.versions[-1].get("ticker") == "NYX"
+    assert (
+        security_master.get_security_by_identifier("NYX", SecurityIdentifierType.TICKER)
+        is record
     )
 
-    effective_update = inception + timedelta(days=30)
-    updated = master.update_security(
-        "SEC-2",
-        name="Beta Holdings",
-        metadata={"sector": "Technology"},
-        effective_from=effective_update,
+    # Apply Refinitiv cash dividend event and ensure dividend history recorded
+    refinitiv_parser = RefinitivCorporateActionParser()
+    refinitiv_event = refinitiv_parser.parse(
+        {
+            "type": "DVD_CASH",
+            "effectiveDate": "2023-12-15",
+            "cashAmount": 0.25,
+            "currency": "USD",
+            "payDate": "2023-12-30",
+            "text": "Quarterly dividend",
+        }
     )
+    security_master.apply_corporate_action("SEC-001", refinitiv_event)
 
-    assert updated.version == 2
-    assert updated.name == "Beta Holdings"
-    assert updated.metadata["sector"] == "Technology"
-
-    prior = master.get_security_by_id("SEC-2", as_of=inception + timedelta(days=1))
-    assert prior.version == 1
-    assert prior.name == "Beta Corp"
-    assert prior.effective_to == effective_update
-
-
-def test_apply_corporate_actions():
-    master = SecurityMaster()
-    inception = _dt(2024, 1, 1)
-    master.register_security(
-        security_id="SEC-3",
-        asset_class=AssetClass.EQUITY,
-        name="Gamma Industries",
-        identifiers={"ticker": "GAM"},
-        effective_from=inception,
-    )
-
-    name_change_date = inception + timedelta(days=60)
-    name_change = CorporateActionEvent(
-        event_id="evt-1",
-        security_id="SEC-3",
-        action_type=CorporateActionType.NAME_CHANGE,
-        effective_date=name_change_date,
-        details={"new_name": "Gamma Global"},
-        announcement_date=name_change_date - timedelta(days=5),
-        source="simulated",
-    )
-
-    after_name_change = master.apply_corporate_action(name_change)
-    assert after_name_change.version == 2
-    assert after_name_change.name == "Gamma Global"
-    assert after_name_change.events[-1] == name_change
-
-    identifier_change_date = inception + timedelta(days=120)
-    identifier_change = CorporateActionEvent(
-        event_id="evt-2",
-        security_id="SEC-3",
-        action_type=CorporateActionType.IDENTIFIER_CHANGE,
-        effective_date=identifier_change_date,
-        details={"identifiers": {"ticker": "GGL"}, "removed_identifiers": ["ticker"]},
-        source="simulated",
-    )
-
-    after_identifier_change = master.apply_corporate_action(identifier_change)
-    assert after_identifier_change.version == 3
-    assert after_identifier_change.identifiers["ticker"] == "GGL"
-    assert master.get_security_by_identifier("ticker", "GGL").version == 3
-
-    previous_version = master.get_security_by_id("SEC-3", as_of=name_change_date + timedelta(days=1))
-    assert previous_version.version == 2
-
-    all_versions = master.get_versions("SEC-3")
-    assert len(all_versions) == 3
-    assert all_versions[-1].events[-1] == identifier_change
+    final_record = security_master.get_security("SEC-001")
+    latest_attrs = final_record.get_attributes()
+    assert pytest.approx(latest_attrs["dividends"][0]["amount"]) == 0.25
+    assert latest_attrs["dividends"][0]["pay_date"] == "2023-12-30"
+    assert final_record.corporate_actions[-1] == refinitiv_event
+    assert len(final_record.versions) == 4

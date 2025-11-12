@@ -16,6 +16,10 @@ import time
 import logging
 
 from .base import BaseMarketDataAdapter, AdapterConfig, ConnectionState
+from .corporate_actions import (
+    RefinitivCorporateActionParser,
+    normalize_events,
+)
 from ..data_models import (
     EquityQuote,
     BondQuote,
@@ -29,6 +33,7 @@ from ..data_models import (
     DataRequest,
     MarketDataPoint,
 )
+from ..storage.security_master import CorporateActionEvent
 
 
 logger = logging.getLogger(__name__)
@@ -679,6 +684,23 @@ class RefinitivAdapter(BaseMarketDataAdapter):
         except Exception as e:
             logger.error(f"Error getting yield curve {curve_name}: {e}")
             return None
+
+    def get_corporate_actions(
+        self, identifier: str, start_date: date, end_date: date
+    ) -> List[CorporateActionEvent]:
+        """Retrieve corporate actions using Refinitiv parser."""
+
+        raw_events = self._retrieve_corporate_actions(identifier, start_date, end_date)
+        parser = RefinitivCorporateActionParser()
+        return normalize_events(raw_events, parser)
+
+    def _retrieve_corporate_actions(
+        self, identifier: str, start_date: date, end_date: date
+    ) -> List[Dict[str, Any]]:
+        """Placeholder for Refinitiv corporate action API retrieval."""
+
+        self._increment_stat("requests")
+        return []
 
     def _execute_request_internal(self, request: DataRequest) -> List[MarketDataPoint]:
         """

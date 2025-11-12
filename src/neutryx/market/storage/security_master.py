@@ -1,14 +1,36 @@
-"""Security master data model with identifier management and versioning."""
+"""Security master data model with identifier mapping and version control."""
 
 from __future__ import annotations
 
-from copy import deepcopy
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import date
 from enum import Enum
-from typing import Any, Dict, Iterable, List, Optional, Tuple
+from typing import Dict, List, Optional, Any, Iterable
+import bisect
 
-from ..data_models import AssetClass
+
+class SecurityIdentifierType(Enum):
+    """Supported security identifier types."""
+
+    TICKER = "ticker"
+    ISIN = "isin"
+    CUSIP = "cusip"
+    SEDOL = "sedol"
+    FIGI = "figi"
+
+
+@dataclass(frozen=True)
+class SecurityIdentifier:
+    """Security identifier representation."""
+
+    id_type: SecurityIdentifierType
+    value: str
+    primary: bool = False
+
+    def normalized(self) -> str:
+        """Return normalized value used for mappings."""
+
+        return self.value.strip().upper()
 
 
 class CorporateActionType(Enum):
@@ -18,307 +40,227 @@ class CorporateActionType(Enum):
     SPLIT = "split"
     MERGER = "merger"
     SPIN_OFF = "spin_off"
-    RIGHTS_ISSUE = "rights_issue"
-    NAME_CHANGE = "name_change"
-    IDENTIFIER_CHANGE = "identifier_change"
-    DELISTING = "delisting"
-    OTHER = "other"
-
-
-@dataclass(frozen=True)
-class CorporateActionEvent:
-    """Normalized corporate action event."""
-
-    event_id: str
-    security_id: str
-    action_type: CorporateActionType
-    effective_date: datetime
-    details: Dict[str, Any] = field(default_factory=dict)
-    announcement_date: Optional[datetime] = None
-    source: Optional[str] = None
-    raw_payload: Optional[Dict[str, Any]] = None
+    SYMBOL_CHANGE = "symbol_change"
 
 
 @dataclass
-class SecurityMasterRecord:
-    """Versioned record of a security."""
+class CorporateActionEvent:
+    """Normalized corporate action event."""
+
+    action_type: CorporateActionType
+    effective_date: date
+    description: str
+    details: Dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
+class SecurityVersion:
+    """Immutable snapshot of security attributes at an effective date."""
+
+    version: int
+    effective_date: date
+    attributes: Dict[str, Any] = field(default_factory=dict)
+
+    def get(self, key: str, default: Any = None) -> Any:
+        return self.attributes.get(key, default)
+
+
+@dataclass
+class SecurityRecord:
+    """Represents a security master record with version history."""
 
     security_id: str
-    asset_class: AssetClass
     name: str
-    identifiers: Dict[str, str]
-    metadata: Dict[str, Any] = field(default_factory=dict)
-    version: int = 1
-    created_at: datetime = field(default_factory=datetime.utcnow)
-    updated_at: datetime = field(default_factory=datetime.utcnow)
-    effective_from: datetime = field(default_factory=datetime.utcnow)
-    effective_to: Optional[datetime] = None
-    status: str = "active"
-    events: List[CorporateActionEvent] = field(default_factory=list)
+    asset_class: str
+    identifiers: Dict[SecurityIdentifierType, SecurityIdentifier] = field(
+        default_factory=dict
+    )
+    versions: List[SecurityVersion] = field(default_factory=list)
+    corporate_actions: List[CorporateActionEvent] = field(default_factory=list)
 
-    def is_effective(self, when: datetime) -> bool:
-        """Check if the record is effective for the given timestamp."""
+    def add_identifier(self, identifier: SecurityIdentifier) -> None:
+        self.identifiers[identifier.id_type] = identifier
 
-        return self.effective_from <= when and (
-            self.effective_to is None or when < self.effective_to
+    def latest_version(self) -> Optional[SecurityVersion]:
+        if not self.versions:
+            return None
+        return max(self.versions, key=lambda v: (v.effective_date, v.version))
+
+    def get_attributes(self, as_of: Optional[date] = None) -> Dict[str, Any]:
+        if not self.versions:
+            return {}
+
+        if as_of is None:
+            return dict(self.latest_version().attributes)
+
+        # Versions sorted by effective date to allow binary search
+        versions_sorted = sorted(
+            self.versions, key=lambda v: (v.effective_date, v.version)
         )
-
-
-class SecurityMasterError(Exception):
-    """Base error for security master operations."""
-
-
-class SecurityNotFoundError(SecurityMasterError):
-    """Raised when a security record is not found."""
+        effective_dates = [v.effective_date.toordinal() for v in versions_sorted]
+        idx = bisect.bisect_right(effective_dates, as_of.toordinal()) - 1
+        if idx < 0:
+            return {}
+        return dict(versions_sorted[idx].attributes)
 
 
 class SecurityMaster:
-    """In-memory security master with identifier mapping and versioning."""
+    """Security master service with identifier mapping and versioning."""
 
     def __init__(self) -> None:
-        self._records: Dict[str, List[SecurityMasterRecord]] = {}
-        self._identifier_index: Dict[Tuple[str, str], str] = {}
+        self._records: Dict[str, SecurityRecord] = {}
+        self._identifier_map: Dict[
+            SecurityIdentifierType, Dict[str, str]
+        ] = {id_type: {} for id_type in SecurityIdentifierType}
 
+    # ------------------------------------------------------------------
+    # Registration & Retrieval
+    # ------------------------------------------------------------------
     def register_security(
         self,
         security_id: str,
-        asset_class: AssetClass,
         name: str,
-        identifiers: Dict[str, str],
-        metadata: Optional[Dict[str, Any]] = None,
-        effective_from: Optional[datetime] = None,
-        status: str = "active",
-    ) -> SecurityMasterRecord:
-        """Register a new security in the master."""
-
+        asset_class: str,
+        identifiers: Iterable[SecurityIdentifier],
+        attributes: Optional[Dict[str, Any]] = None,
+        effective_date: Optional[date] = None,
+    ) -> SecurityRecord:
         if security_id in self._records:
-            raise SecurityMasterError(f"Security '{security_id}' already exists")
+            raise ValueError(f"Security {security_id} already registered")
 
-        effective = effective_from or datetime.utcnow()
-        record = SecurityMasterRecord(
+        record = SecurityRecord(
             security_id=security_id,
-            asset_class=asset_class,
             name=name,
-            identifiers=_sanitize_identifiers(identifiers),
-            metadata=deepcopy(metadata) if metadata else {},
-            version=1,
-            created_at=effective,
-            updated_at=effective,
-            effective_from=effective,
-            status=status,
+            asset_class=asset_class,
         )
-        self._records[security_id] = [record]
-        self._rebuild_identifier_index(security_id, record)
+
+        for identifier in identifiers:
+            self._add_identifier_mapping(security_id, identifier)
+            record.add_identifier(identifier)
+
+        version = SecurityVersion(
+            version=1,
+            effective_date=effective_date or date.today(),
+            attributes=dict(attributes or {}),
+        )
+        record.versions.append(version)
+        self._records[security_id] = record
         return record
 
     def update_security(
         self,
         security_id: str,
-        *,
-        name: Optional[str] = None,
-        identifiers: Optional[Dict[str, Optional[str]]] = None,
-        remove_identifiers: Optional[Iterable[str]] = None,
-        metadata: Optional[Dict[str, Any]] = None,
-        status: Optional[str] = None,
-        effective_from: Optional[datetime] = None,
-        event: Optional[CorporateActionEvent] = None,
-    ) -> SecurityMasterRecord:
-        """Update an existing security, creating a new version."""
+        updates: Dict[str, Any],
+        effective_date: Optional[date] = None,
+    ) -> SecurityVersion:
+        record = self._get_required_record(security_id)
+        base_attributes = {}
+        latest = record.latest_version()
+        if latest:
+            base_attributes.update(latest.attributes)
 
-        versions = self._records.get(security_id)
-        if not versions:
-            raise SecurityNotFoundError(f"Security '{security_id}' not found")
-
-        latest = versions[-1]
-        effective = effective_from or datetime.utcnow()
-        if effective < latest.effective_from:
-            raise SecurityMasterError("Effective date cannot be before current version")
-
-        latest.effective_to = effective
-        latest.updated_at = effective
-
-        new_identifiers = dict(latest.identifiers)
-        if remove_identifiers is not None:
-            for key in remove_identifiers:
-                new_identifiers.pop(_normalize_identifier_key(key), None)
-        if identifiers is not None:
-            for key, value in identifiers.items():
-                norm_key = _normalize_identifier_key(key)
-                if value is None:
-                    new_identifiers.pop(norm_key, None)
-                else:
-                    new_identifiers[norm_key] = str(value).strip()
-
-        new_metadata = deepcopy(latest.metadata)
-        if metadata is not None:
-            for key, value in metadata.items():
-                if value is None:
-                    new_metadata.pop(key, None)
-                else:
-                    new_metadata[key] = value
-
-        new_events = list(latest.events)
-        if event is not None:
-            new_events.append(event)
-
-        new_record = SecurityMasterRecord(
-            security_id=security_id,
-            asset_class=latest.asset_class,
-            name=name if name is not None else latest.name,
-            identifiers=new_identifiers,
-            metadata=new_metadata,
-            version=latest.version + 1,
-            created_at=latest.created_at,
-            updated_at=effective,
-            effective_from=effective,
-            status=status if status is not None else latest.status,
-            events=new_events,
+        base_attributes.update(updates)
+        version_number = (latest.version + 1) if latest else 1
+        new_version = SecurityVersion(
+            version=version_number,
+            effective_date=effective_date or date.today(),
+            attributes=base_attributes,
         )
+        record.versions.append(new_version)
+        return new_version
 
-        versions.append(new_record)
-        self._rebuild_identifier_index(security_id, new_record)
-        return new_record
+    def add_identifier(
+        self, security_id: str, identifier: SecurityIdentifier
+    ) -> None:
+        record = self._get_required_record(security_id)
+        self._add_identifier_mapping(security_id, identifier)
+        record.add_identifier(identifier)
 
-    def apply_corporate_action(
-        self, event: CorporateActionEvent
-    ) -> SecurityMasterRecord:
-        """Apply a corporate action and create a new security version."""
-
-        security_id = event.security_id
-        if security_id not in self._records:
-            raise SecurityNotFoundError(
-                f"Cannot apply corporate action to unknown security '{security_id}'"
-            )
-        latest_record = self.get_security_by_id(security_id)
-        if latest_record is None:
-            raise SecurityNotFoundError(
-                f"No active record found for security '{security_id}'"
-            )
-
-        name_update: Optional[str] = None
-        status_update: Optional[str] = None
-        metadata_updates: Dict[str, Any] = {}
-        identifier_updates: Dict[str, Optional[str]] = {}
-
-        if event.action_type == CorporateActionType.NAME_CHANGE:
-            name_update = event.details.get("new_name")
-        elif event.action_type == CorporateActionType.IDENTIFIER_CHANGE:
-            identifier_updates.update(event.details.get("identifiers", {}))
-        elif event.action_type == CorporateActionType.SPLIT:
-            if "split_ratio" in event.details:
-                metadata_updates["last_split_ratio"] = event.details["split_ratio"]
-        elif event.action_type == CorporateActionType.DELISTING:
-            status_update = "inactive"
-            if event.details:
-                metadata_updates["delisting_details"] = event.details
-        elif event.action_type == CorporateActionType.MERGER:
-            status_update = "merged"
-            if event.details:
-                metadata_updates["merger_details"] = event.details
-        elif event.action_type == CorporateActionType.DIVIDEND:
-            current = deepcopy(latest_record.metadata.get("dividends", []))
-            current.append(event.details)
-            metadata_updates["dividends"] = current
-        else:
-            if event.details:
-                current = deepcopy(latest_record.metadata.get("corporate_actions", []))
-                current.append(event.details)
-                metadata_updates["corporate_actions"] = current
-
-        return self.update_security(
-            security_id,
-            name=name_update,
-            identifiers=identifier_updates if identifier_updates else None,
-            remove_identifiers=event.details.get("removed_identifiers")
-            if event.action_type == CorporateActionType.IDENTIFIER_CHANGE
-            else None,
-            metadata=metadata_updates if metadata_updates else None,
-            status=status_update,
-            effective_from=event.effective_date,
-            event=event,
-        )
-
-    def get_security_by_id(
-        self, security_id: str, as_of: Optional[datetime] = None
-    ) -> Optional[SecurityMasterRecord]:
-        """Retrieve security by its identifier, optionally as of a timestamp."""
-
-        versions = self._records.get(security_id)
-        if not versions:
-            return None
-
-        if as_of is None:
-            return versions[-1]
-
-        for record in reversed(versions):
-            if record.is_effective(as_of):
-                return record
-        return None
+    def get_security(self, security_id: str) -> Optional[SecurityRecord]:
+        return self._records.get(security_id)
 
     def get_security_by_identifier(
-        self,
-        id_type: str,
-        value: str,
-        as_of: Optional[datetime] = None,
-    ) -> Optional[SecurityMasterRecord]:
-        """Lookup a security by one of its identifiers."""
+        self, identifier_value: str, identifier_type: SecurityIdentifierType
+    ) -> Optional[SecurityRecord]:
+        normalized = identifier_value.strip().upper()
+        security_id = self._identifier_map[identifier_type].get(normalized)
+        if not security_id:
+            return None
+        return self._records.get(security_id)
 
-        norm_key = _normalize_identifier_key(id_type)
-        norm_value = _normalize_identifier_value(value)
+    def list_securities(self) -> List[SecurityRecord]:
+        return list(self._records.values())
 
-        if as_of is None:
-            security_id = self._identifier_index.get((norm_key, norm_value))
-            if security_id:
-                return self.get_security_by_id(security_id)
-
-        for security_id, versions in self._records.items():
-            for record in reversed(versions):
-                identifier_value = record.identifiers.get(norm_key)
-                if identifier_value and _normalize_identifier_value(identifier_value) == norm_value:
-                    if as_of is None or record.is_effective(as_of):
-                        return record
-        return None
-
-    def get_versions(self, security_id: str) -> List[SecurityMasterRecord]:
-        """Return all versions for a security."""
-
-        return list(self._records.get(security_id, []))
-
-    def _rebuild_identifier_index(
-        self, security_id: str, record: SecurityMasterRecord
+    # ------------------------------------------------------------------
+    # Corporate Actions
+    # ------------------------------------------------------------------
+    def apply_corporate_action(
+        self, security_id: str, event: CorporateActionEvent
     ) -> None:
-        """Update identifier index for the latest version."""
+        record = self._get_required_record(security_id)
+        record.corporate_actions.append(event)
 
-        keys_to_remove = [key for key, value in self._identifier_index.items() if value == security_id]
-        for key in keys_to_remove:
-            del self._identifier_index[key]
+        updates: Dict[str, Any] = {}
+        if event.action_type == CorporateActionType.SYMBOL_CHANGE:
+            new_ticker = event.details.get("new_ticker")
+            old_ticker = event.details.get("old_ticker")
+            if new_ticker:
+                updates["ticker"] = new_ticker
+                self._update_identifier_value(
+                    record,
+                    SecurityIdentifierType.TICKER,
+                    old_ticker,
+                    new_ticker,
+                )
+        elif event.action_type == CorporateActionType.SPLIT:
+            if "split_ratio" in event.details:
+                updates["split_ratio"] = event.details["split_ratio"]
+        elif event.action_type == CorporateActionType.DIVIDEND:
+            latest = record.latest_version()
+            dividends = list(latest.attributes.get("dividends", [])) if latest else []
+            dividends.append(
+                {
+                    "amount": event.details.get("amount"),
+                    "currency": event.details.get("currency"),
+                    "pay_date": event.details.get("pay_date"),
+                }
+            )
+            updates["dividends"] = dividends
 
-        for key, value in record.identifiers.items():
-            self._identifier_index[(key, _normalize_identifier_value(value))] = security_id
+        if updates:
+            self.update_security(security_id, updates, event.effective_date)
 
+    # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
+    def _add_identifier_mapping(
+        self, security_id: str, identifier: SecurityIdentifier
+    ) -> None:
+        normalized = identifier.normalized()
+        mapping = self._identifier_map[identifier.id_type]
+        if normalized in mapping and mapping[normalized] != security_id:
+            raise ValueError(
+                f"Identifier {identifier.id_type.value}:{identifier.value} "
+                "already mapped to another security"
+            )
+        mapping[normalized] = security_id
 
-def _normalize_identifier_key(identifier: Any) -> str:
-    return str(identifier).strip().lower()
+    def _update_identifier_value(
+        self,
+        record: SecurityRecord,
+        id_type: SecurityIdentifierType,
+        old_value: Optional[str],
+        new_value: str,
+    ) -> None:
+        if old_value:
+            old_normalized = old_value.strip().upper()
+            self._identifier_map[id_type].pop(old_normalized, None)
+        identifier = SecurityIdentifier(id_type=id_type, value=new_value, primary=True)
+        self._identifier_map[id_type][identifier.normalized()] = record.security_id
+        record.add_identifier(identifier)
 
-
-def _normalize_identifier_value(value: str) -> str:
-    return str(value).strip().upper()
-
-
-def _sanitize_identifiers(identifiers: Dict[str, str]) -> Dict[str, str]:
-    sanitized: Dict[str, str] = {}
-    for key, value in identifiers.items():
-        if value is None:
-            continue
-        sanitized[_normalize_identifier_key(key)] = str(value).strip()
-    return sanitized
-
-
-__all__ = [
-    "CorporateActionType",
-    "CorporateActionEvent",
-    "SecurityMasterRecord",
-    "SecurityMasterError",
-    "SecurityNotFoundError",
-    "SecurityMaster",
-]
+    def _get_required_record(self, security_id: str) -> SecurityRecord:
+        try:
+            return self._records[security_id]
+        except KeyError as exc:
+            raise KeyError(f"Security {security_id} not found") from exc
