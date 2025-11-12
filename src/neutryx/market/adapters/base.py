@@ -27,6 +27,7 @@ from ..data_models import (
     DataResponse,
     DataQuality,
 )
+from ..storage.security_master import CorporateActionEvent
 
 
 logger = logging.getLogger(__name__)
@@ -160,6 +161,13 @@ class BaseMarketDataAdapter(ABC):
             BondQuote or None if not available
         """
         pass
+
+    @abstractmethod
+    def get_corporate_actions(
+        self, identifier: str, start_date: date, end_date: date
+    ) -> List[CorporateActionEvent]:
+        """Retrieve corporate action events for the specified security."""
+
 
     @abstractmethod
     def get_fx_quote(
