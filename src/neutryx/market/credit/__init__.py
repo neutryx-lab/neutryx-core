@@ -6,7 +6,7 @@ from .correlation import (
     gaussian_copula_samples,
     t_copula_samples,
 )
-from .hazard import HazardRateCurve, calibrate_piecewise_hazard
+from .hazard import HazardRateCurve, SurvivalProbabilityCurve, calibrate_piecewise_hazard
 from .portfolio import (
     PortfolioLossMetrics,
     expected_loss,
@@ -31,6 +31,7 @@ from .structural import (
 
 __all__ = [
     "HazardRateCurve",
+    "SurvivalProbabilityCurve",
     "calibrate_piecewise_hazard",
     "cds_par_spread",
     "cds_pv",
