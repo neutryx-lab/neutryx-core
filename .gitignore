@@ -13,6 +13,9 @@ __pycache__/
 build/
 dist/
 .cache/
+.venv/
+venv/
+env/
 
 # Testing
 .pytest_cache/
