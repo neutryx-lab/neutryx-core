@@ -18,6 +18,7 @@ import jax
 import jax.numpy as jnp
 from jax import Array
 from scipy.optimize import minimize
+import numpy as np
 
 
 class SmileModel(Enum):
@@ -215,6 +216,60 @@ class SABRParameters:
 
 
 @dataclass
+class PolynomialSmileParameters:
+    """Polynomial parameterization of the volatility smile.
+
+    The implied volatility is represented as a polynomial in log-moneyness
+    k = log(K/F):
+
+        σ(k) = Σ_{i=0}^{degree} c_i * k^i
+
+    Attributes:
+        coefficients: Polynomial coefficients ordered by increasing power.
+        degree: Degree of the polynomial.
+    """
+
+    coefficients: Array
+    degree: int
+
+    def implied_vol(self, log_moneyness: Array) -> Array:
+        k = jnp.asarray(log_moneyness)
+        k_expanded = jnp.atleast_1d(k)
+        powers = jnp.arange(self.degree + 1)
+        vol = jnp.sum(self.coefficients * k_expanded[..., None] ** powers, axis=-1)
+        return vol if k.ndim > 0 else vol[0]
+
+
+@dataclass
+class VannaVolgaParameters:
+    """Vanna-Volga smile approximation parameters.
+
+    The Vanna-Volga approach extends an ATM volatility quote with
+    risk-reversal and butterfly adjustments to capture skew and curvature:
+
+        σ(k) = σ_ATM + RR * tanh(k / κ) + 0.5 * BF * k²
+
+    Attributes:
+        atm_vol: ATM volatility anchor.
+        risk_reversal: Skew adjustment.
+        butterfly: Curvature adjustment.
+        kappa: Scaling parameter controlling skew saturation.
+    """
+
+    atm_vol: float
+    risk_reversal: float
+    butterfly: float
+    kappa: float = 0.25
+
+    def implied_vol(self, log_moneyness: Array) -> Array:
+        k = jnp.asarray(log_moneyness)
+        skew_term = jnp.tanh(k / self.kappa)
+        curvature_term = 0.5 * self.butterfly * (k ** 2)
+        vol = self.atm_vol + self.risk_reversal * skew_term + curvature_term
+        return vol
+
+
+@dataclass
 class VolatilitySurface:
     """Volatility surface with smile dynamics.
 
@@ -300,7 +355,9 @@ class VolatilitySurface:
         tenor_idx = int(jnp.argmin(jnp.abs(self.tenors - tenor)))
         return self.strikes[tenor_idx], self.implied_vols[tenor_idx]
 
-    def calibrate_smile(self, tenor: float) -> SVIParameters | SABRParameters:
+    def calibrate_smile(
+        self, tenor: float
+    ) -> SVIParameters | SABRParameters | PolynomialSmileParameters | VannaVolgaParameters:
         """Calibrate smile model to a tenor slice.
 
         Args:
@@ -315,6 +372,10 @@ class VolatilitySurface:
             return self._calibrate_svi(strikes, vols, tenor)
         elif self.smile_model == SmileModel.SABR:
             return self._calibrate_sabr(strikes, vols, tenor)
+        elif self.smile_model == SmileModel.POLYNOMIAL:
+            return self._calibrate_polynomial(strikes, vols, tenor)
+        elif self.smile_model == SmileModel.VANNA_VOLGA:
+            return self._calibrate_vanna_volga(strikes, vols, tenor)
         else:
             raise ValueError(f"Calibration not implemented for {self.smile_model}")
 
@@ -399,6 +460,106 @@ class VolatilitySurface:
         result = minimize(objective, initial, method="L-BFGS-B", bounds=bounds)
 
         return SABRParameters(*result.x)
+
+    def _calibrate_polynomial(
+        self, strikes: Array, vols: Array, T: float, degree: int = 2
+    ) -> PolynomialSmileParameters:
+        """Calibrate polynomial smile parameters.
+
+        Args:
+            strikes: Strike array.
+            vols: Implied volatility array.
+            T: Time to expiry (unused but kept for API symmetry).
+            degree: Polynomial degree.
+
+        Returns:
+            Calibrated polynomial smile parameters.
+        """
+
+        if len(strikes) < degree + 1:
+            raise ValueError("Insufficient data points for polynomial calibration")
+
+        log_moneyness = np.asarray(jnp.log(strikes / self.forward), dtype=float)
+        target = np.asarray(vols, dtype=float)
+
+        if not np.all(np.isfinite(log_moneyness)) or not np.all(np.isfinite(target)):
+            raise ValueError("Non-finite data encountered in polynomial calibration")
+
+        # Design matrix with increasing powers of log-moneyness
+        X = np.vander(log_moneyness, N=degree + 1, increasing=True)
+
+        # Ridge regularization for numerical stability
+        XtX = X.T @ X
+        reg = 1e-8 * np.eye(XtX.shape[0])
+        XtY = X.T @ target
+
+        try:
+            coefficients = np.linalg.solve(XtX + reg, XtY)
+        except np.linalg.LinAlgError as exc:  # pragma: no cover - defensive
+            raise ValueError("Polynomial calibration failed: ill-conditioned system") from exc
+
+        return PolynomialSmileParameters(coefficients=jnp.asarray(coefficients), degree=degree)
+
+    def _calibrate_vanna_volga(
+        self, strikes: Array, vols: Array, T: float, kappa: float = 0.25
+    ) -> VannaVolgaParameters:
+        """Calibrate Vanna-Volga smile parameters.
+
+        Args:
+            strikes: Strike array.
+            vols: Implied volatility array.
+            T: Time to expiry (unused but kept for API symmetry).
+            kappa: Skew saturation scale.
+
+        Returns:
+            Calibrated Vanna-Volga parameters.
+        """
+
+        if len(strikes) < 3:
+            raise ValueError("Insufficient data points for Vanna-Volga calibration")
+
+        log_moneyness = np.asarray(jnp.log(strikes / self.forward), dtype=float)
+        vols_np = np.asarray(vols, dtype=float)
+
+        if not np.all(np.isfinite(log_moneyness)) or not np.all(np.isfinite(vols_np)):
+            raise ValueError("Non-finite data encountered in Vanna-Volga calibration")
+
+        order = np.argsort(log_moneyness)
+        log_moneyness = log_moneyness[order]
+        vols_np = vols_np[order]
+
+        atm_guess = float(np.interp(0.0, log_moneyness, vols_np))
+        gradient = np.gradient(vols_np, log_moneyness, edge_order=2)
+        rr_guess = float(gradient[len(gradient) // 2])
+        bf_guess = 0.0
+
+        def objective(params: Array) -> float:
+            atm, rr, bf = params
+            skew_term = np.tanh(log_moneyness / kappa)
+            curvature_term = 0.5 * bf * (log_moneyness ** 2)
+            model = atm + rr * skew_term + curvature_term
+            residual = model - vols_np
+            regularization = 1e-6 * float(np.sum(params ** 2))
+            return float(np.sum(residual ** 2) + regularization)
+
+        bounds = [
+            (0.0001, 5.0),  # atm volatility reasonable range
+            (-1.0, 1.0),  # risk reversal adjustment
+            (-5.0, 5.0),  # butterfly adjustment
+        ]
+
+        result = minimize(
+            objective,
+            x0=np.array([atm_guess, rr_guess, bf_guess]),
+            method="L-BFGS-B",
+            bounds=bounds,
+        )
+
+        if not result.success:
+            raise ValueError(f"Vanna-Volga calibration failed: {result.message}")
+
+        atm, rr, bf = result.x
+        return VannaVolgaParameters(atm_vol=float(atm), risk_reversal=float(rr), butterfly=float(bf), kappa=kappa)
 
     def to_local_vol(self, n_strikes: int = 50, n_tenors: int = 20) -> "LocalVolSurface":
         """Convert implied volatility surface to local volatility surface.
