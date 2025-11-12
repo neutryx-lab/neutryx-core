@@ -20,6 +20,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Iterable, Protocol
 
+from neutryx.infrastructure.governance import record_artifact
 from neutryx.portfolio.portfolio import Portfolio
 
 
@@ -49,7 +50,12 @@ class InMemoryPortfolioStore(PortfolioStore):
     def save_portfolio(self, portfolio: Portfolio) -> None:
         with self._lock:
             # Store a deep copy to prevent accidental mutation by callers.
-            self._portfolios[portfolio.name] = portfolio.model_copy(deep=True)
+            metadata = record_artifact(
+                portfolio.name,
+                kind="portfolio",
+                metadata={"store_backend": "memory", **(portfolio.lineage or {})},
+            )
+            self._portfolios[portfolio.name] = portfolio.model_copy(update={"lineage": metadata}, deep=True)
 
     def get_portfolio(self, portfolio_id: str) -> Portfolio | None:
         with self._lock:
@@ -106,7 +112,12 @@ class FileSystemPortfolioStore(PortfolioStore):
 
     def save_portfolio(self, portfolio: Portfolio) -> None:
         with self._lock:
-            self._portfolios[portfolio.name] = portfolio.model_copy(deep=True)
+            metadata = record_artifact(
+                portfolio.name,
+                kind="portfolio",
+                metadata={"store_backend": "filesystem", **(portfolio.lineage or {})},
+            )
+            self._portfolios[portfolio.name] = portfolio.model_copy(update={"lineage": metadata}, deep=True)
             self._flush()
 
     def get_portfolio(self, portfolio_id: str) -> Portfolio | None:

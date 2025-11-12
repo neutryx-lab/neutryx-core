@@ -16,6 +16,21 @@ from .compliance import (
     default_rules,
 )
 from .costs import CostEntry, CostTracker
+from .dataflow import (
+    DataFlowEvent,
+    DataFlowRecorder,
+    LineageContext,
+    current_context,
+    data_flow_context,
+    embed_lineage_metadata,
+    generate_lineage_id,
+    get_default_recorder,
+    is_context_active,
+    publish_event,
+    record_artifact,
+    set_default_recorder,
+    use_recorder,
+)
 from .rbac import RBACManager, Role
 from .service import GovernanceService
 from .sla import SLAEvaluation, SLAMonitor, SLAPolicy
@@ -57,4 +72,17 @@ __all__ = [
     "TenantUsage",
     "current_tenant_id",
     "tenant_scope",
+    "DataFlowEvent",
+    "DataFlowRecorder",
+    "LineageContext",
+    "current_context",
+    "data_flow_context",
+    "embed_lineage_metadata",
+    "generate_lineage_id",
+    "get_default_recorder",
+    "is_context_active",
+    "publish_event",
+    "record_artifact",
+    "set_default_recorder",
+    "use_recorder",
 ]

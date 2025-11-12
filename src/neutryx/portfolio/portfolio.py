@@ -6,7 +6,7 @@ of counterparties, master agreements, CSAs, netting sets, and trades.
 from __future__ import annotations
 
 from datetime import date
-from typing import Dict, List, Optional, Sequence
+from typing import Any, Dict, List, Optional, Sequence
 
 import jax.numpy as jnp
 from pydantic import BaseModel, ConfigDict, Field
@@ -59,6 +59,10 @@ class Portfolio(BaseModel):
     netting_sets: Dict[str, NettingSet] = Field(default_factory=dict)
     trades: Dict[str, Trade] = Field(default_factory=dict)
     base_currency: str = Field(default="USD", min_length=3, max_length=3)
+    lineage: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Data lineage metadata associated with the portfolio.",
+    )
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
