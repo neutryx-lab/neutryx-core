@@ -1,10 +1,12 @@
 """Parameter transforms enforcing calibration constraints."""
 from __future__ import annotations
 
+from typing import Mapping, MutableMapping, Optional
+
 import jax
 import jax.numpy as jnp
 
-from .base import ParameterTransform
+from .base import ParameterSpec, ParameterTransform
 
 Array = jnp.ndarray
 
@@ -65,3 +67,55 @@ def positive_with_upper(eps: float, upper: float) -> ParameterTransform:
         return jnp.log(clipped) - jnp.log1p(-clipped)
 
     return ParameterTransform(forward, inverse)
+
+
+def g2pp_parameter_specs(
+    initial: Optional[Mapping[str, float]] = None,
+) -> MutableMapping[str, ParameterSpec]:
+    """Default parameter specification for G2++ calibration routines."""
+
+    defaults = {
+        "a": 0.1,
+        "b": 0.3,
+        "sigma_x": 0.01,
+        "sigma_y": 0.015,
+        "rho": -0.5,
+    }
+    transforms = {
+        "a": positive(),
+        "b": positive(),
+        "sigma_x": positive(),
+        "sigma_y": positive(),
+        "rho": symmetric(0.999),
+    }
+    if initial is not None:
+        defaults.update(initial)
+    return {
+        name: ParameterSpec(defaults[name], transforms[name]) for name in defaults
+    }
+
+
+def quasi_gaussian_parameter_specs(
+    initial: Optional[Mapping[str, float]] = None,
+) -> MutableMapping[str, ParameterSpec]:
+    """Parameter specification for Quasi-Gaussian calibration."""
+
+    defaults = {
+        "alpha": 0.1,
+        "beta": 0.25,
+        "sigma_x": 0.01,
+        "sigma_y": 0.012,
+        "rho": -0.4,
+    }
+    transforms = {
+        "alpha": positive(),
+        "beta": positive(),
+        "sigma_x": positive(),
+        "sigma_y": positive(),
+        "rho": symmetric(0.999),
+    }
+    if initial is not None:
+        defaults.update(initial)
+    return {
+        name: ParameterSpec(defaults[name], transforms[name]) for name in defaults
+    }

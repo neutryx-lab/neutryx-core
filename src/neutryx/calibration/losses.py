@@ -52,3 +52,40 @@ def huber_loss(
     if weights is not None:
         loss = weights * loss
     return jnp.mean(loss)
+
+
+def g2pp_zero_curve_loss(
+    predicted: Array,
+    target: Array,
+    *,
+    weights: Optional[Array] = None,
+    params: Optional[Any] = None,
+    market_data: Optional[Any] = None,
+    **_: Any,
+) -> Array:
+    """Loss emphasizing the long end of the term-structure for G2++ fits."""
+
+    maturities = None
+    if market_data is not None:
+        maturities = market_data.get("maturities")
+    if maturities is not None:
+        maturity_weights = jnp.asarray(maturities)
+        maturity_weights = maturity_weights / jnp.max(maturity_weights)
+        weights = maturity_weights if weights is None else weights * maturity_weights
+    return mean_squared_error(predicted, target, weights=weights)
+
+
+def quasi_gaussian_zero_curve_loss(
+    predicted: Array,
+    target: Array,
+    *,
+    weights: Optional[Array] = None,
+    params: Optional[Any] = None,
+    market_data: Optional[Any] = None,
+    **_: Any,
+) -> Array:
+    """Relative error style loss for Quasi-Gaussian discount curve fits."""
+
+    if market_data is not None and market_data.get("use_relative", True):
+        return relative_mse(predicted, target, weights=weights)
+    return mean_squared_error(predicted, target, weights=weights)
