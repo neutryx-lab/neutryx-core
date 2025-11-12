@@ -7,6 +7,8 @@ multiple methods:
 - Automatic differentiation (pathwise)
 """
 
+import inspect
+
 import jax
 import jax.numpy as jnp
 
@@ -52,6 +54,41 @@ def bs_second_order_greeks(S, K, T, r, q, sigma, kind="call"):
     return bs_model.second_order_greeks(S, K, T, r, q, sigma, kind=kind)
 
 
+_SPOT_KEYWORD_HINTS = ("spot", "underlying", "asset")
+
+
+def _call_pricer_with_spot(pricer, spot, kwargs):
+    """Call ``pricer`` ensuring the spot argument is passed correctly."""
+    signature = inspect.signature(pricer)
+    candidate_name = None
+    candidate_param = None
+
+    for param in signature.parameters.values():
+        if param.name == "self":
+            continue
+        lower_name = param.name.lower()
+        if lower_name in {"s", "s0"} or any(hint in lower_name for hint in _SPOT_KEYWORD_HINTS):
+            candidate_name = param.name
+            candidate_param = param
+            break
+
+    if candidate_name and candidate_param.kind is not inspect.Parameter.POSITIONAL_ONLY:
+        call_kwargs = dict(kwargs)
+        call_kwargs[candidate_name] = spot
+        try:
+            return pricer(**call_kwargs)
+        except TypeError:
+            # Fall back to positional invocation if keyword passing fails
+            pass
+
+    cleaned_kwargs = {
+        key: value
+        for key, value in kwargs.items()
+        if key.lower() not in {"s", "s0"}
+    }
+    return pricer(spot, **cleaned_kwargs)
+
+
 def mc_delta_bump(pricer, S, bump=1e-4, **kwargs):
     """Compute delta using finite difference (bump and revalue).
 
@@ -71,8 +108,8 @@ def mc_delta_bump(pricer, S, bump=1e-4, **kwargs):
     float
         Delta estimate via finite difference
     """
-    base = pricer(S=S, **kwargs)
-    up = pricer(S=S * (1 + bump), **kwargs)
+    base = _call_pricer_with_spot(pricer, S, kwargs)
+    up = _call_pricer_with_spot(pricer, S * (1 + bump), kwargs)
     return (up - base) / (S * bump)
 
 
@@ -171,9 +208,9 @@ def mc_gamma_bump(pricer, S, bump=1e-4, **kwargs):
     float
         Gamma estimate via second-order finite difference
     """
-    base = pricer(S=S, **kwargs)
-    up = pricer(S=S * (1 + bump), **kwargs)
-    down = pricer(S=S * (1 - bump), **kwargs)
+    base = _call_pricer_with_spot(pricer, S, kwargs)
+    up = _call_pricer_with_spot(pricer, S * (1 + bump), kwargs)
+    down = _call_pricer_with_spot(pricer, S * (1 - bump), kwargs)
     return (up - 2 * base + down) / (S * bump) ** 2
 
 
