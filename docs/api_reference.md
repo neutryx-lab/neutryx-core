@@ -1753,24 +1753,52 @@ var_99 = response.json()["var"]
 ### gRPC API (`neutryx.api.grpc`)
 
 ```python
-import grpc
-from neutryx.api.grpc import pricing_pb2, pricing_pb2_grpc
+from neutryx.api.grpc import run_server
 
-# Create gRPC channel
-channel = grpc.insecure_channel('localhost:50051')
-stub = pricing_pb2_grpc.PricingServiceStub(channel)
-
-# Price option via gRPC
-request = pricing_pb2.EuropeanOptionRequest(
-    spot=100,
-    strike=100,
-    maturity=1.0,
-    rate=0.05,
-    vol=0.2,
-    option_type="call"
+# Launch the pricing service with JWT auth and RBAC policies enabled.
+run_server(
+    address="0.0.0.0:50051",
+    enable_auth=True,
+    exempt_methods={"HealthCheck"},
+    method_permissions={
+        "PriceVanilla": "pricing.vanilla:read",
+        "ComputeCVA": "xva.cva:read",
+    },
 )
-response = stub.PriceEuropeanOption(request)
-print(f"Price: {response.price}")
+```
+
+All method identifiers accept short forms like `"PriceVanilla"` or fully-qualified
+paths such as `"/neutryx.api.PricingService/PriceVanilla"`. When authentication is
+enabled, requests must include a `Bearer` token in the `authorization` metadata
+header. The RBAC mapping above enforces that only tokens with the corresponding
+permission strings can invoke the protected RPCs. A ready-to-use launcher is
+available at `scripts/run_grpc_server.py` for local experimentation.
+
+```python
+import grpc
+from google.protobuf.struct_pb2 import Struct
+
+SERVICE_NAME = "neutryx.api.PricingService"
+FULL_METHOD_NAME = f"/{SERVICE_NAME}/PriceVanilla"
+
+async def price_vanilla(channel: grpc.aio.Channel, token: str) -> float:
+    stub = channel.unary_unary(
+        FULL_METHOD_NAME,
+        request_serializer=Struct.SerializeToString,
+        response_deserializer=Struct.FromString,
+    )
+    request = Struct()
+    request.update({
+        "spot": 100.0,
+        "strike": 100.0,
+        "maturity": 1.0,
+        "volatility": 0.2,
+    })
+    response = await stub(
+        request,
+        metadata=(("authorization", f"Bearer {token}"),),
+    )
+    return response.fields["price"].number_value
 ```
 
 #### Exposure simulation inputs

@@ -2,7 +2,8 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Any, Mapping
+from collections.abc import Iterable, Mapping
+from typing import Any
 
 import grpc
 import jax
@@ -15,6 +16,7 @@ from neutryx.valuations.xva.cva import cva
 from neutryx.valuations.xva.fva import fva
 from neutryx.valuations.xva.mva import mva
 from neutryx.infrastructure.observability import setup_observability
+from neutryx.api.auth import create_authenticated_server
 
 SERVICE_NAME = "neutryx.api.PricingService"
 
@@ -136,7 +138,37 @@ class PricingServicer:
         return response
 
 
-def add_servicer(server: grpc.aio.Server, servicer: PricingServicer | None = None) -> None:
+def _normalize_method_name(method: str) -> str:
+    """Convert a method identifier into its fully-qualified gRPC name."""
+
+    if not method:
+        raise ValueError("method name must be a non-empty string")
+
+    if method.startswith("/"):
+        return method
+
+    if "/" in method:
+        service, rpc = method.split("/", 1)
+        if "." not in service:
+            service = SERVICE_NAME
+        return f"/{service}/{rpc}"
+
+    return f"/{SERVICE_NAME}/{method}"
+
+
+def _normalize_method_set(methods: Iterable[str] | None) -> set[str] | None:
+    if methods is None:
+        return None
+    return {_normalize_method_name(method) for method in methods}
+
+
+def _normalize_method_mapping(mapping: Mapping[str, str] | None) -> dict[str, str] | None:
+    if mapping is None:
+        return None
+    return {_normalize_method_name(method): permission for method, permission in mapping.items()}
+
+
+def add_servicer(server: grpc.aio.Server, servicer: PricingServicer | None = None) -> set[str]:
     servicer = servicer or PricingServicer()
     method_handlers = {
         "PriceVanilla": grpc.unary_unary_rpc_method_handler(
@@ -162,10 +194,33 @@ def add_servicer(server: grpc.aio.Server, servicer: PricingServicer | None = Non
     }
     generic_handler = grpc.method_handlers_generic_handler(SERVICE_NAME, method_handlers)
     server.add_generic_rpc_handlers((generic_handler,))
+    return {_normalize_method_name(name) for name in method_handlers}
 
 
-async def serve(address: str = "0.0.0.0:50051") -> None:
-    server = grpc.aio.server()
+async def serve(
+    address: str = "0.0.0.0:50051",
+    *,
+    enable_auth: bool = False,
+    exempt_methods: Iterable[str] | None = None,
+    method_permissions: Mapping[str, str] | None = None,
+) -> None:
+    """Start the gRPC pricing server.
+
+    Args:
+        address: Socket address to bind the server to.
+        enable_auth: Whether to enable authentication interceptors.
+        exempt_methods: Collection of RPC method names that should bypass authentication.
+        method_permissions: Mapping of RPC methods to the permission required to execute them.
+    """
+
+    normalized_exempt = _normalize_method_set(exempt_methods)
+    normalized_permissions = _normalize_method_mapping(method_permissions)
+
+    server = create_authenticated_server(
+        enable_auth=enable_auth,
+        exempt_methods=normalized_exempt,
+        method_permissions=normalized_permissions,
+    )
     add_servicer(server)
     server.add_insecure_port(address)
     await server.start()
@@ -175,8 +230,23 @@ async def serve(address: str = "0.0.0.0:50051") -> None:
         await server.stop(grace=None)
 
 
-def run_server(address: str = "0.0.0.0:50051") -> None:
-    asyncio.run(serve(address))
+def run_server(
+    address: str = "0.0.0.0:50051",
+    *,
+    enable_auth: bool = False,
+    exempt_methods: Iterable[str] | None = None,
+    method_permissions: Mapping[str, str] | None = None,
+) -> None:
+    """Blocking wrapper that starts the asyncio-based gRPC server."""
+
+    asyncio.run(
+        serve(
+            address,
+            enable_auth=enable_auth,
+            exempt_methods=exempt_methods,
+            method_permissions=method_permissions,
+        )
+    )
 
 
 __all__ = ["PricingServicer", "add_servicer", "serve", "run_server"]
