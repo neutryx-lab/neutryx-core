@@ -37,6 +37,11 @@ class User(BaseModel):
     # Authentication
     disabled: bool = Field(default=False, description="Whether user is disabled")
     auth_provider: AuthProvider = Field(default=AuthProvider.LOCAL, description="Authentication provider")
+    hashed_password: Optional[str] = Field(
+        default=None,
+        description="Bcrypt hashed password for local authentication",
+        exclude=True,
+    )
 
     # Authorization
     roles: Set[str] = Field(default_factory=set, description="User roles")

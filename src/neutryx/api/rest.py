@@ -4,11 +4,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 import math
-from typing import Any, Sequence
+from typing import Any, List, Sequence
 
 import jax
 import jax.numpy as jnp
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 
 from neutryx.api.config import (
     DEFAULT_COUNTERPARTY_PD_ANNUAL,
@@ -28,17 +28,25 @@ from neutryx.api.portfolio_store import (
 )
 from neutryx.api.schemas import (
     CVARequest,
+    AuctionResultPayload,
     FpMLParseRequest,
     FpMLPriceRequest,
     FpMLValidateRequest,
     FVARequest,
+    QuoteSubmissionRequest,
+    QuoteSummary,
     MVARequest,
     PortfolioXVARequest,
     ProfileRequest,
+    RFQCreateRequest,
+    RFQStatusEvent,
+    RFQStatusUpdateRequest,
+    RFQSummary,
     VanillaOptionRequest,
 )
 from neutryx.core.engine import MCConfig, price_vanilla_mc, simulate_gbm
 from neutryx.integrations import fpml
+from neutryx.integrations.clearing.rfq import Quote, RFQManager
 from neutryx.portfolio.contracts.trade import ProductType
 from neutryx.products.swap import swap_value
 from neutryx.valuations.xva.cva import cva
@@ -931,6 +939,109 @@ def create_app(
 
     # Portfolio storage backend
     portfolio_store = portfolio_store or create_portfolio_store(store_settings)
+    rfq_manager = RFQManager()
+
+    def _rfq_error(exc: ValueError) -> HTTPException:
+        message = str(exc)
+        status_code = 404 if "not found" in message.lower() else 400
+        return HTTPException(status_code=status_code, detail=message)
+
+    @app.post("/rfq", response_model=RFQSummary)
+    def create_rfq_endpoint(payload: RFQCreateRequest) -> RFQSummary:
+        try:
+            rfq_kwargs = payload.to_rfq_kwargs()
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        rfq = rfq_manager.create_rfq(**rfq_kwargs)
+        return RFQSummary.from_rfq(rfq)
+
+    @app.get("/rfq/{rfq_id}", response_model=RFQSummary)
+    def get_rfq(rfq_id: str) -> RFQSummary:
+        rfq = rfq_manager.get_rfq(rfq_id)
+        if rfq is None:
+            raise HTTPException(status_code=404, detail=f"RFQ {rfq_id} not found")
+        return RFQSummary.from_rfq(rfq)
+
+    @app.get("/rfq/{rfq_id}/status/history", response_model=List[RFQStatusEvent])
+    def get_rfq_history(rfq_id: str) -> List[RFQStatusEvent]:
+        rfq = rfq_manager.get_rfq(rfq_id)
+        if rfq is None:
+            raise HTTPException(status_code=404, detail=f"RFQ {rfq_id} not found")
+        return RFQSummary.from_rfq(rfq).status_history
+
+    @app.get("/rfq/{rfq_id}/quotes", response_model=List[QuoteSummary])
+    def list_quotes(rfq_id: str) -> List[QuoteSummary]:
+        rfq = rfq_manager.get_rfq(rfq_id)
+        if rfq is None:
+            raise HTTPException(status_code=404, detail=f"RFQ {rfq_id} not found")
+        quotes = rfq_manager.get_quotes(rfq_id)
+        return [QuoteSummary.from_quote(q) for q in quotes]
+
+    @app.post("/rfq/{rfq_id}/submit", response_model=RFQSummary)
+    def submit_rfq_endpoint(rfq_id: str) -> RFQSummary:
+        try:
+            rfq = rfq_manager.submit_rfq(rfq_id)
+        except ValueError as exc:  # pragma: no cover - defensive
+            raise _rfq_error(exc) from exc
+        return RFQSummary.from_rfq(rfq)
+
+    @app.post("/rfq/{rfq_id}/quotes", response_model=QuoteSummary)
+    def submit_quote_endpoint(rfq_id: str, payload: QuoteSubmissionRequest) -> QuoteSummary:
+        rfq = rfq_manager.get_rfq(rfq_id)
+        if rfq is None:
+            raise HTTPException(status_code=404, detail=f"RFQ {rfq_id} not found")
+
+        try:
+            quote = Quote(rfq_id=rfq_id, **payload.to_quote_kwargs())
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        try:
+            submitted = rfq_manager.submit_quote(rfq_id, quote)
+        except ValueError as exc:
+            raise _rfq_error(exc) from exc
+        return QuoteSummary.from_quote(submitted)
+
+    @app.post("/rfq/{rfq_id}/status", response_model=RFQSummary)
+    def update_rfq_status(rfq_id: str, payload: RFQStatusUpdateRequest) -> RFQSummary:
+        try:
+            rfq = rfq_manager.update_status(
+                rfq_id,
+                payload.status,
+                reason=payload.reason,
+                metadata=payload.metadata or None,
+            )
+        except ValueError as exc:
+            raise _rfq_error(exc) from exc
+        return RFQSummary.from_rfq(rfq)
+
+    @app.post("/rfq/{rfq_id}/execute", response_model=AuctionResultPayload)
+    def execute_rfq(rfq_id: str) -> AuctionResultPayload:
+        try:
+            result = rfq_manager.execute_auction(rfq_id)
+        except ValueError as exc:
+            raise _rfq_error(exc) from exc
+        except NotImplementedError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+        return AuctionResultPayload.from_result(result)
+
+    @app.websocket("/ws/rfq/{rfq_id}")
+    async def rfq_status_stream(websocket: WebSocket, rfq_id: str) -> None:
+        await websocket.accept()
+        rfq = rfq_manager.get_rfq(rfq_id)
+        if rfq is None:
+            await websocket.close(code=4404, reason=f"RFQ {rfq_id} not found")
+            return
+
+        queue = rfq_manager.register_state_listener(rfq_id)
+        try:
+            while True:
+                update = await queue.get()
+                await websocket.send_json(update)
+        except WebSocketDisconnect:  # pragma: no cover - network condition
+            pass
+        finally:
+            rfq_manager.unregister_state_listener(rfq_id, queue)
 
     @app.post("/price/vanilla")
     def price_vanilla(payload: VanillaOptionRequest) -> dict[str, float]:

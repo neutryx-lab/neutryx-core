@@ -1,4 +1,4 @@
-"""Settlement instruction generation and processing.
+"""Settlement instruction generation utilities.
 
 This module handles settlement instruction (SI) generation for cleared trades:
 1. SI generation from confirmed trades
@@ -26,7 +26,7 @@ from uuid import uuid4
 
 from pydantic import BaseModel, Field, field_validator
 
-from .base import Party, ProductType
+from .base import Party
 
 
 class SettlementType(str, Enum):
@@ -60,6 +60,15 @@ class SettlementMethod(str, Enum):
     TARGET2 = "target2"      # TARGET2 (ECB)
     FEDWIRE = "fedwire"      # Fedwire (US)
     SWIFT = "swift"          # SWIFT messaging
+
+
+class SwiftSettlementMessageType(str, Enum):
+    """SWIFT settlement messaging types supported by the generator."""
+
+    MT540 = "MT540"  # Receive free
+    MT541 = "MT541"  # Receive against payment
+    MT542 = "MT542"  # Deliver free
+    MT543 = "MT543"  # Deliver against payment
 
 
 class FailReason(str, Enum):
@@ -215,6 +224,54 @@ class SettlementSchedule(BaseModel):
     metadata: Dict[str, Any] = Field(default_factory=dict)
 
 
+class SwiftSettlementMessage(BaseModel):
+    """Structured representation of a SWIFT settlement instruction."""
+
+    message_type: SwiftSettlementMessageType = Field(...)
+    instruction_id: str = Field(...)
+    sender: str = Field(...)
+    receiver: str = Field(...)
+    trade_date: date = Field(...)
+    settlement_date: date = Field(...)
+    settlement_type: SettlementType = Field(...)
+    securities: List[Dict[str, Any]] = Field(default_factory=list)
+    cash_flows: List[Dict[str, Any]] = Field(default_factory=list)
+    narrative: Optional[str] = Field(None)
+    references: Dict[str, str] = Field(default_factory=dict)
+
+
+class CLSInstruction(BaseModel):
+    """Representation of a CLS pay-in instruction."""
+
+    instruction_id: str = Field(...)
+    trade_id: str = Field(...)
+    currency_pair: str = Field(...)
+    value_date: date = Field(...)
+    gross_amount: Decimal = Field(...)
+    direction: str = Field(..., description="pay or receive")
+    session: str = Field(default="DEFAULT")
+    funding_cutoff: datetime = Field(...)
+    status: SettlementStatus = Field(default=SettlementStatus.PENDING)
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+
+
+class EuroclearInstruction(BaseModel):
+    """Instruction payload for Euroclear connectivity."""
+
+    instruction_id: str = Field(...)
+    trade_id: str = Field(...)
+    place_of_settlement: str = Field(...)
+    participant_account: str = Field(...)
+    counterparty_account: str = Field(...)
+    settlement_date: date = Field(...)
+    settlement_type: SettlementType = Field(...)
+    securities: List[Dict[str, Any]] = Field(default_factory=list)
+    cash_flows: List[Dict[str, Any]] = Field(default_factory=list)
+    priority: str = Field(...)
+    references: Dict[str, str] = Field(default_factory=dict)
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+
+
 @dataclass
 class SettlementStatistics:
     """Settlement statistics."""
@@ -287,6 +344,7 @@ class SettlementInstructionGenerator:
             raise ValueError(f"Instruction {instruction_id} not found")
 
         instruction.cash_flows.append(cash_flow)
+        self.statistics.total_value += cash_flow.amount
         self.statistics.pending_value += cash_flow.amount
 
         return instruction
@@ -379,12 +437,13 @@ class SettlementInstructionGenerator:
         if not instruction:
             raise ValueError(f"Instruction {instruction_id} not found")
 
+        previous_status = instruction.status
         instruction.status = SettlementStatus.FAILED
         instruction.fail_reason = fail_reason
         instruction.fail_details = fail_details
 
         self.statistics.failed_instructions += 1
-        if instruction.status == SettlementStatus.PENDING:
+        if previous_status == SettlementStatus.PENDING:
             self.statistics.pending_instructions -= 1
 
         self.statistics.update_rates()
@@ -430,49 +489,211 @@ class SettlementInstructionGenerator:
         if instruction.status in [SettlementStatus.SETTLED, SettlementStatus.CANCELLED]:
             raise ValueError(f"Cannot cancel instruction in status {instruction.status}")
 
+        previous_status = instruction.status
         instruction.status = SettlementStatus.CANCELLED
 
-        if instruction.status == SettlementStatus.PENDING:
+        if previous_status == SettlementStatus.PENDING:
             self.statistics.pending_instructions -= 1
 
         return instruction
 
-    def generate_swift_mt540(self, instruction_id: str) -> Dict[str, str]:
-        """Generate SWIFT MT540 message (Receive Free).
+    def generate_swift_message(self, instruction_id: str) -> SwiftSettlementMessage:
+        """Generate a SWIFT MT54x representation for an instruction."""
 
-        Simplified representation - in production would generate full SWIFT format.
-        """
         instruction = self.instructions.get(instruction_id)
         if not instruction:
             raise ValueError(f"Instruction {instruction_id} not found")
 
-        # Simplified MT540 structure
-        message = {
-            "message_type": "MT540",
-            "sender": instruction.deliverer.bic or instruction.deliverer.party_id,
-            "receiver": instruction.receiver.bic or instruction.receiver.party_id,
-            "reference": instruction.instruction_id,
-            "trade_date": instruction.trade_date.isoformat(),
-            "settlement_date": instruction.settlement_date.isoformat(),
-            "securities": [
-                {
-                    "isin": mov.security_id,
-                    "quantity": str(mov.quantity),
-                    "direction": mov.direction
-                }
-                for mov in instruction.securities_movements
-            ],
-            "cash_flows": [
-                {
-                    "amount": str(cf.amount),
-                    "currency": cf.currency,
-                    "direction": cf.direction
-                }
-                for cf in instruction.cash_flows
-            ]
-        }
+        message_type = self._resolve_swift_message_type(instruction)
 
-        return message
+        securities = [
+            {
+                "isin": movement.security_id,
+                "quantity": str(movement.quantity),
+                "direction": movement.direction,
+            }
+            for movement in instruction.securities_movements
+        ]
+
+        cash_flows = [
+            {
+                "amount": str(flow.amount),
+                "currency": flow.currency,
+                "direction": flow.direction,
+            }
+            for flow in instruction.cash_flows
+        ]
+
+        references = {
+            "trade_reference": instruction.trade_id,
+            "instruction_reference": instruction.instruction_id,
+        }
+        if instruction.confirmation_id:
+            references["confirmation_id"] = instruction.confirmation_id
+
+        return SwiftSettlementMessage(
+            message_type=message_type,
+            instruction_id=instruction.instruction_id,
+            sender=instruction.deliverer.bic or instruction.deliverer.party_id,
+            receiver=instruction.receiver.bic or instruction.receiver.party_id,
+            trade_date=instruction.trade_date,
+            settlement_date=instruction.settlement_date,
+            settlement_type=instruction.settlement_type,
+            securities=securities,
+            cash_flows=cash_flows,
+            narrative=f"Settlement of trade {instruction.trade_id}",
+            references=references,
+        )
+
+    def generate_swift_mt540(self, instruction_id: str) -> Dict[str, str]:
+        """Convenience wrapper returning MT540 message as dict."""
+
+        message = self.generate_swift_message(instruction_id)
+        if message.message_type != SwiftSettlementMessageType.MT540:
+            raise ValueError("Instruction does not map to MT540 (receive free)")
+
+        return message.model_dump()
+
+    def generate_cls_instruction(
+        self,
+        instruction_id: str,
+        currency_pair: str,
+        session: str = "DEFAULT",
+    ) -> CLSInstruction:
+        """Generate a CLS pay-in instruction for FX settlements."""
+
+        instruction = self.instructions.get(instruction_id)
+        if not instruction:
+            raise ValueError(f"Instruction {instruction_id} not found")
+
+        if len(currency_pair) != 7 or currency_pair[3] != "/":
+            raise ValueError("currency_pair must be formatted as 'XXX/YYY'")
+
+        if not instruction.cash_flows:
+            raise ValueError("CLS instructions require cash flows")
+
+        gross_amount = sum(abs(flow.amount) for flow in instruction.cash_flows)
+        direction = instruction.cash_flows[0].direction
+
+        funding_cutoff = datetime.combine(
+            instruction.settlement_date,
+            datetime.min.time(),
+        ) - timedelta(hours=2)
+
+        return CLSInstruction(
+            instruction_id=instruction.instruction_id,
+            trade_id=instruction.trade_id,
+            currency_pair=currency_pair,
+            value_date=instruction.settlement_date,
+            gross_amount=gross_amount,
+            direction=direction,
+            session=session,
+            funding_cutoff=funding_cutoff,
+            status=instruction.status,
+            metadata={
+                "deliverer": instruction.deliverer.party_id,
+                "receiver": instruction.receiver.party_id,
+            },
+        )
+
+    def generate_euroclear_instruction(
+        self,
+        instruction_id: str,
+        safekeeping_account: Optional[str] = None,
+    ) -> EuroclearInstruction:
+        """Generate Euroclear-compatible payload for settlement instruction."""
+
+        instruction = self.instructions.get(instruction_id)
+        if not instruction:
+            raise ValueError(f"Instruction {instruction_id} not found")
+
+        if not instruction.securities_movements:
+            raise ValueError("Euroclear instruction requires securities movements")
+
+        place_of_settlement = next(
+            (
+                movement.place_of_settlement
+                for movement in instruction.securities_movements
+                if movement.place_of_settlement
+            ),
+            "EUROCLEAR",
+        )
+
+        participant_account = safekeeping_account or instruction.deliverer.member_id
+        if not participant_account:
+            participant_account = instruction.deliverer.party_id
+
+        counterparty_account = instruction.receiver.member_id or instruction.receiver.party_id
+
+        securities = [
+            {
+                "security_id": movement.security_id,
+                "quantity": str(movement.quantity),
+                "direction": movement.direction,
+            }
+            for movement in instruction.securities_movements
+        ]
+
+        cash_flows = [
+            {
+                "amount": str(flow.amount),
+                "currency": flow.currency,
+                "direction": flow.direction,
+            }
+            for flow in instruction.cash_flows
+        ]
+
+        references = {
+            "trade_id": instruction.trade_id,
+            "instruction_id": instruction.instruction_id,
+        }
+        if instruction.confirmation_id:
+            references["confirmation_id"] = instruction.confirmation_id
+
+        return EuroclearInstruction(
+            instruction_id=instruction.instruction_id,
+            trade_id=instruction.trade_id,
+            place_of_settlement=place_of_settlement,
+            participant_account=participant_account,
+            counterparty_account=counterparty_account,
+            settlement_date=instruction.settlement_date,
+            settlement_type=instruction.settlement_type,
+            securities=securities,
+            cash_flows=cash_flows,
+            priority=instruction.priority,
+            references=references,
+            metadata={
+                "method": instruction.settlement_method.value,
+                "partial_allowed": instruction.partial_settlement_allowed,
+            },
+        )
+
+    @staticmethod
+    def _resolve_swift_message_type(
+        instruction: SettlementInstruction,
+    ) -> SwiftSettlementMessageType:
+        """Infer SWIFT message type from settlement instruction."""
+
+        if instruction.settlement_type == SettlementType.FOP:
+            return SwiftSettlementMessageType.MT540
+
+        if instruction.settlement_type == SettlementType.RVP:
+            return SwiftSettlementMessageType.MT541
+
+        if instruction.settlement_type == SettlementType.DVP:
+            direction = None
+            if instruction.securities_movements:
+                direction = instruction.securities_movements[0].direction
+
+            if direction == "receive":
+                return SwiftSettlementMessageType.MT541
+
+            return SwiftSettlementMessageType.MT543
+
+        if instruction.settlement_type == SettlementType.DAP:
+            return SwiftSettlementMessageType.MT543
+
+        return SwiftSettlementMessageType.MT542
 
     def get_pending_instructions(
         self,
@@ -521,10 +742,14 @@ __all__ = [
     "SettlementType",
     "SettlementStatus",
     "SettlementMethod",
+    "SwiftSettlementMessageType",
     "FailReason",
     "CashFlow",
     "SecuritiesMovement",
     "SettlementSchedule",
     "SettlementStatistics",
     "SettlementInstructionGenerator",
+    "SwiftSettlementMessage",
+    "CLSInstruction",
+    "EuroclearInstruction",
 ]

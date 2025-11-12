@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from datetime import date
 from decimal import Decimal
-from typing import Dict, List, Optional, Sequence
+from typing import Any, Dict, List, Optional, Sequence
 
 import jax.numpy as jnp
 from pydantic import BaseModel, ConfigDict, Field
@@ -63,6 +63,7 @@ class Portfolio(BaseModel):
     base_currency: str = Field(default="USD", min_length=3, max_length=3)
     positions: Dict[str, PortfolioPosition] = Field(default_factory=dict)
     cash_balances: Dict[str, Decimal] = Field(default_factory=dict)
+    metadata: Dict[str, Any] = Field(default_factory=dict)
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
