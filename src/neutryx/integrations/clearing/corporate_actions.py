@@ -258,6 +258,23 @@ class RightsTerms(BaseModel):
     oversubscription_allowed: bool = Field(default=False)
 
 
+def _parse_ratio(ratio: str) -> Decimal:
+    """Parse ratio strings like '1:5' into Decimal values."""
+
+    if ratio is None:
+        raise ValueError("Ratio value is required")
+
+    if isinstance(ratio, Decimal):
+        return ratio
+
+    ratio_str = str(ratio)
+    if ":" in ratio_str:
+        numerator, denominator = ratio_str.split(":", 1)
+        return Decimal(numerator.strip()) / Decimal(denominator.strip())
+
+    return Decimal(ratio_str)
+
+
 class Position(BaseModel):
     """Security position for corporate action processing."""
 
@@ -389,6 +406,17 @@ class CorporateActionProcessor:
         """Add position for processing."""
         self.positions[position.position_id] = position
         return position
+
+    def _store_entitlement(self, entitlement: Entitlement) -> Entitlement:
+        """Persist entitlement and update statistics."""
+
+        self.entitlements[entitlement.entitlement_id] = entitlement
+        self.statistics.total_entitlements += 1
+
+        if entitlement.net_amount:
+            self.statistics.total_entitlement_value += entitlement.net_amount
+
+        return entitlement
 
     def calculate_dividend_entitlement(
         self,
@@ -578,13 +606,7 @@ class CorporateActionProcessor:
         else:
             raise NotImplementedError(f"Payment type {terms.payment_type} not implemented")
 
-        self.entitlements[entitlement.entitlement_id] = entitlement
-        self.statistics.total_entitlements += 1
-
-        if entitlement.net_amount:
-            self.statistics.total_entitlement_value += entitlement.net_amount
-
-        return entitlement
+        return self._store_entitlement(entitlement)
 
     def calculate_split_adjustment(
         self,
@@ -625,6 +647,234 @@ class CorporateActionProcessor:
         }
 
         return Decimal(new_quantity_whole), cash_in_lieu
+
+    def calculate_rights_issue(
+        self,
+        event_id: str,
+        position: Position,
+        terms: RightsTerms,
+    ) -> Entitlement:
+        """Calculate entitlements for a rights issue event."""
+
+        event = self.events.get(event_id)
+        if not event:
+            raise ValueError(f"Event {event_id} not found")
+
+        ratio = _parse_ratio(terms.subscription_ratio)
+        total_rights = position.quantity * ratio
+        subscription_value = total_rights * terms.subscription_price
+
+        entitlement = Entitlement(
+            event_id=event_id,
+            position_id=position.position_id,
+            holder=position.holder,
+            account=position.account,
+            entitled_quantity=position.quantity,
+            stock_entitlement=total_rights,
+            new_security_id=event.new_security_id,
+            currency=terms.currency,
+            net_amount=-subscription_value,
+            metadata={
+                "subscription_price": str(terms.subscription_price),
+                "subscription_value": str(subscription_value),
+                "oversubscription_allowed": terms.oversubscription_allowed,
+            },
+        )
+
+        return self._store_entitlement(entitlement)
+
+    def calculate_merger_entitlement(
+        self,
+        event_id: str,
+        position: Position,
+        terms: MergerTerms,
+    ) -> Entitlement:
+        """Calculate entitlements for merger or acquisition events."""
+
+        event = self.events.get(event_id)
+        if not event:
+            raise ValueError(f"Event {event_id} not found")
+
+        stock_ratio = Decimal("0")
+        if terms.exchange_ratio:
+            stock_ratio = _parse_ratio(terms.exchange_ratio)
+        elif terms.stock_consideration:
+            stock_ratio = terms.stock_consideration
+
+        new_shares = position.quantity * stock_ratio
+        cash_amount = Decimal("0")
+        if terms.cash_consideration:
+            cash_amount = position.quantity * terms.cash_consideration
+
+        new_security_id = terms.acquirer_security_id or event.new_security_id
+
+        entitlement = Entitlement(
+            event_id=event_id,
+            position_id=position.position_id,
+            holder=position.holder,
+            account=position.account,
+            entitled_quantity=position.quantity,
+            stock_entitlement=new_shares if new_shares > 0 else None,
+            new_security_id=new_security_id,
+            cash_entitlement=cash_amount if cash_amount > 0 else None,
+            currency=(event.metadata or {}).get("consideration_currency"),
+            net_amount=cash_amount if cash_amount > 0 else None,
+            metadata={
+                "exchange_ratio": terms.exchange_ratio,
+                "cash_consideration": str(terms.cash_consideration)
+                if terms.cash_consideration is not None
+                else None,
+                "election_available": terms.election_available,
+                "proration_possible": terms.proration_possible,
+            },
+        )
+
+        if new_shares > 0:
+            position.metadata.setdefault("merger_exchanges", []).append({
+                "event_id": event_id,
+                "old_quantity": float(position.quantity),
+                "new_shares": float(new_shares),
+                "new_security_id": new_security_id,
+            })
+            position.quantity = new_shares
+            if new_security_id:
+                position.security_id = new_security_id
+
+        return self._store_entitlement(entitlement)
+
+    def process_spin_off_entitlement(
+        self,
+        event_id: str,
+        position: Position,
+        spin_terms: Dict[str, Any],
+    ) -> Entitlement:
+        """Calculate entitlements for spin-off or demerger events."""
+
+        event = self.events.get(event_id)
+        if not event:
+            raise ValueError(f"Event {event_id} not found")
+
+        ratio_str = spin_terms.get("spin_off_ratio") or spin_terms.get("distribution_ratio")
+        if not ratio_str:
+            raise ValueError("Spin-off terms must include spin_off_ratio")
+
+        ratio = _parse_ratio(ratio_str)
+        total_new_shares = position.quantity * ratio
+        whole_shares = Decimal(int(total_new_shares))
+        fractional = total_new_shares - whole_shares
+
+        cash_in_lieu = Decimal("0")
+        cash_price = spin_terms.get("cash_in_lieu_price")
+        if cash_price is not None:
+            cash_in_lieu = fractional * Decimal(str(cash_price))
+
+        entitlement = Entitlement(
+            event_id=event_id,
+            position_id=position.position_id,
+            holder=position.holder,
+            account=position.account,
+            entitled_quantity=position.quantity,
+            stock_entitlement=whole_shares,
+            new_security_id=spin_terms.get("new_security_id") or event.new_security_id,
+            fractional_shares=fractional,
+            cash_in_lieu=cash_in_lieu if cash_in_lieu > 0 else None,
+            currency=spin_terms.get("currency"),
+            metadata={
+                "spin_off_ratio": ratio_str,
+                "cash_in_lieu_price": str(cash_price) if cash_price is not None else None,
+            },
+        )
+
+        return self._store_entitlement(entitlement)
+
+    def process_redemption_event(
+        self,
+        event_id: str,
+        position: Position,
+        redemption_price: Decimal,
+        currency: Optional[str],
+    ) -> Entitlement:
+        """Process redemption, call or maturity events."""
+
+        cash_amount = position.quantity * redemption_price
+
+        entitlement = Entitlement(
+            event_id=event_id,
+            position_id=position.position_id,
+            holder=position.holder,
+            account=position.account,
+            entitled_quantity=position.quantity,
+            cash_entitlement=cash_amount,
+            currency=currency,
+            net_amount=cash_amount,
+        )
+
+        position.metadata.setdefault("redemptions", []).append({
+            "event_id": event_id,
+            "redemption_price": float(redemption_price),
+            "cash_amount": float(cash_amount),
+        })
+        position.quantity = Decimal("0")
+
+        return self._store_entitlement(entitlement)
+
+    def _event_elections(self, event_id: str) -> List[Election]:
+        """Retrieve non-withdrawn elections for an event."""
+
+        return [
+            election
+            for election in self.elections.values()
+            if election.event_id == event_id and not election.withdrawn
+        ]
+
+    def process_tender_offer(
+        self,
+        event_id: str,
+        terms: Dict[str, Any],
+    ) -> List[Entitlement]:
+        """Create entitlements from tender or exchange offers."""
+
+        elections = self._event_elections(event_id)
+        if not elections:
+            raise ValueError("Tender offer requires elections")
+
+        offer_price = Decimal(str(terms.get("offer_price", "0")))
+        currency = terms.get("currency")
+
+        entitlements: List[Entitlement] = []
+
+        for election in elections:
+            position = self.positions.get(election.position_id)
+            if not position:
+                continue
+
+            quantity = election.elected_quantity
+            cash_amount = offer_price * quantity if offer_price else None
+
+            entitlement = Entitlement(
+                event_id=event_id,
+                position_id=election.position_id,
+                holder=position.holder,
+                account=position.account,
+                entitled_quantity=quantity,
+                cash_entitlement=cash_amount,
+                currency=currency,
+                net_amount=cash_amount,
+                metadata={
+                    "elected_option": election.elected_option,
+                    "is_default": election.is_default,
+                },
+            )
+
+            entitlements.append(self._store_entitlement(entitlement))
+            position.quantity -= quantity
+            position.metadata.setdefault("tender_offers", []).append({
+                "event_id": event_id,
+                "quantity_tendered": float(quantity),
+                "cash_amount": float(cash_amount) if cash_amount else None,
+            })
+
+        return entitlements
 
     def submit_election(
         self,
@@ -740,6 +990,55 @@ class CorporateActionProcessor:
             for position in eligible_positions:
                 new_qty, cash = self.calculate_split_adjustment(event_id, position, terms)
                 # Could create entitlement for cash_in_lieu if needed
+
+        elif event.event_type == CorporateActionType.RIGHTS_ISSUE:
+            terms = RightsTerms(**event.terms)
+            for position in eligible_positions:
+                entitlements.append(self.calculate_rights_issue(event_id, position, terms))
+
+        elif event.event_type in [
+            CorporateActionType.MERGER,
+            CorporateActionType.ACQUISITION,
+        ]:
+            terms = MergerTerms(**event.terms)
+            for position in eligible_positions:
+                entitlements.append(
+                    self.calculate_merger_entitlement(event_id, position, terms)
+                )
+
+        elif event.event_type in [
+            CorporateActionType.SPIN_OFF,
+            CorporateActionType.DEMERGER,
+        ]:
+            for position in eligible_positions:
+                entitlements.append(
+                    self.process_spin_off_entitlement(event_id, position, event.terms)
+                )
+
+        elif event.event_type in [
+            CorporateActionType.TENDER_OFFER,
+            CorporateActionType.EXCHANGE_OFFER,
+        ]:
+            entitlements.extend(self.process_tender_offer(event_id, event.terms))
+
+        elif event.event_type in [
+            CorporateActionType.CALL,
+            CorporateActionType.REDEMPTION,
+            CorporateActionType.MATURITY,
+        ]:
+            redemption_price = event.terms.get("redemption_price")
+            if redemption_price is None:
+                raise ValueError("Redemption events require redemption_price term")
+
+            redemption_price = Decimal(str(redemption_price))
+            currency = event.terms.get("currency")
+
+            for position in eligible_positions:
+                entitlements.append(
+                    self.process_redemption_event(
+                        event_id, position, redemption_price, currency
+                    )
+                )
 
         event.status = CorporateActionStatus.COMPLETED
         self.statistics.completed_events += 1
