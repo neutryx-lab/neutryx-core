@@ -16,12 +16,13 @@ Implements industry standards:
 
 from __future__ import annotations
 
+from collections import defaultdict
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from decimal import Decimal
 from enum import Enum
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Set, Tuple
 from uuid import uuid4
 
 from pydantic import BaseModel, Field, ConfigDict, field_validator
@@ -53,6 +54,7 @@ class BreakType(str, Enum):
     MISSING_CONFIRMATION = "missing_confirmation"
     DUPLICATE_CONFIRMATION = "duplicate_confirmation"
     TIMEOUT = "timeout"
+    EXTERNAL_STATUS_MISMATCH = "external_status_mismatch"
 
 
 class BreakSeverity(str, Enum):
@@ -658,6 +660,351 @@ class AllocationConfirmation(BaseModel):
     metadata: Dict[str, Any] = Field(default_factory=dict)
 
 
+class ExternalSystem(str, Enum):
+    """External systems participating in confirmation flow."""
+
+    DTCC_CTM = "dtcc_ctm"
+    MARKITWIRE = "markitwire"
+    SWIFT = "swift"
+    CCP = "ccp"
+    PRIME_BROKER = "prime_broker"
+    CLIENT_PORTAL = "client_portal"
+
+
+class ExternalRecordStatus(str, Enum):
+    """Status values reported by external confirmation systems."""
+
+    PENDING = "pending"
+    ACKNOWLEDGED = "acknowledged"
+    MATCHED = "matched"
+    AFFIRMED = "affirmed"
+    REJECTED = "rejected"
+    CANCELLED = "cancelled"
+    FAILED = "failed"
+
+
+class ReconciliationStatus(str, Enum):
+    """Status of external reconciliation."""
+
+    PENDING = "pending"
+    RECONCILED = "reconciled"
+    BROKEN = "broken"
+
+
+class ExternalConfirmationRecord(BaseModel):
+    """External status snapshot for a confirmation."""
+
+    record_id: str = Field(default_factory=lambda: f"EXT-{uuid4().hex[:12].upper()}")
+    trade_id: str = Field(..., description="Associated trade identifier")
+    system: ExternalSystem = Field(..., description="External system source")
+    status: ExternalRecordStatus = Field(..., description="External status")
+
+    confirmation_id: Optional[str] = Field(
+        None, description="Internal confirmation identifier if supplied"
+    )
+    direction: Optional[str] = Field(
+        None, description="Side (buy/sell) from external perspective"
+    )
+
+    received_time: datetime = Field(default_factory=datetime.utcnow)
+    details: Dict[str, Any] = Field(default_factory=dict)
+
+
+class ReconciliationIssue(BaseModel):
+    """Issue detected during reconciliation."""
+
+    issue_id: str = Field(default_factory=lambda: f"ISS-{uuid4().hex[:12].upper()}")
+    description: str = Field(..., description="Human readable description")
+    severity: BreakSeverity = Field(..., description="Impact of the issue")
+    break_id: Optional[str] = Field(None, description="Associated break identifier")
+
+
+class ReconciliationResult(BaseModel):
+    """Result of reconciling internal and external confirmations."""
+
+    trade_id: str = Field(...)
+    status: ReconciliationStatus = Field(...)
+    issues: List[ReconciliationIssue] = Field(default_factory=list)
+    confirmation_ids: List[str] = Field(default_factory=list)
+    external_record_ids: List[str] = Field(default_factory=list)
+    reconciled_time: datetime = Field(default_factory=datetime.utcnow)
+
+
+class ConfirmationReconciliationEngine:
+    """Coordinate confirmation matching with external system statuses."""
+
+    def __init__(self, matcher: ConfirmationMatcher):
+        self.matcher = matcher
+        self.external_records: Dict[str, List[ExternalConfirmationRecord]] = defaultdict(list)
+        self.results: Dict[str, ReconciliationResult] = {}
+
+    def submit_confirmation(self, confirmation: Confirmation) -> Confirmation:
+        """Register a confirmation with the underlying matcher."""
+        return self.matcher.add_confirmation(confirmation)
+
+    def record_external_confirmation(
+        self, record: ExternalConfirmationRecord
+    ) -> ExternalConfirmationRecord:
+        """Record external system status and detect mismatches."""
+
+        confirmations = self._match_confirmations(record)
+        if not confirmations:
+            # keep record but raise potential issue on reconciliation
+            self.external_records[record.trade_id].append(record)
+            self.reconcile_trade(record.trade_id)
+            return record
+
+        self.external_records[record.trade_id].append(record)
+
+        for confirmation in confirmations:
+            confirmation.metadata.setdefault("external_statuses", {})[
+                record.system.value
+            ] = record.status.value
+
+            if not self._status_aligned(confirmation.status, record.status):
+                brk = self._create_external_break(confirmation, record)
+                self.matcher.breaks[brk.break_id] = brk
+
+        # refresh reconciliation state with new record information
+        self.reconcile_trade(record.trade_id)
+
+        return record
+
+    def reconcile_trade(self, trade_id: str) -> ReconciliationResult:
+        """Reconcile confirmations for a trade with external statuses."""
+
+        confirmations = self._find_confirmations(trade_id)
+        external_records = self.external_records.get(trade_id, [])
+        issues: List[ReconciliationIssue] = []
+
+        if not confirmations:
+            issues.append(
+                ReconciliationIssue(
+                    description="No internal confirmations available for trade",
+                    severity=BreakSeverity.HIGH,
+                )
+            )
+
+        if not external_records:
+            issues.append(
+                ReconciliationIssue(
+                    description="No external confirmation statuses received",
+                    severity=BreakSeverity.MEDIUM,
+                )
+            )
+
+        status = ReconciliationStatus.RECONCILED
+        if issues:
+            status = ReconciliationStatus.PENDING
+
+        for confirmation in confirmations:
+            matching = self._matching_records_for_confirmation(confirmation, external_records)
+
+            if not matching:
+                issues.append(
+                    ReconciliationIssue(
+                        description=(
+                            f"No external status for confirmation {confirmation.confirmation_id}"
+                        ),
+                        severity=BreakSeverity.MEDIUM,
+                    )
+                )
+                status = ReconciliationStatus.PENDING
+                continue
+
+            latest_record = max(matching, key=lambda rec: rec.received_time)
+            if not self._status_aligned(confirmation.status, latest_record.status):
+                brk = self._create_external_break(confirmation, latest_record)
+                self.matcher.breaks[brk.break_id] = brk
+
+                issues.append(
+                    ReconciliationIssue(
+                        description=(
+                            "Status mismatch between internal confirmation "
+                            f"{confirmation.confirmation_id} ({confirmation.status.value}) "
+                            f"and {latest_record.system.value} "
+                            f"({latest_record.status.value})"
+                        ),
+                        severity=BreakSeverity.HIGH,
+                        break_id=brk.break_id,
+                    )
+                )
+                status = ReconciliationStatus.BROKEN
+
+        result = ReconciliationResult(
+            trade_id=trade_id,
+            status=status,
+            issues=issues,
+            confirmation_ids=[conf.confirmation_id for conf in confirmations],
+            external_record_ids=[record.record_id for record in external_records],
+        )
+
+        self.results[trade_id] = result
+        return result
+
+    def affirm_trade(
+        self,
+        trade_id: str,
+        method: AffirmationMethod,
+        affirmed_by: str,
+    ) -> List[Confirmation]:
+        """Affirm confirmations for a trade once reconciliation succeeds."""
+
+        result = self.reconcile_trade(trade_id)
+        if result.status != ReconciliationStatus.RECONCILED:
+            raise ValueError(
+                "Cannot affirm trade until reconciliation status is RECONCILED"
+            )
+
+        affirmed: List[Confirmation] = []
+        for confirmation in self._find_confirmations(trade_id):
+            if confirmation.status != ConfirmationStatus.AFFIRMED:
+                affirmed.append(
+                    self.matcher.affirm_confirmation(
+                        confirmation.confirmation_id, method, affirmed_by
+                    )
+                )
+            else:
+                affirmed.append(confirmation)
+
+        return affirmed
+
+    def get_outstanding_affirmations(self) -> List[str]:
+        """Return trade IDs that still require affirmation or reconciliation."""
+
+        outstanding: List[str] = []
+        for trade_id, result in self.results.items():
+            if result.status != ReconciliationStatus.RECONCILED:
+                outstanding.append(trade_id)
+                continue
+
+            confirmations = self._find_confirmations(trade_id)
+            if any(conf.status != ConfirmationStatus.AFFIRMED for conf in confirmations):
+                outstanding.append(trade_id)
+
+        return outstanding
+
+    def get_external_records(self, trade_id: str) -> List[ExternalConfirmationRecord]:
+        """Return all external records captured for a trade."""
+
+        return list(self.external_records.get(trade_id, []))
+
+    def _match_confirmations(
+        self, record: ExternalConfirmationRecord
+    ) -> List[Confirmation]:
+        """Find confirmations associated with an external record."""
+
+        confirmations: List[Confirmation] = []
+
+        if record.confirmation_id:
+            confirmation = self.matcher.confirmations.get(record.confirmation_id)
+            if confirmation:
+                confirmations.append(confirmation)
+                return confirmations
+
+        for confirmation in self._find_confirmations(record.trade_id):
+            if record.direction and confirmation.direction != record.direction:
+                continue
+            confirmations.append(confirmation)
+
+        return confirmations
+
+    def _find_confirmations(self, trade_id: str) -> List[Confirmation]:
+        """Helper to fetch confirmations for a trade."""
+
+        return [
+            conf
+            for conf in self.matcher.confirmations.values()
+            if conf.details.trade_id == trade_id
+        ]
+
+    @staticmethod
+    def _matching_records_for_confirmation(
+        confirmation: Confirmation,
+        external_records: Iterable[ExternalConfirmationRecord],
+    ) -> List[ExternalConfirmationRecord]:
+        """Filter external records relevant for a confirmation."""
+
+        candidates = []
+        for record in external_records:
+            if record.confirmation_id and record.confirmation_id != confirmation.confirmation_id:
+                continue
+
+            if record.direction and record.direction != confirmation.direction:
+                continue
+
+            candidates.append(record)
+
+        return candidates
+
+    @staticmethod
+    def _status_aligned(
+        confirmation_status: ConfirmationStatus,
+        external_status: ExternalRecordStatus,
+    ) -> bool:
+        """Determine whether internal/external statuses align."""
+
+        alignment = {
+            ConfirmationStatus.PENDING: {
+                ExternalRecordStatus.PENDING,
+                ExternalRecordStatus.ACKNOWLEDGED,
+            },
+            ConfirmationStatus.SENT: {
+                ExternalRecordStatus.PENDING,
+                ExternalRecordStatus.ACKNOWLEDGED,
+            },
+            ConfirmationStatus.RECEIVED: {
+                ExternalRecordStatus.ACKNOWLEDGED,
+            },
+            ConfirmationStatus.MATCHED: {
+                ExternalRecordStatus.MATCHED,
+                ExternalRecordStatus.AFFIRMED,
+            },
+            ConfirmationStatus.AFFIRMED: {
+                ExternalRecordStatus.AFFIRMED,
+            },
+            ConfirmationStatus.REJECTED: {
+                ExternalRecordStatus.REJECTED,
+                ExternalRecordStatus.CANCELLED,
+            },
+            ConfirmationStatus.CANCELLED: {
+                ExternalRecordStatus.CANCELLED,
+            },
+            ConfirmationStatus.MISMATCHED: {
+                ExternalRecordStatus.PENDING,
+                ExternalRecordStatus.MATCHED,
+                ExternalRecordStatus.AFFIRMED,
+            },
+        }
+
+        allowed = alignment.get(confirmation_status)
+        if not allowed:
+            return True
+
+        return external_status in allowed
+
+    @staticmethod
+    def _create_external_break(
+        confirmation: Confirmation,
+        record: ExternalConfirmationRecord,
+    ) -> TradeBreak:
+        """Create break entry for external mismatch."""
+
+        return TradeBreak(
+            break_type=BreakType.EXTERNAL_STATUS_MISMATCH,
+            severity=BreakSeverity.HIGH,
+            confirmation_a_id=confirmation.confirmation_id,
+            confirmation_b_id=record.confirmation_id or record.record_id,
+            field_name="status",
+            expected_value=confirmation.status.value,
+            actual_value=record.status.value,
+            metadata={
+                "system": record.system.value,
+                "record_id": record.record_id,
+            },
+        )
+
+
 __all__ = [
     "Confirmation",
     "ConfirmationStatus",
@@ -671,4 +1018,11 @@ __all__ = [
     "ToleranceConfig",
     "AffirmationMethod",
     "AllocationConfirmation",
+    "ExternalSystem",
+    "ExternalRecordStatus",
+    "ExternalConfirmationRecord",
+    "ReconciliationStatus",
+    "ReconciliationIssue",
+    "ReconciliationResult",
+    "ConfirmationReconciliationEngine",
 ]
