@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import Any, Dict, Iterable, List, Optional
-import xml.etree.ElementTree as ET
+import defusedxml.ElementTree as ET
 
 try:  # Optional dependency for XSD validation
     import xmlschema  # type: ignore
