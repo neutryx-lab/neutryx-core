@@ -76,6 +76,12 @@ from .g2pp import (
     forward_rate_correlation as g2pp_forward_correlation,
     create_fitted_g2pp,
 )
+from .interest_rate import (
+    InterestRateModel,
+    G2PPInterestRateModel,
+    QuasiGaussianInterestRateModel,
+    create_interest_rate_model,
+)
 from .quasi_gaussian import (
     QuasiGaussianParams,
     zero_coupon_bond_price as qg_bond_price,
@@ -175,6 +181,11 @@ __all__ = [
     "g2pp_swaption_price",
     "g2pp_forward_correlation",
     "create_fitted_g2pp",
+    # Unified interest-rate interface
+    "InterestRateModel",
+    "G2PPInterestRateModel",
+    "QuasiGaussianInterestRateModel",
+    "create_interest_rate_model",
     # Quasi-Gaussian model
     "QuasiGaussianParams",
     "qg_bond_price",
