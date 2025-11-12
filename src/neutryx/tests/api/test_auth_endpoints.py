@@ -8,7 +8,7 @@ from fastapi.testclient import TestClient
 from neutryx.api.rest import create_app
 from neutryx.api.auth.models import User
 from neutryx.api.auth.jwt_handler import JWTHandler
-from neutryx.api.auth.dependencies import add_user_to_store
+from neutryx.api.auth.dependencies import add_user_to_store, register_local_user
 
 
 @pytest.fixture
@@ -91,6 +91,34 @@ class TestAuthEndpoints:
         data = response.json()
         assert "access_token" in data
         assert "refresh_token" in data
+        assert data["token_type"] == "bearer"
+
+    def test_local_login_without_ldap(self, client):
+        """Local users can obtain tokens when LDAP is not configured."""
+
+        user = User(
+            user_id="local-user-001",
+            username="localuser",
+            email="local@example.com",
+            full_name="Local User",
+            roles={"viewer"},
+            permissions=set(),
+            tenant_id="tenant-local",
+        )
+        register_local_user(user, "s3cret123")
+
+        response = client.post(
+            "/auth/token",
+            data={
+                "username": "localuser",
+                "password": "s3cret123",
+                "grant_type": "password",
+            },
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert "access_token" in data
         assert data["token_type"] == "bearer"
 
     def test_mfa_setup(self, client, auth_token):
