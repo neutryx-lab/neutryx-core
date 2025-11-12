@@ -219,7 +219,9 @@ def heston_call_price_cf(
     r: float,
     q: float,
     params: HestonParams,
-    n_points: int = 1000,
+    n_points: int = 1024,
+    alpha: float = 1.5,
+    eta: float = 0.25,
 ) -> float:
     """Price European call using Heston characteristic function (FFT).
 
@@ -247,43 +249,51 @@ def heston_call_price_cf(
     float
         Call option price
     """
-    # Carr-Madan damping parameter
-    alpha = 1.5
+    # Ensure number of integration points is even for Simpson weights
+    if n_points % 2 != 0:
+        raise ValueError("n_points must be even for Carr-Madan Simpson integration")
 
-    # FFT parameters
-    eta = 0.25
     lambda_val = 2.0 * jnp.pi / (n_points * eta)
-    b = n_points * lambda_val / 2.0
+    b = 0.5 * n_points * lambda_val
 
-    # Strike in log terms
-    log_K = jnp.log(K)
+    indices = jnp.arange(n_points)
+    v = indices * eta
 
-    # Integration points
-    v = jnp.arange(n_points) * eta
+    log_S0 = jnp.log(S0)
+    shifted_u = v - (alpha + 1.0) * 1j
 
-    # Modified characteristic function for call
-    def psi(u):
-        cf = characteristic_function(
-            u - (alpha + 1) * 1j, T, params.v0, params.kappa, params.theta,
-            params.sigma, params.rho, r, q
-        )
-        return jnp.exp(-r * T) * cf / (alpha ** 2 + alpha - u ** 2 + 1j * (2 * alpha + 1) * u)
+    phi = characteristic_function(
+        shifted_u,
+        T,
+        params.v0,
+        params.kappa,
+        params.theta,
+        params.sigma,
+        params.rho,
+        r,
+        q,
+    )
+    phi = phi * jnp.exp(1j * shifted_u * log_S0)
 
-    # FFT integration
-    x = jnp.exp(1j * b * v) * psi(v) * eta * (3 + (-1) ** jnp.arange(n_points))
-    x = x.at[0].set(x[0] / 2.0)
+    denominator = alpha**2 + alpha - v**2 + 1j * (2.0 * alpha + 1.0) * v
+    psi_vals = jnp.exp(-r * T) * phi / denominator
 
-    # FFT
-    fft_result = jnp.fft.fft(x)
+    weights = jnp.ones(n_points)
+    weights = weights.at[1:-1:2].set(4.0)
+    weights = weights.at[2:-1:2].set(2.0)
+    weights = weights.at[0].set(1.0)
+    weights = weights.at[-1].set(1.0)
+    weights = weights * (eta / 3.0)
 
-    # Extract price
-    k_values = -b + lambda_val * jnp.arange(n_points)
-    call_values = jnp.exp(-alpha * k_values) / jnp.pi * jnp.real(fft_result)
+    fft_input = psi_vals * jnp.exp(1j * v * b) * weights
+    fft_output = jnp.fft.fft(fft_input)
 
-    # Interpolate to strike
-    call_price = jnp.interp(log_K, k_values, call_values)
+    k_grid = -b + lambda_val * indices
+    call_grid = jnp.exp(-alpha * k_grid) / jnp.pi * jnp.real(fft_output)
 
-    return call_price
+    call_price = jnp.interp(jnp.log(K), k_grid, call_grid)
+
+    return jnp.real(call_price)
 
 
 def heston_call_price_semi_analytical(
@@ -363,15 +373,20 @@ def heston_call_price_semi_analytical(
 
     # Numerical integration parameters
     u_max = 100.0
-    u_vals = jnp.linspace(0.0001, u_max, n_points)
+    u_vals = jnp.linspace(1e-6, u_max, n_points)
     du = u_vals[1] - u_vals[0]
 
-    # Compute P1 and P2 via numerical integration
+    weights = jnp.ones(n_points)
+    weights = weights.at[1:-1:2].set(4.0)
+    weights = weights.at[2:-1:2].set(2.0)
+    weights = weights.at[0].set(1.0)
+    weights = weights.at[-1].set(1.0)
+
     integrand1 = jax.vmap(lambda u: integrand(u, 1))(u_vals)
     integrand2 = jax.vmap(lambda u: integrand(u, 2))(u_vals)
 
-    P1 = 0.5 + (1.0 / jnp.pi) * du * jnp.sum(integrand1)
-    P2 = 0.5 + (1.0 / jnp.pi) * du * jnp.sum(integrand2)
+    P1 = 0.5 + (du / (3.0 * jnp.pi)) * jnp.sum(weights * integrand1)
+    P2 = 0.5 + (du / (3.0 * jnp.pi)) * jnp.sum(weights * integrand2)
 
     # Option price formula
     call_price = S0 * jnp.exp(-q * T) * P1 - K * jnp.exp(-r * T) * P2
