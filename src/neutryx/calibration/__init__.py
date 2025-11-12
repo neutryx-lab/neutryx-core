@@ -5,6 +5,8 @@ from .base import (
     CalibrationResult,
     ParameterSpec,
     ParameterTransform,
+    ParetoFront,
+    ParetoSolution,
 )
 from .diagnostics import (
     CalibrationDiagnostics,
@@ -56,6 +58,8 @@ __all__ = [
     "CalibrationController",
     "CalibrationDiagnostics",
     "CalibrationResult",
+    "ParetoFront",
+    "ParetoSolution",
     "CrossAssetCalibrator",
     "IdentifiabilityMetrics",
     "InstrumentSpec",
