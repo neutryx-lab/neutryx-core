@@ -374,6 +374,29 @@ class MarketDataEnvironment:
         new_curves[underlier] = curve
         return replace(self, dividend_curves=new_curves)
 
+    def with_credit_curve(
+        self,
+        issuer: str,
+        seniority: str,
+        curve: Curve
+    ) -> MarketDataEnvironment:
+        """
+        Return new environment with updated credit curve.
+
+        Args:
+            issuer: Issuer identifier (e.g., "CorpA")
+            seniority: Seniority level (e.g., "Senior")
+            curve: New credit curve
+
+        Returns:
+            New MarketDataEnvironment with updated credit curve
+        """
+
+        key = (issuer, seniority)
+        new_curves = dict(self.credit_curves)
+        new_curves[key] = curve
+        return replace(self, credit_curves=new_curves)
+
     def with_fx_spot(
         self,
         from_ccy: str,
@@ -394,6 +417,52 @@ class MarketDataEnvironment:
         new_spots = dict(self.fx_spots)
         new_spots[(from_ccy, to_ccy)] = rate
         return replace(self, fx_spots=new_spots)
+
+    def with_fx_forward_curve(
+        self,
+        from_ccy: str,
+        to_ccy: str,
+        curve: Curve
+    ) -> MarketDataEnvironment:
+        """
+        Return new environment with updated FX forward curve.
+
+        Args:
+            from_ccy: Source currency
+            to_ccy: Target currency
+            curve: New forward curve for the FX pair
+
+        Returns:
+            New MarketDataEnvironment with updated FX forward curve
+        """
+
+        pair = (from_ccy, to_ccy)
+        new_curves = dict(self.fx_forward_curves)
+        new_curves[pair] = curve
+        return replace(self, fx_forward_curves=new_curves)
+
+    def with_fx_vol_surface(
+        self,
+        from_ccy: str,
+        to_ccy: str,
+        surface: VolatilitySurface
+    ) -> MarketDataEnvironment:
+        """
+        Return new environment with updated FX volatility surface.
+
+        Args:
+            from_ccy: Source currency
+            to_ccy: Target currency
+            surface: New FX volatility surface for the pair
+
+        Returns:
+            New MarketDataEnvironment with updated FX volatility surface
+        """
+
+        pair = (from_ccy, to_ccy)
+        new_surfaces = dict(self.fx_vol_surfaces)
+        new_surfaces[pair] = surface
+        return replace(self, fx_vol_surfaces=new_surfaces)
 
     def with_metadata(
         self,
