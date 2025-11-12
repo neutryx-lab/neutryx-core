@@ -2,10 +2,16 @@
 
 Tests the REST API for portfolio management and XVA calculations.
 """
+
+import asyncio
+from typing import Any
+
 import pytest
+import httpx
 from fastapi.testclient import TestClient
 
 from neutryx.api.rest import create_app
+from neutryx.api.portfolio_store import InMemoryPortfolioStore
 from neutryx.tests.fixtures.fictional_portfolio import create_fictional_portfolio
 
 
@@ -21,6 +27,15 @@ def portfolio():
     """Create fictional portfolio for testing."""
     portfolio, _ = create_fictional_portfolio()
     return portfolio
+
+
+@pytest.fixture
+def file_store_env(tmp_path, monkeypatch):
+    """Configure environment variables for filesystem store persistence tests."""
+    path = tmp_path / "portfolios.json"
+    monkeypatch.setenv("NEUTRYX_PORTFOLIO_STORE", "filesystem")
+    monkeypatch.setenv("NEUTRYX_PORTFOLIO_STORE_PATH", str(path))
+    return path
 
 
 class TestPortfolioRegistration:
@@ -412,3 +427,53 @@ class TestXVACalculationLogic:
             # Total XVA = CVA - DVA (DVA is subtracted)
             expected_total = result["cva"] - result["dva"]
             assert abs(result["total_xva"] - expected_total) < 0.01
+
+
+class TestPortfolioStoreBehaviour:
+    """Test persistence and concurrency guarantees of the portfolio store."""
+
+    def test_portfolio_persistence_across_app_instances(
+        self, portfolio, file_store_env
+    ) -> None:
+        """Registering a portfolio persists it across new app instances."""
+
+        portfolio_data = portfolio.model_dump(mode="json")
+
+        with TestClient(create_app()) as first_client:
+            response = first_client.post("/portfolio/register", json=portfolio_data)
+            assert response.status_code == 200
+
+        with TestClient(create_app()) as second_client:
+            response = second_client.get("/portfolio/Global Trading Portfolio/summary")
+
+        assert response.status_code == 200
+        summary = response.json()
+        assert summary["portfolio_id"] == "Global Trading Portfolio"
+        assert summary["trades"] == 11
+
+    @pytest.mark.anyio
+    async def test_concurrent_access_is_thread_safe(self, portfolio) -> None:
+        """Concurrent clients should read consistent data without race conditions."""
+
+        store = InMemoryPortfolioStore()
+        app = create_app(portfolio_store=store)
+        portfolio_data = portfolio.model_dump(mode="json")
+
+        with TestClient(app) as client:
+            response = client.post("/portfolio/register", json=portfolio_data)
+            assert response.status_code == 200
+
+        async with httpx.AsyncClient(app=app, base_url="http://test") as async_client:
+
+            async def fetch_summary() -> dict[str, Any]:
+                response = await async_client.get(
+                    "/portfolio/Global Trading Portfolio/summary"
+                )
+                assert response.status_code == 200
+                return response.json()
+
+            results = await asyncio.gather(*(fetch_summary() for _ in range(8)))
+
+        for summary in results:
+            assert summary["portfolio_id"] == "Global Trading Portfolio"
+            assert summary["trades"] == 11

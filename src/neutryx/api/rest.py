@@ -19,6 +19,11 @@ from neutryx.api.config import (
     DEFAULT_SEED,
     RiskCurve,
 )
+from neutryx.api.portfolio_store import (
+    PortfolioStore,
+    PortfolioStoreSettings,
+    create_portfolio_store,
+)
 from neutryx.api.schemas import (
     CVARequest,
     FpMLParseRequest,
@@ -411,7 +416,11 @@ def _calculate_total_xva(result: dict[str, Any]) -> float:
     return total
 
 
-def create_app() -> FastAPI:
+def create_app(
+    *,
+    portfolio_store: PortfolioStore | None = None,
+    store_settings: PortfolioStoreSettings | None = None,
+) -> FastAPI:
     app = FastAPI(title="Neutryx Pricing API", version="0.1.0")
     observability = setup_observability(app)
     metrics = observability.metrics
@@ -419,9 +428,8 @@ def create_app() -> FastAPI:
     # Include authentication router
     app.include_router(auth_router)
 
-    # In-memory portfolio storage (for demo purposes)
-    # In production, this would be a database or cache
-    _portfolios: dict[str, Any] = {}
+    # Portfolio storage backend
+    portfolio_store = portfolio_store or create_portfolio_store(store_settings)
 
     @app.post("/price/vanilla")
     def price_vanilla(payload: VanillaOptionRequest) -> dict[str, float]:
@@ -610,7 +618,7 @@ def create_app() -> FastAPI:
                 from neutryx.portfolio.portfolio import Portfolio
 
                 portfolio = Portfolio.model_validate(portfolio_data)
-                _portfolios[portfolio.name] = portfolio
+                portfolio_store.save_portfolio(portfolio)
 
                 return {
                     "status": "registered",
@@ -625,10 +633,9 @@ def create_app() -> FastAPI:
     @app.get("/portfolio/{portfolio_id}/summary")
     def get_portfolio_summary(portfolio_id: str) -> dict[str, Any]:
         """Get portfolio summary statistics."""
-        if portfolio_id not in _portfolios:
+        portfolio = portfolio_store.get_portfolio(portfolio_id)
+        if portfolio is None:
             raise HTTPException(status_code=404, detail=f"Portfolio '{portfolio_id}' not found")
-
-        portfolio = _portfolios[portfolio_id]
 
         with metrics.time(
             "portfolio.summary",
@@ -661,12 +668,11 @@ def create_app() -> FastAPI:
     @app.post("/portfolio/xva")
     def compute_portfolio_xva(payload: PortfolioXVARequest) -> dict[str, Any]:
         """Compute XVA adjustments for a portfolio or netting set using MC exposures."""
-        if payload.portfolio_id not in _portfolios:
+        portfolio = portfolio_store.get_portfolio(payload.portfolio_id)
+        if portfolio is None:
             raise HTTPException(
                 status_code=404, detail=f"Portfolio '{payload.portfolio_id}' not found"
             )
-
-        portfolio = _portfolios[payload.portfolio_id]
         trades, netting_set, scope = _get_portfolio_trades(portfolio, payload.netting_set_id)
 
         # Handle empty portfolio case
@@ -798,10 +804,9 @@ def create_app() -> FastAPI:
     @app.get("/portfolio/{portfolio_id}/netting-sets")
     def list_netting_sets(portfolio_id: str) -> dict[str, Any]:
         """List all netting sets in a portfolio."""
-        if portfolio_id not in _portfolios:
+        portfolio = portfolio_store.get_portfolio(portfolio_id)
+        if portfolio is None:
             raise HTTPException(status_code=404, detail=f"Portfolio '{portfolio_id}' not found")
-
-        portfolio = _portfolios[portfolio_id]
 
         netting_sets_info = []
         for netting_set_id, netting_set in portfolio.netting_sets.items():
