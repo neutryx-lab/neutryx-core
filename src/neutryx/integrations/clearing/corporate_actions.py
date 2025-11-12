@@ -19,11 +19,12 @@ Implements:
 
 from __future__ import annotations
 
+from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime, date
 from decimal import Decimal
 from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 from uuid import uuid4
 
 from pydantic import BaseModel, Field, field_validator
@@ -798,6 +799,92 @@ class CorporateActionProcessor:
         }
 
 
+@dataclass
+class ScheduledCorporateAction:
+    """Represents a corporate action scheduled for processing."""
+
+    event: CorporateActionEvent
+    execution_date: date
+    status: CorporateActionStatus = CorporateActionStatus.ANNOUNCED
+    attempts: int = 0
+    last_error: Optional[str] = None
+
+    def mark_in_progress(self) -> None:
+        if self.status == CorporateActionStatus.COMPLETED:
+            return
+        self.status = CorporateActionStatus.IN_PROGRESS
+        self.attempts += 1
+
+    def mark_completed(self) -> None:
+        self.status = CorporateActionStatus.COMPLETED
+        self.last_error = None
+
+    def mark_failed(self, error: str) -> None:
+        self.status = CorporateActionStatus.PENDING
+        self.last_error = error
+
+
+class CorporateActionScheduler:
+    """Schedule and orchestrate corporate action processing."""
+
+    def __init__(self) -> None:
+        self._schedule: Dict[date, List[ScheduledCorporateAction]] = defaultdict(list)
+
+    def schedule(self, event: CorporateActionEvent) -> ScheduledCorporateAction:
+        """Schedule an event based on record/payment date."""
+
+        execution_date = event.payment_date or event.record_date
+        scheduled = ScheduledCorporateAction(event=event, execution_date=execution_date)
+        self._schedule[execution_date].append(scheduled)
+        return scheduled
+
+    def consume_due_events(self, as_of: date) -> List[ScheduledCorporateAction]:
+        """Return due events up to ``as_of`` marking them in progress."""
+
+        due: List[ScheduledCorporateAction] = []
+        for execution_date in sorted(self._schedule):
+            if execution_date > as_of:
+                continue
+            for scheduled in self._schedule[execution_date]:
+                if scheduled.status in {
+                    CorporateActionStatus.ANNOUNCED,
+                    CorporateActionStatus.PENDING,
+                }:
+                    scheduled.mark_in_progress()
+                    due.append(scheduled)
+        return due
+
+    def mark_completed(self, event_id: str) -> None:
+        """Mark an event as completed."""
+
+        for scheduled in self._iterate_all():
+            if scheduled.event.event_id == event_id:
+                scheduled.mark_completed()
+                break
+
+    def mark_failed(self, event_id: str, error: str) -> None:
+        """Record a processing failure for retry."""
+
+        for scheduled in self._iterate_all():
+            if scheduled.event.event_id == event_id:
+                scheduled.mark_failed(error)
+                break
+
+    def pending(self) -> List[ScheduledCorporateAction]:
+        """Return all events not yet completed."""
+
+        return [
+            scheduled
+            for scheduled in self._iterate_all()
+            if scheduled.status != CorporateActionStatus.COMPLETED
+        ]
+
+    def _iterate_all(self) -> Iterable[ScheduledCorporateAction]:
+        for entries in self._schedule.values():
+            for scheduled in entries:
+                yield scheduled
+
+
 __all__ = [
     "CorporateActionType",
     "CorporateActionStatus",
@@ -814,4 +901,6 @@ __all__ = [
     "Election",
     "CorporateActionProcessor",
     "CorporateActionStatistics",
+    "ScheduledCorporateAction",
+    "CorporateActionScheduler",
 ]
