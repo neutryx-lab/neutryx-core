@@ -371,7 +371,11 @@ def swaption_price_analytical(
     swap_tenor: float,
     payment_frequency: float = 0.5,
     is_payer: bool = True,
-) -> float:
+    *,
+    mc_paths: int = 4096,
+    mc_steps: Optional[int] = None,
+    key: Optional[jax.random.KeyArray] = None,
+) -> float | tuple[float, float]:
     """Price a European swaption using semi-analytical formula.
 
     The Cheyette model admits semi-analytical formulas for swaptions
@@ -391,11 +395,20 @@ def swaption_price_analytical(
         Payment frequency in years (default: 0.5 for semi-annual)
     is_payer : bool, optional
         If True, price payer swaption. If False, price receiver swaption.
+    mc_paths : int, optional
+        Number of Monte Carlo paths used for multi-factor pricing.
+    mc_steps : int, optional
+        Number of time steps for Monte Carlo simulation. If ``None`` a
+        heuristic based on the option expiry is used.
+    key : jax.random.KeyArray, optional
+        Random key for Monte Carlo simulation. When ``None`` a default
+        deterministic key is used for reproducibility.
 
     Returns
     -------
-    float
-        Swaption price
+    float or tuple[float, float]
+        Swaption price. For Monte Carlo valuation (multi-factor) a tuple of
+        ``(price, standard_error)`` is returned.
 
     Notes
     -----
@@ -473,10 +486,73 @@ def swaption_price_analytical(
         return float(value)
 
     else:
-        # Multi-factor: use Monte Carlo or numerical methods
-        raise NotImplementedError(
-            "Analytical swaption pricing not yet implemented for multi-factor Cheyette"
+        # Multi-factor: fall back to Monte Carlo using existing path simulator
+        if mc_paths <= 0:
+            raise ValueError("mc_paths must be positive")
+
+        total_time = option_expiry
+        if total_time <= 0:
+            raise ValueError("option_expiry must be positive for Monte Carlo pricing")
+
+        n_steps = mc_steps if mc_steps is not None else max(64, int(option_expiry * 64))
+        if n_steps <= 0:
+            raise ValueError("mc_steps must be positive")
+
+        mc_key = key if key is not None else jax.random.PRNGKey(0)
+        r_paths, x_paths, y_paths = simulate_paths(
+            params, total_time, n_steps, mc_paths, mc_key
         )
+
+        dt = total_time / n_steps
+        # Discount factor from 0 to option expiry for each path
+        if r_paths.shape[1] < 2:
+            integrated_rates = dt * r_paths[:, 0]
+        else:
+            interior = jnp.sum(r_paths[:, 1:-1], axis=1)
+            endpoints = 0.5 * (r_paths[:, 0] + r_paths[:, -1])
+            integrated_rates = dt * (endpoints + interior)
+        discount_factors = jnp.exp(-integrated_rates)
+
+        x_T = x_paths[:, -1, :]
+        y_T = y_paths[:, -1, :]
+
+        payment_dates = jnp.array(
+            [option_expiry + (i + 1) * payment_frequency for i in range(n_payments)]
+        )
+        taus = payment_dates - option_expiry
+
+        kappas = jnp.atleast_1d(params.kappa)
+        B_tau = (1.0 - jnp.exp(-jnp.outer(taus, kappas))) / kappas
+        B_tau_sq = B_tau * B_tau
+
+        avg_fwds = jnp.array(
+            [
+                params.forward_curve_fn(float((option_expiry + t) / 2.0))
+                for t in payment_dates
+            ]
+        )
+        market_bonds = jnp.exp(-avg_fwds * taus)
+
+        x_adjustment = jnp.matmul(x_T, B_tau.T)
+        y_adjustment = 0.5 * jnp.matmul(y_T, B_tau_sq.T)
+        bond_prices = market_bonds * jnp.exp(-x_adjustment - y_adjustment)
+
+        annuity = payment_frequency * jnp.sum(bond_prices, axis=1)
+        annuity = jnp.where(annuity <= 1e-12, 1e-12, annuity)
+
+        forward_swap_rate = (1.0 - bond_prices[:, -1]) / annuity
+
+        if is_payer:
+            payoff = annuity * jnp.maximum(forward_swap_rate - strike, 0.0)
+        else:
+            payoff = annuity * jnp.maximum(strike - forward_swap_rate, 0.0)
+
+        discounted_payoff = discount_factors * payoff
+
+        price = jnp.mean(discounted_payoff)
+        std_error = jnp.std(discounted_payoff) / jnp.sqrt(mc_paths)
+
+        return float(price), float(std_error)
 
 
 __all__ = [
