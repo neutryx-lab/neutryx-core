@@ -17,7 +17,6 @@ import jax.numpy as jnp
 import numpy as np
 from jax import Array
 
-from neutryx.infrastructure.governance import record_artifact
 from neutryx.io.base import DataStore, StorageConfig
 
 try:
@@ -148,16 +147,8 @@ class ZarrStore(DataStore):
             overwrite=True,
         )
 
-        base_metadata: Dict[str, Any] = dict(metadata or {})
-        base_metadata.setdefault("storage_backend", "zarr")
-        base_metadata.setdefault("array_shape", list(np_array.shape))
-        base_metadata.setdefault("array_dtype", str(np_array.dtype))
-        enriched_metadata = record_artifact(
-            key,
-            kind="array",
-            metadata=base_metadata,
-            extra_event_metadata={"storage_backend": "zarr", "array_shape": list(np_array.shape)},
-        )
+        # Use shared metadata preparation from base class
+        enriched_metadata = self._prepare_array_metadata(key, np_array, metadata, "zarr")
         self._root[key].attrs.update(enriched_metadata)
 
     def load_array(self, key: str) -> Array:

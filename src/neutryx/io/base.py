@@ -12,7 +12,10 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+import numpy as np
 from jax import Array
+
+from neutryx.infrastructure.governance import record_artifact
 
 
 class StorageBackend(str, Enum):
@@ -276,6 +279,47 @@ class DataStore(ABC):
     def __exit__(self, *args: Any) -> None:
         """Context manager exit."""
         self.close()
+
+    def _prepare_array_metadata(
+        self,
+        key: str,
+        np_array: np.ndarray,
+        metadata: Optional[Dict[str, Any]],
+        backend_name: str,
+    ) -> Dict[str, Any]:
+        """Prepare and enrich array metadata with governance information.
+
+        Parameters
+        ----------
+        key : str
+            Array identifier
+        np_array : np.ndarray
+            NumPy array being saved
+        metadata : dict, optional
+            User-provided metadata
+        backend_name : str
+            Storage backend name ("zarr", "mmap", etc.)
+
+        Returns
+        -------
+        dict
+            Enriched metadata with governance tracking
+        """
+        base_metadata: Dict[str, Any] = dict(metadata or {})
+        base_metadata.setdefault("storage_backend", backend_name)
+        base_metadata.setdefault("array_shape", list(np_array.shape))
+        base_metadata.setdefault("array_dtype", str(np_array.dtype))
+
+        enriched_metadata = record_artifact(
+            key,
+            kind="array",
+            metadata=base_metadata,
+            extra_event_metadata={
+                "storage_backend": backend_name,
+                "array_shape": list(np_array.shape)
+            },
+        )
+        return enriched_metadata
 
     def get_path(self) -> Path:
         """Get storage path as Path object.
