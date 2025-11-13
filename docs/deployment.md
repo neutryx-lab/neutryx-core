@@ -398,8 +398,6 @@ docker push neutryx/neutryx-core:gpu
 
 ## Kubernetes Deployment
 
-For comprehensive Kubernetes deployment instructions, see [KUBERNETES.md](deployment/KUBERNETES.md).
-
 ### Quick Start
 
 ```bash
@@ -1452,7 +1450,6 @@ See [performance_tuning.md](performance_tuning.md) for detailed optimization str
 
 ## References
 
-- [Kubernetes Deployment Guide](deployment/KUBERNETES.md)
 - [Architecture Guide](architecture.md)
 - [Security Audit](security_audit.md)
 - [Monitoring Guide](monitoring.md)
