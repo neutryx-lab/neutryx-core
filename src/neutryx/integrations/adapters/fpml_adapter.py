@@ -72,30 +72,30 @@ class FpMLPricingAdapter:
             Pricing result dictionary with keys:
                 - price: Computed option price
                 - trade: Parsed trade information
-                - request: Neutryx pricing request used
+                - request: Neutryx pricing parameters used
 
         Raises:
             FpMLParseError: If XML parsing fails
-            FpMLMappingError: If conversion to Neutryx request fails
+            FpMLMappingError: If conversion to Neutryx parameters fails
         """
         # Parse XML
         fpml_doc = self.parse_xml(xml_content)
 
-        # Convert to Neutryx request
-        request = fpml.fpml_to_neutryx(fpml_doc, market_data)
+        # Convert to Neutryx parameters
+        params = fpml.fpml_to_neutryx(fpml_doc, market_data)
 
         # Price
         cfg = mc_config or self.default_mc_config
         price = price_vanilla_mc(
             self.key,
-            request.spot,
-            request.strike,
-            request.maturity,
-            request.rate,
-            request.dividend,
-            request.volatility,
+            params["spot"],
+            params["strike"],
+            params["maturity"],
+            params["rate"],
+            params["dividend"],
+            params["volatility"],
             cfg,
-            is_call=request.call,
+            is_call=params["call"],
         )
 
         # Extract trade info
@@ -117,7 +117,7 @@ class FpMLPricingAdapter:
         return {
             "price": float(price),
             "trade": fpml_doc.primary_trade,
-            "request": request,
+            "params": params,
             "trade_info": trade_info,
         }
 
@@ -134,19 +134,19 @@ class FpMLPricingAdapter:
         Returns:
             Pricing result dictionary
         """
-        request = fpml.fpml_to_neutryx(fpml_doc, market_data)
+        params = fpml.fpml_to_neutryx(fpml_doc, market_data)
 
         cfg = mc_config or self.default_mc_config
         price = price_vanilla_mc(
             self.key,
-            request.spot,
-            request.strike,
-            request.maturity,
-            request.rate,
-            request.dividend,
-            request.volatility,
+            params["spot"],
+            params["strike"],
+            params["maturity"],
+            params["rate"],
+            params["dividend"],
+            params["volatility"],
             cfg,
-            is_call=request.call,
+            is_call=params["call"],
         )
 
         # Extract trade info
@@ -168,7 +168,7 @@ class FpMLPricingAdapter:
         return {
             "price": float(price),
             "trade": fpml_doc.primary_trade,
-            "request": request,
+            "params": params,
             "trade_info": trade_info,
         }
 
@@ -183,6 +183,8 @@ class FpMLPricingAdapter:
         is_call: bool = True,
         instrument_id: str = "UNKNOWN",
         trade_date: Optional[date] = None,
+        steps: int = 252,
+        paths: int = 100_000,
     ) -> str:
         """Export pricing parameters to FpML XML.
 
@@ -196,23 +198,25 @@ class FpMLPricingAdapter:
             is_call: True for call, False for put
             instrument_id: Instrument identifier
             trade_date: Trade date (defaults to today)
+            steps: Number of Monte Carlo time steps
+            paths: Number of Monte Carlo paths
 
         Returns:
             FpML XML string
         """
-        from neutryx.api.rest import VanillaOptionRequest
+        params = {
+            "spot": spot,
+            "strike": strike,
+            "maturity": maturity,
+            "rate": rate,
+            "dividend": dividend,
+            "volatility": volatility,
+            "call": is_call,
+            "steps": steps,
+            "paths": paths,
+        }
 
-        request = VanillaOptionRequest(
-            spot=spot,
-            strike=strike,
-            maturity=maturity,
-            rate=rate,
-            dividend=dividend,
-            volatility=volatility,
-            call=is_call,
-        )
-
-        fpml_doc = fpml.neutryx_to_fpml(request, instrument_id, trade_date)
+        fpml_doc = fpml.neutryx_to_fpml(params, instrument_id, trade_date)
         return fpml.serialize_fpml(fpml_doc)
 
 
