@@ -130,17 +130,16 @@ is **JIT-compiled**, **GPU-accelerated**, and **production-ready**.
 
 - **JAX-Native:** Full JIT compilation, automatic differentiation, and XLA optimization
 - **GPU/TPU Ready:** Seamless acceleration on modern hardware with `pmap`/`pjit`
-- **High Performance:** Optimized numerical algorithms with 10-100x speedup for repeated calculations, adaptive mesh refinement (AMR) for PDE solvers
+- **High Performance:** Optimized numerical algorithms with 10-100x speedup, adaptive mesh refinement (AMR) for PDE solvers
 - **Reproducible:** Unified configuration via YAML, consistent PRNG seeding
-- **Production-Ready:** FastAPI/gRPC APIs, comprehensive test suite (400+ tests), quality tooling (ruff, bandit)
-- **Enterprise-Grade:**
-  - Multi-tenancy controls and RBAC with SSO/OAuth 2.0
-  - Audit logging and compliance reporting
-  - Real-time market data feeds with validation
-  - Production monitoring and observability stack
-  - SLA monitoring and cost allocation
-  - Kubernetes orchestration with auto-scaling and multi-region deployment
+- **Well-Tested:** Comprehensive test suite (450+ tests), quality tooling (ruff, bandit, pytest)
+- **Production-Ready:**
+  - Proven numerical stability and accuracy
+  - Extensive validation against analytical solutions
+  - Comprehensive documentation and examples
+  - Optional observability with Prometheus metrics
 - **Extensible:** FFI bridges to QuantLib/Eigen, plugin architecture for custom models
+- **Pure Library:** No infrastructure dependencies - integrates with your existing systems
 
 ---
 

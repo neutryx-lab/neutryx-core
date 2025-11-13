@@ -1,7 +1,7 @@
 """Mappings between FpML and Neutryx internal representations.
 
 This module provides conversion functions to translate FpML trade representations
-into Neutryx pricing request models, and vice versa.
+into Neutryx pricing parameters, and vice versa.
 """
 from __future__ import annotations
 
@@ -9,7 +9,6 @@ from datetime import date, timedelta
 from decimal import Decimal
 from typing import Any, Optional
 
-from neutryx.api.schemas import VanillaOptionRequest
 from neutryx.integrations.fpml import schemas
 from neutryx.products.swap import (
     DayCountConvention,
