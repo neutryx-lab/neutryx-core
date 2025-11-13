@@ -46,8 +46,8 @@ class FpMLToNeutryxMapper:
         dividend: float = 0.0,
         steps: int = 252,
         paths: int = 100_000,
-    ) -> VanillaOptionRequest:
-        """Map FpML equity option to Neutryx vanilla option request.
+    ) -> dict[str, Any]:
+        """Map FpML equity option to Neutryx vanilla option parameters.
 
         Args:
             fpml_option: FpML equity option
@@ -60,7 +60,7 @@ class FpMLToNeutryxMapper:
             paths: Number of Monte Carlo paths
 
         Returns:
-            VanillaOptionRequest ready for pricing
+            Dictionary with vanilla option parameters ready for pricing
 
         Raises:
             FpMLMappingError: If required market data is missing
@@ -88,17 +88,17 @@ class FpMLToNeutryxMapper:
         # Put or Call
         is_call = fpml_option.optionType == schemas.PutCallEnum.CALL
 
-        return VanillaOptionRequest(
-            spot=spot,
-            strike=strike,
-            maturity=maturity,
-            rate=rate,
-            dividend=dividend,
-            volatility=volatility,
-            steps=steps,
-            paths=paths,
-            call=is_call,
-        )
+        return {
+            "spot": spot,
+            "strike": strike,
+            "maturity": maturity,
+            "rate": rate,
+            "dividend": dividend,
+            "volatility": volatility,
+            "steps": steps,
+            "paths": paths,
+            "call": is_call,
+        }
 
     def map_fx_option(
         self,
@@ -110,8 +110,8 @@ class FpMLToNeutryxMapper:
         foreign_rate: float = 0.0,
         steps: int = 252,
         paths: int = 100_000,
-    ) -> VanillaOptionRequest:
-        """Map FpML FX option to Neutryx vanilla option request.
+    ) -> dict[str, Any]:
+        """Map FpML FX option to Neutryx vanilla option parameters.
 
         FX options are mapped to vanilla options where:
         - Spot = current FX rate
@@ -130,7 +130,7 @@ class FpMLToNeutryxMapper:
             paths: Number of paths
 
         Returns:
-            VanillaOptionRequest for FX option pricing
+            Dictionary with vanilla option parameters for FX option pricing
 
         Raises:
             FpMLMappingError: If required data is missing
@@ -156,17 +156,17 @@ class FpMLToNeutryxMapper:
         put_amount = float(fpml_option.putCurrencyAmount.amount)
         is_call = call_amount > put_amount  # Simplified heuristic
 
-        return VanillaOptionRequest(
-            spot=spot_rate,
-            strike=strike,
-            maturity=maturity,
-            rate=domestic_rate,
-            dividend=foreign_rate,  # Foreign rate as dividend yield
-            volatility=volatility,
-            steps=steps,
-            paths=paths,
-            call=is_call,
-        )
+        return {
+            "spot": spot_rate,
+            "strike": strike,
+            "maturity": maturity,
+            "rate": domestic_rate,
+            "dividend": foreign_rate,  # Foreign rate as dividend yield
+            "volatility": volatility,
+            "steps": steps,
+            "paths": paths,
+            "call": is_call,
+        }
 
     def map_swap(
         self,
@@ -258,15 +258,15 @@ class FpMLToNeutryxMapper:
         self,
         fpml_trade: schemas.Trade,
         market_data: Optional[dict[str, Any]] = None,
-    ) -> VanillaOptionRequest | dict[str, Any]:
-        """Map any FpML trade to appropriate Neutryx request.
+    ) -> dict[str, Any]:
+        """Map any FpML trade to appropriate Neutryx parameters.
 
         Args:
             fpml_trade: FpML trade
             market_data: Market data dictionary with keys like 'spot', 'volatility', etc.
 
         Returns:
-            Neutryx pricing request (VanillaOptionRequest for options, dict for swaps)
+            Dictionary with Neutryx pricing parameters (for options or swaps)
 
         Raises:
             FpMLMappingError: If trade type not supported or data missing
@@ -311,16 +311,16 @@ class NeutryxToFpMLMapper:
 
     def map_vanilla_option_to_equity(
         self,
-        request: VanillaOptionRequest,
+        option_params: dict[str, Any],
         instrument_id: str,
         trade_date: date,
         buyer_party_id: str = "party1",
         seller_party_id: str = "party2",
     ) -> schemas.FpMLDocument:
-        """Convert Neutryx vanilla option request to FpML equity option.
+        """Convert Neutryx vanilla option parameters to FpML equity option.
 
         Args:
-            request: Neutryx vanilla option request
+            option_params: Dictionary with vanilla option parameters (spot, strike, maturity, call, etc.)
             instrument_id: Underlying instrument identifier (e.g., ISIN)
             trade_date: Trade date
             buyer_party_id: Buyer party identifier
@@ -336,16 +336,18 @@ class NeutryxToFpMLMapper:
         ]
 
         # Calculate expiration date from maturity
-        expiration_date = trade_date + timedelta(days=int(request.maturity * 365))
+        maturity = option_params["maturity"]
+        expiration_date = trade_date + timedelta(days=int(maturity * 365))
 
         # Build equity option
-        option_type = schemas.PutCallEnum.CALL if request.call else schemas.PutCallEnum.PUT
+        is_call = option_params["call"]
+        option_type = schemas.PutCallEnum.CALL if is_call else schemas.PutCallEnum.PUT
 
         underlyer = schemas.EquityUnderlyer(
             instrumentId=instrument_id, description="Underlying equity"
         )
 
-        strike = schemas.EquityStrike(strikePrice=Decimal(str(request.strike)))
+        strike = schemas.EquityStrike(strikePrice=Decimal(str(option_params["strike"])))
 
         exercise = schemas.EquityExercise(
             optionType=schemas.OptionTypeEnum.EUROPEAN,
@@ -371,36 +373,36 @@ class NeutryxToFpMLMapper:
 
 def fpml_to_neutryx(
     fpml_doc: schemas.FpMLDocument, market_data: Optional[dict[str, Any]] = None
-) -> VanillaOptionRequest:
-    """Convenience function to map FpML document to Neutryx request.
+) -> dict[str, Any]:
+    """Convenience function to map FpML document to Neutryx parameters.
 
     Args:
         fpml_doc: Parsed FpML document
         market_data: Market data dictionary
 
     Returns:
-        Neutryx pricing request for the primary trade
+        Dictionary with Neutryx pricing parameters for the primary trade
 
     Example:
         >>> from neutryx.integrations.fpml import parse_fpml, fpml_to_neutryx
         >>> fpml_doc = parse_fpml(xml_string)
         >>> market_data = {"spot": 100.0, "volatility": 0.25, "rate": 0.05}
-        >>> request = fpml_to_neutryx(fpml_doc, market_data)
-        >>> # Now use request with Neutryx pricing engine
+        >>> params = fpml_to_neutryx(fpml_doc, market_data)
+        >>> # Now use params with Neutryx pricing engine
     """
     mapper = FpMLToNeutryxMapper()
     return mapper.map_trade(fpml_doc.primary_trade, market_data)
 
 
 def neutryx_to_fpml(
-    request: VanillaOptionRequest,
+    option_params: dict[str, Any],
     instrument_id: str,
     trade_date: Optional[date] = None,
 ) -> schemas.FpMLDocument:
-    """Convenience function to map Neutryx request to FpML document.
+    """Convenience function to map Neutryx parameters to FpML document.
 
     Args:
-        request: Neutryx vanilla option request
+        option_params: Dictionary with vanilla option parameters (spot, strike, maturity, call, etc.)
         instrument_id: Underlying instrument identifier
         trade_date: Trade date (defaults to today)
 
@@ -408,19 +410,20 @@ def neutryx_to_fpml(
         FpML document
 
     Example:
-        >>> from neutryx.api.rest import VanillaOptionRequest
         >>> from neutryx.integrations.fpml import neutryx_to_fpml
-        >>> request = VanillaOptionRequest(
-        ...     spot=100, strike=105, maturity=1.0, volatility=0.2, call=True
-        ... )
-        >>> fpml_doc = neutryx_to_fpml(request, "US0378331005")
+        >>> params = {
+        ...     "spot": 100, "strike": 105, "maturity": 1.0,
+        ...     "volatility": 0.2, "rate": 0.05, "dividend": 0.0,
+        ...     "call": True, "steps": 252, "paths": 100000
+        ... }
+        >>> fpml_doc = neutryx_to_fpml(params, "US0378331005")
         >>> # Now serialize to XML using serializer module
     """
     if trade_date is None:
         trade_date = date.today()
 
     mapper = NeutryxToFpMLMapper()
-    return mapper.map_vanilla_option_to_equity(request, instrument_id, trade_date)
+    return mapper.map_vanilla_option_to_equity(option_params, instrument_id, trade_date)
 
 
 __all__ = [

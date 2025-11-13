@@ -6,7 +6,6 @@ from decimal import Decimal
 
 import pytest
 
-from neutryx.api.rest import VanillaOptionRequest
 from neutryx.integrations import fpml
 
 
@@ -140,7 +139,7 @@ class TestFpMLMapping:
     """Test FpML to Neutryx mapping."""
 
     def test_map_equity_option_to_neutryx(self):
-        """Test mapping equity option to Neutryx request."""
+        """Test mapping equity option to Neutryx parameters."""
         doc = fpml.parse_fpml(EQUITY_OPTION_FPML)
         market_data = {
             "spot": 145.0,
@@ -149,20 +148,20 @@ class TestFpMLMapping:
             "dividend": 0.01,
         }
 
-        request = fpml.fpml_to_neutryx(doc, market_data)
+        params = fpml.fpml_to_neutryx(doc, market_data)
 
-        assert isinstance(request, VanillaOptionRequest)
-        assert request.spot == 145.0
-        assert request.strike == 150.0
-        assert request.volatility == 0.25
-        assert request.rate == 0.05
-        assert request.dividend == 0.01
-        assert request.call is True
+        assert isinstance(params, dict)
+        assert params["spot"] == 145.0
+        assert params["strike"] == 150.0
+        assert params["volatility"] == 0.25
+        assert params["rate"] == 0.05
+        assert params["dividend"] == 0.01
+        assert params["call"] is True
         # Maturity should be ~1 year (from 2024-01-15 to 2025-01-15)
-        assert 0.99 < request.maturity < 1.01
+        assert 0.99 < params["maturity"] < 1.01
 
     def test_map_fx_option_to_neutryx(self):
-        """Test mapping FX option to Neutryx request."""
+        """Test mapping FX option to Neutryx parameters."""
         doc = fpml.parse_fpml(FX_OPTION_FPML)
         market_data = {
             "spot_rate": 1.08,
@@ -171,12 +170,12 @@ class TestFpMLMapping:
             "foreign_rate": 0.02,
         }
 
-        request = fpml.fpml_to_neutryx(doc, market_data)
+        params = fpml.fpml_to_neutryx(doc, market_data)
 
-        assert isinstance(request, VanillaOptionRequest)
-        assert request.spot == 1.08
-        assert request.strike == 1.10
-        assert request.volatility == 0.15
+        assert isinstance(params, dict)
+        assert params["spot"] == 1.08
+        assert params["strike"] == 1.10
+        assert params["volatility"] == 0.15
 
     def test_map_without_required_market_data(self):
         """Test mapping fails without required market data."""
@@ -202,18 +201,20 @@ class TestFpMLSerializer:
 
     def test_serialize_equity_option(self):
         """Test serializing equity option to FpML."""
-        request = VanillaOptionRequest(
-            spot=100.0,
-            strike=105.0,
-            maturity=1.0,
-            rate=0.05,
-            dividend=0.01,
-            volatility=0.25,
-            call=True,
-        )
+        params = {
+            "spot": 100.0,
+            "strike": 105.0,
+            "maturity": 1.0,
+            "rate": 0.05,
+            "dividend": 0.01,
+            "volatility": 0.25,
+            "call": True,
+            "steps": 252,
+            "paths": 100000,
+        }
 
         fpml_doc = fpml.neutryx_to_fpml(
-            request, instrument_id="US0378331005", trade_date=date(2024, 1, 15)
+            params, instrument_id="US0378331005", trade_date=date(2024, 1, 15)
         )
 
         assert len(fpml_doc.party) == 2
@@ -226,15 +227,19 @@ class TestFpMLSerializer:
 
     def test_serialize_to_xml(self):
         """Test full serialization to XML string."""
-        request = VanillaOptionRequest(
-            spot=100.0,
-            strike=105.0,
-            maturity=1.0,
-            volatility=0.25,
-            call=False,  # Put option
-        )
+        params = {
+            "spot": 100.0,
+            "strike": 105.0,
+            "maturity": 1.0,
+            "volatility": 0.25,
+            "rate": 0.05,
+            "dividend": 0.0,
+            "call": False,  # Put option
+            "steps": 252,
+            "paths": 100000,
+        }
 
-        fpml_doc = fpml.neutryx_to_fpml(request, "TEST_INSTRUMENT")
+        fpml_doc = fpml.neutryx_to_fpml(params, "TEST_INSTRUMENT")
         xml_string = fpml.serialize_fpml(fpml_doc)
 
         # Verify it's valid XML and can be parsed back
@@ -253,19 +258,21 @@ class TestFpMLRoundTrip:
 
     def test_roundtrip_equity_option(self):
         """Test Neutryx -> FpML -> Neutryx round trip."""
-        original_request = VanillaOptionRequest(
-            spot=100.0,
-            strike=110.0,
-            maturity=0.5,
-            rate=0.03,
-            dividend=0.02,
-            volatility=0.30,
-            call=True,
-        )
+        original_params = {
+            "spot": 100.0,
+            "strike": 110.0,
+            "maturity": 0.5,
+            "rate": 0.03,
+            "dividend": 0.02,
+            "volatility": 0.30,
+            "call": True,
+            "steps": 252,
+            "paths": 100000,
+        }
 
         # Convert to FpML
         trade_date = date.today()
-        fpml_doc = fpml.neutryx_to_fpml(original_request, "INST123", trade_date)
+        fpml_doc = fpml.neutryx_to_fpml(original_params, "INST123", trade_date)
         xml_string = fpml.serialize_fpml(fpml_doc)
 
         # Parse back
@@ -279,15 +286,15 @@ class TestFpMLRoundTrip:
             "dividend": 0.02,
         }
         mapper = fpml.FpMLToNeutryxMapper(reference_date=trade_date)
-        converted_request = mapper.map_trade(reparsed_doc.primary_trade, market_data)
+        converted_params = mapper.map_trade(reparsed_doc.primary_trade, market_data)
 
         # Verify key parameters match
-        assert converted_request.strike == original_request.strike
-        assert converted_request.spot == original_request.spot
-        assert converted_request.volatility == original_request.volatility
-        assert converted_request.call == original_request.call
+        assert converted_params["strike"] == original_params["strike"]
+        assert converted_params["spot"] == original_params["spot"]
+        assert converted_params["volatility"] == original_params["volatility"]
+        assert converted_params["call"] == original_params["call"]
         # Maturity might differ slightly due to date arithmetic
-        assert abs(converted_request.maturity - original_request.maturity) < 0.01
+        assert abs(converted_params["maturity"] - original_params["maturity"]) < 0.01
 
 
 class TestFpMLAdapter:
