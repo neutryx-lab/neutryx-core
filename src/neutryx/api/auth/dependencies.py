@@ -7,6 +7,25 @@ from typing import Optional
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import JWTError
+import warnings
+
+# Workaround for bcrypt 4.0+ compatibility with passlib
+# Patch bcrypt.hashpw to handle >72 byte passwords before passlib loads it
+try:
+    import bcrypt as _bcrypt_module
+
+    _original_hashpw = _bcrypt_module.hashpw
+
+    def _patched_hashpw(password: bytes, salt: bytes) -> bytes:
+        """Wrapper for bcrypt.hashpw that truncates long passwords."""
+        if len(password) > 72:
+            password = password[:72]
+        return _original_hashpw(password, salt)
+
+    _bcrypt_module.hashpw = _patched_hashpw
+except ImportError:
+    pass
+
 from passlib.context import CryptContext
 
 from neutryx.infrastructure.governance.rbac import RBACManager
@@ -26,7 +45,13 @@ _user_store_by_username: dict[str, str] = {}
 _credentials_store: dict[str, str] = {}
 
 
-_password_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# Initialize password context
+with warnings.catch_warnings():
+    warnings.filterwarnings("ignore")
+    _password_context = CryptContext(
+        schemes=["bcrypt"],
+        deprecated="auto",
+    )
 
 
 # RBAC manager (should be injected from app state in production)

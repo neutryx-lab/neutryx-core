@@ -451,9 +451,11 @@ class PortfolioBatch:
             currency_idx=self.currency_idx[bool_mask],
             counterparty_idx=self.counterparty_idx[bool_mask],
             product_type_idx=self.product_type_idx[bool_mask],
+            asset_idx=self.asset_idx[bool_mask],
             currency_mapping=self.currency_mapping,
             counterparty_mapping=self.counterparty_mapping,
             product_type_mapping=self.product_type_mapping,
+            asset_mapping=self.asset_mapping,
             product_ids=tuple(pid for pid, keep in zip(self.product_ids, mask_list) if keep),
             product_parameters=tuple(
                 dict(self.product_parameters[i]) for i, keep in enumerate(mask_list) if keep

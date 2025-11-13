@@ -317,13 +317,7 @@ class MarketDataEnvironment:
         """Return new environment with updated credit curve."""
 
         # Validate that curve implements the CreditCurve protocol
-        if not isinstance(curve, CreditCurve):
-            raise TypeError(
-                "curve must implement the CreditCurve protocol and provide "
-                "survival_probability/default_probability methods"
-            )
-
-        # Additional explicit check for required methods
+        # Check for required methods using hasattr (more reliable than isinstance for Protocols)
         if not (
             hasattr(curve, "survival_probability")
             and callable(getattr(curve, "survival_probability", None))

@@ -2,19 +2,19 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import Any, Dict
 
+from pydantic import BaseModel, Field
 
-@dataclass
-class PortfolioPosition:
+
+class PortfolioPosition(BaseModel):
     """Represents a security holding within a portfolio."""
 
     security_id: str
     quantity: Decimal
     cost_basis: Decimal = Decimal("0")
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: Dict[str, Any] = Field(default_factory=dict)
 
     def adjust_quantity(self, delta: Decimal) -> None:
         """Increment the position quantity by ``delta``."""

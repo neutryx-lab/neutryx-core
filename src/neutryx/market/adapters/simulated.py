@@ -21,6 +21,7 @@ from ..data_models import (
     YieldCurve,
     DataRequest,
 )
+from ..storage.security_master import CorporateActionEvent
 
 
 @dataclass
@@ -249,6 +250,24 @@ class SimulatedAdapter(BaseMarketDataAdapter):
             curve_type="zero",
             interpolation_method="linear",
         )
+
+    def get_corporate_actions(
+        self, identifier: str, start_date: date, end_date: date
+    ) -> List[CorporateActionEvent]:
+        """Retrieve corporate action events for the specified security.
+
+        For simulated adapter, returns an empty list as no corporate actions
+        are generated in the simulation.
+
+        Args:
+            identifier: Security identifier
+            start_date: Start date for corporate action search
+            end_date: End date for corporate action search
+
+        Returns:
+            Empty list (simulated adapter doesn't generate corporate actions)
+        """
+        return []
 
     def _execute_request_internal(self, request: DataRequest) -> List[MarketDataPoint]:
         return []
