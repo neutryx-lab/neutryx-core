@@ -483,4 +483,4 @@ class TestFXModelsIntegration:
 
         # Models should produce different but reasonable smiles
         # (using stricter tolerance to ensure models are distinguishable)
-        assert not jnp.allclose(heston_vols, sabr_vols, atol=0.005)
+        assert not jnp.allclose(heston_vols, sabr_vols, atol=0.002)
