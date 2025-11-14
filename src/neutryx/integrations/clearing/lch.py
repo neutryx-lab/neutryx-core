@@ -25,7 +25,7 @@ from decimal import Decimal
 from typing import Any, Dict, List, Optional
 
 import httpx
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from .base import (
     CCPAuthenticationError,
@@ -55,9 +55,7 @@ class LCHSwapClearConfig(CCPConfig):
     settlement_currency: str = Field(default="USD", description="Settlement currency")
     margin_method: str = Field(default="PAI", description="Margin method: PAI/PAIRS")
 
-    class Config:
-        """Pydantic config."""
-        extra = "allow"
+    model_config = ConfigDict(extra="allow")
 
 
 class LCHTradeDetails(BaseModel):

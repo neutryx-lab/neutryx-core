@@ -22,7 +22,7 @@ from decimal import Decimal
 from typing import Any, Dict, List, Optional
 
 import httpx
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from .base import (
     CCPAuthenticationError,
@@ -53,9 +53,7 @@ class CMEClearingConfig(CCPConfig):
     core_enabled: bool = Field(default=True, description="Enable CORE analytics")
     product_code: Optional[str] = Field(None, description="CME product code")
 
-    class Config:
-        """Pydantic config."""
-        extra = "allow"
+    model_config = ConfigDict(extra="allow")
 
 
 class CMESPANMargin(BaseModel):

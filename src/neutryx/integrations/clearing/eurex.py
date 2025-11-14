@@ -24,7 +24,7 @@ from enum import Enum
 from typing import Any, Dict, List, Optional
 
 import httpx
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from .base import (
     CCPAuthenticationError,
@@ -65,9 +65,7 @@ class EurexClearingConfig(CCPConfig):
     c7_connectivity: bool = Field(default=True, description="Use C7 clearing system")
     t7_integration: bool = Field(default=False, description="Integrate with T7 trading")
 
-    class Config:
-        """Pydantic config."""
-        extra = "allow"
+    model_config = ConfigDict(extra="allow")
 
 
 class PrismaMarginBreakdown(BaseModel):

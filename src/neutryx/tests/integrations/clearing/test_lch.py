@@ -342,6 +342,10 @@ class TestLCHSwapClearConnector:
         result = await connector.healthcheck()
         assert result is True
 
+
+class TestLCHSwapClearHelpers:
+    """Test LCH SwapClear helper methods (sync tests)."""
+
     def test_format_lch_trade(self, lch_config, sample_irs_trade):
         """Test trade formatting for LCH."""
         connector = LCHSwapClearConnector(lch_config)

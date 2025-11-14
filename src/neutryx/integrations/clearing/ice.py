@@ -24,7 +24,7 @@ from enum import Enum
 from typing import Any, Dict, List, Optional
 
 import httpx
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from .base import (
     CCPAuthenticationError,
@@ -63,9 +63,7 @@ class ICEClearConfig(CCPConfig):
     trade_vault_enabled: bool = Field(default=True, description="Enable ICE Trade Vault")
     margin_model: str = Field(default="ICE_MARGIN", description="Margin model")
 
-    class Config:
-        """Pydantic config."""
-        extra = "allow"
+    model_config = ConfigDict(extra="allow")
 
 
 class ICECreditProduct(str, Enum):
