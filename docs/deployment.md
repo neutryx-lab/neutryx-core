@@ -1,6 +1,6 @@
 # Deployment Guide
 
-This guide provides comprehensive instructions for deploying Neutryx Core across various infrastructure targets, from local development to production-grade multi-region deployments.
+This guide provides comprehensive instructions for deploying Neutryx API across various infrastructure targets, from local development to production-grade multi-region deployments.
 
 ## Table of Contents
 
@@ -24,7 +24,7 @@ This guide provides comprehensive instructions for deploying Neutryx Core across
 
 ### Deployment Architecture
 
-Neutryx Core supports multiple deployment architectures tailored to different use cases:
+Neutryx API supports multiple deployment architectures tailored to different use cases:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -103,8 +103,8 @@ Redis 7+ (or use Docker)
 
 ```bash
 # 1. Clone repository
-git clone https://github.com/neutryx-lab/neutryx-core.git
-cd neutryx-core
+git clone https://github.com/neutryx-lab/neutryx-api.git
+cd neutryx-api
 
 # 2. Create virtual environment
 python -m venv .venv
@@ -401,24 +401,27 @@ docker push neutryx/neutryx-core:gpu
 ### Quick Start
 
 ```bash
-# Deploy to Kubernetes
-kubectl apply -k k8s/overlays/prod
+# Deploy Neutryx API to Kubernetes
+kubectl create namespace neutryx-api
+
+# Deploy API services
+kubectl apply -f deployment.yaml -n neutryx-api
 
 # Check deployment status
-kubectl get pods -n neutryx
-kubectl get svc -n neutryx
+kubectl get pods -n neutryx-api
+kubectl get svc -n neutryx-api
 
-# Access Grafana dashboard
-kubectl port-forward svc/grafana 3000:80 -n monitoring
+# Access API service
+kubectl port-forward svc/neutryx-api 8000:8000 -n neutryx-api
 ```
 
 ### Key Features
 
-- **Auto-Scaling**: HPA for API and worker pods
+- **Auto-Scaling**: HorizontalPodAutoscaler for API pods based on CPU/memory
 - **Multi-Region**: Active-active deployment across regions
-- **Disaster Recovery**: Automated backups and failover
+- **High Availability**: Multiple replicas with load balancing
 - **Security**: Network policies, pod security, secrets management
-- **Monitoring**: Prometheus, Grafana, Jaeger integration
+- **Monitoring**: Prometheus metrics, health checks, and logging
 
 ---
 
@@ -434,11 +437,11 @@ kubectl port-forward svc/grafana 3000:80 -n monitoring
 ├─────────────────────────────────────────────────────────────┤
 │                                                              │
 │  ┌──────────────────────────────────────────────────┐      │
-│  │   GKE Cluster (neutryx-prod)                     │      │
-│  │   ┌────────────┐  ┌────────────┐  ┌──────────┐  │      │
-│  │   │ Node Pool  │  │ GPU Pool   │  │ Spot Pool│  │      │
-│  │   │ (n2-std-8) │  │ (a2-high)  │  │ (preempt)│  │      │
-│  │   └────────────┘  └────────────┘  └──────────┘  │      │
+│  │   GKE Cluster (neutryx-api-prod)                 │      │
+│  │   ┌────────────┐  ┌────────────┐                │      │
+│  │   │ API Pool   │  │ Spot Pool  │                │      │
+│  │   │ (n2-std-4) │  │ (preempt)  │                │      │
+│  │   └────────────┘  └────────────┘                │      │
 │  └──────────────────────────────────────────────────┘      │
 │                                                              │
 │  ┌──────────────────────────────────────────────────┐      │
@@ -465,40 +468,29 @@ kubectl port-forward svc/grafana 3000:80 -n monitoring
 #### Setup
 
 ```bash
-# 1. Create GKE cluster
-gcloud container clusters create neutryx-prod \
+# 1. Create GKE cluster for API
+gcloud container clusters create neutryx-api-prod \
   --region=us-central1 \
   --num-nodes=3 \
-  --machine-type=n2-standard-8 \
+  --machine-type=n2-standard-4 \
   --enable-autoscaling \
-  --min-nodes=3 \
-  --max-nodes=50 \
+  --min-nodes=2 \
+  --max-nodes=20 \
   --enable-autorepair \
   --enable-autoupgrade \
   --addons=HorizontalPodAutoscaling,HttpLoadBalancing,GcePersistentDiskCsiDriver
 
-# 2. Add GPU node pool
-gcloud container node-pools create gpu-pool \
-  --cluster=neutryx-prod \
-  --region=us-central1 \
-  --machine-type=a2-highgpu-1g \
-  --accelerator=type=nvidia-tesla-a100,count=1 \
-  --num-nodes=2 \
-  --enable-autoscaling \
-  --min-nodes=0 \
-  --max-nodes=10
-
-# 3. Create Cloud SQL instance
-gcloud sql instances create neutryx-db \
+# 2. Create Cloud SQL instance
+gcloud sql instances create neutryx-api-db \
   --database-version=POSTGRES_15 \
-  --tier=db-n1-highmem-8 \
+  --tier=db-n1-standard-4 \
   --region=us-central1 \
   --availability-type=REGIONAL \
   --backup-start-time=03:00
 
-# 4. Create Memorystore instance
-gcloud redis instances create neutryx-cache \
-  --size=10 \
+# 3. Create Memorystore instance for caching
+gcloud redis instances create neutryx-api-cache \
+  --size=5 \
   --region=us-central1 \
   --tier=standard
 
