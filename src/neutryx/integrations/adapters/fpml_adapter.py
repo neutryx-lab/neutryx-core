@@ -117,7 +117,7 @@ class FpMLPricingAdapter:
         return {
             "price": float(price),
             "trade": fpml_doc.primary_trade,
-            "params": params,
+            "request": params,
             "trade_info": trade_info,
         }
 
@@ -168,7 +168,7 @@ class FpMLPricingAdapter:
         return {
             "price": float(price),
             "trade": fpml_doc.primary_trade,
-            "params": params,
+            "request": params,
             "trade_info": trade_info,
         }
 

@@ -35,7 +35,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -e ".[dev]"
+          pip install -e ".[dev,api]"
 
       - name: Run fast unit tests (smoke tests only for PRs)
         run: |
@@ -79,7 +79,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -e ".[dev]"
+          pip install -e ".[dev,api]"
 
       - name: Run all unit tests
         run: |
@@ -120,7 +120,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -e ".[dev]"
+          pip install -e ".[dev,api]"
 
       - name: Run regression tests
         run: |
@@ -151,7 +151,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -e ".[dev]"
+          pip install -e ".[dev,api]"
 
       - name: Run benchmarks
         run: PYTHONPATH=$PWD:$PYTHONPATH pytest src/neutryx/tests/performance --benchmark-only --benchmark-json=benchmark-results.json
@@ -182,7 +182,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -e ".[dev]"
+          pip install -e ".[dev,api]"
 
       - name: Dependency vulnerability scan
         run: |

@@ -11,6 +11,9 @@ class DummyCurve:
     def value(self, t):  # pragma: no cover - simple protocol stub
         return t
 
+    def survival_probability(self, t):  # pragma: no cover - simple protocol stub
+        return 1.0 - 0.01 * t
+
 
 class DummyForwardCurve(DummyCurve):
     pass
