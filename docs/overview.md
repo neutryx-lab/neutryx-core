@@ -14,7 +14,7 @@ Our vision is to provide a **complete derivatives lifecycle platform** - from re
 - ✅ **v0.1.0** (Jan 2025): Foundation release with multi-asset derivatives platform
 - ✅ **v0.2.0** (Q2-Q3 2025): Advanced calibration with Bayesian model averaging and joint calibration
 - ✅ **v0.4.0** (Q1 2026): Complete regulatory compliance (FRTB SA/IMA, DRC/RRAO, SA-CCR, SIMM)
-- ✅ **v1.0.0** (Q2 2026): Full enterprise platform with SSO/OAuth/MFA/LDAP, Kubernetes, AMR PDE solvers
+- ✅ **v1.0.0** (Q2 2026): Full enterprise platform with SSO/OAuth/MFA/LDAP, K8s deployment, AMR PDE solvers
 - 🔄 **v1.x** (2026-2027): 60% complete - Core backtesting and factor analysis delivered
 
 **Recently Added Features:**
@@ -23,7 +23,7 @@ Our vision is to provide a **complete derivatives lifecycle platform** - from re
 - 🆕 Comprehensive backtesting framework with transaction cost modeling
 - 🆕 Factor analysis toolkit (PCA, Barra-style factor models, style attribution, factor timing)
 - 🆕 Adaptive Mesh Refinement (AMR) for PDE solvers
-- 🆕 Kubernetes orchestration with auto-scaling and multi-region deployment
+- 🆕 Kubernetes deployment support with auto-scaling and high availability
 - 🆕 Enterprise authentication stack (SSO, OAuth 2.0, MFA, LDAP integration)
 
 ## Core Philosophy
@@ -55,7 +55,7 @@ Built for mission-critical financial systems:
 
 - **Security**: Static analysis with bandit, dependency scanning with Dependabot, SSO/OAuth 2.0/MFA/LDAP
 - **Performance**: Profiling, benchmarking, optimization tooling, AMR for PDEs
-- **Scalability**: Distributed computing with multi-GPU/TPU, Kubernetes orchestration, auto-scaling
+- **Scalability**: Distributed computing with multi-GPU/TPU, Kubernetes deployment support, auto-scaling
 - **Compliance**: Audit logging, RBAC, multi-tenancy controls, FRTB/SA-CCR/SIMM regulatory reporting
 - **Monitoring**: Real-time performance tracking, alerting, comprehensive observability stack
 

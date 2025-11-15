@@ -30,7 +30,7 @@ v0.4.0 (Complete - Q1 2026) ─────────────────�
 v1.0.0 (Complete - Q2 2026) ───────────────────────────────┤
                                                              │
     ✅ Production enterprise platform                       │
-    ✅ SSO/OAuth/MFA/LDAP, Kubernetes, AMR, 500+ tests    │
+    ✅ SSO/OAuth/MFA/LDAP, K8s deployment, AMR, 500+ tests │
                                                              │
 v1.x (60% Complete - 2026-2027) ───────────────────────────┤
                                                              │
@@ -317,7 +317,7 @@ v1.x (60% Complete - 2026-2027) ────────────────
 ### Performance & Scalability
 
 - ✅ **Distributed Computing**
-  - ✅ Kubernetes orchestration with auto-scaling
+  - ✅ Kubernetes deployment support with auto-scaling
   - ✅ Risk grid architecture for distributed calculations (framework ready)
   - ✅ Multi-region deployment with disaster recovery
   - ✅ Fault tolerance and automatic recovery (workflow checkpointing)
@@ -335,7 +335,7 @@ v1.x (60% Complete - 2026-2027) ────────────────
   - ✅ Multilevel Monte Carlo (MLMC)
   - ✅ Adaptive mesh refinement (AMR) for PDEs
 
-**Delivered:** Complete production-ready platform with SSO/OAuth/MFA/LDAP, Kubernetes orchestration, collateral transformation, AMR PDE solvers, 500+ tests
+**Delivered:** Complete production-ready platform with SSO/OAuth/MFA/LDAP, Kubernetes deployment support, collateral transformation, AMR PDE solvers, 500+ tests
 
 ---
 

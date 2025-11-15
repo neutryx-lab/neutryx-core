@@ -10,7 +10,7 @@ Welcome to the comprehensive documentation for **Neutryx Core** — the JAX-powe
 - ✅ **v0.1.0** (Jan 2025): Foundation with multi-asset derivatives, 370+ tests
 - ✅ **v0.2.0** (Q2-Q3 2025): Advanced calibration (Bayesian averaging, joint calibration, regularization)
 - ✅ **v0.4.0** (Q1 2026): Complete regulatory compliance (FRTB SA/IMA, DRC/RRAO, SA-CCR, SIMM 2.6, IFRS 9/13)
-- ✅ **v1.0.0** (Q2 2026): Production enterprise platform (SSO/OAuth/MFA/LDAP, Kubernetes, AMR, collateral management)
+- ✅ **v1.0.0** (Q2 2026): Production enterprise platform (SSO/OAuth/MFA/LDAP, K8s deployment, AMR, collateral management)
 - ✅ **v1.0.3** (Nov 2025): Analytics & research (backtesting, factor analysis, portfolio optimization)
 
 **Key Capabilities:**
@@ -18,7 +18,7 @@ Welcome to the comprehensive documentation for **Neutryx Core** — the JAX-powe
 - 📊 Advanced risk management (VaR, stress testing, P&L attribution)
 - 📋 Full regulatory compliance (FRTB, SA-CCR, SIMM, EMIR, MiFID II, Basel III/IV)
 - 🔐 Enterprise security (SSO, OAuth 2.0, MFA, LDAP, RBAC)
-- ☁️ Cloud-native infrastructure (Kubernetes, auto-scaling, multi-region)
+- ☁️ Cloud-native infrastructure (K8s deployment support, auto-scaling, multi-region)
 - 📈 Portfolio analytics (backtesting, factor analysis, optimization)
 
 ---

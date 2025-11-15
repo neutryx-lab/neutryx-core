@@ -17,7 +17,7 @@ Neutryx Core is a next-generation JAX-first quantitative finance library that pr
 | **Development Speed** | Python-first | C++ compilation required | ✅ Rapid prototyping & deployment |
 | **Auto-Differentiation** | Native JAX AAD | Manual implementation | ✅ Automatic Greeks & calibration |
 | **Regulatory Coverage** | FRTB SA/IMA, DRC/RRAO, SA-CCR, SIMM | Limited | ✅ Complete compliance framework |
-| **Modern Features** | SSO/OAuth/MFA, Kubernetes, Observability | None | ✅ Enterprise-ready infrastructure |
+| **Modern Features** | SSO/OAuth/MFA, K8s deployment, Observability | None | ✅ Enterprise-ready infrastructure |
 | **Test Coverage** | 500+ comprehensive tests | Good coverage | ✅ Production-grade quality |
 
 ---
@@ -240,7 +240,7 @@ Modern Features:           Limited (no native GPU, no auto-diff)
 | **Authentication** | SSO, OAuth 2.0, OpenID Connect, MFA, LDAP/Active Directory | ✅ Production |
 | **Authorization** | RBAC with fine-grained permissions, Multi-tenancy isolation | ✅ Production |
 | **Observability** | Prometheus metrics, Grafana dashboards, Jaeger tracing, Auto profiling | ✅ Production |
-| **Orchestration** | Kubernetes with auto-scaling, Multi-region deployment, Disaster recovery | ✅ Production |
+| **Orchestration** | K8s deployment with auto-scaling, Multi-region deployment, Disaster recovery | ✅ Production |
 | **Market Data** | Bloomberg/Refinitiv integration, TimescaleDB (90% compression), Real-time validation | ✅ Production |
 | **Audit Trail** | Immutable logging, User action tracking, Compliance attestation | ✅ Production |
 | **APIs** | REST (FastAPI), gRPC with auth interceptors, GraphQL (planned) | ✅ Production |
@@ -338,7 +338,7 @@ Modern Features:           Limited (no native GPU, no auto-diff)
 |----------------|--------------|----------|---------------|
 | **License Fees** | $0 (MIT License) | $0 (BSD License) | $500K - $5M+ |
 | **Development** | Low (Python, fast iteration) | Medium (C++, compilation) | Low (vendor builds) |
-| **Infrastructure** | Included (Kubernetes, observability) | Build yourself | Included |
+| **Infrastructure** | Included (K8s deployment, observability) | Build yourself | Included |
 | **Regulatory** | Included (FRTB, SA-CCR, SIMM) | Build yourself | Included |
 | **Maintenance** | Community + internal | Community + internal | Vendor + internal |
 | **Training** | Low (Python developers) | Medium (C++ specialists) | High (vendor-specific) |
@@ -371,7 +371,7 @@ Modern Features:           Limited (no native GPU, no auto-diff)
 | **Maturity** | 1-2 years | 25 years | QuantLib |
 | **Community Size** | Growing | Established | QuantLib |
 | **Auto-Diff** | Native JAX | None | ✅ **Neutryx** |
-| **Cloud-Native** | Yes (Kubernetes) | No | ✅ **Neutryx** |
+| **Cloud-Native** | Yes (K8s deployment) | No | ✅ **Neutryx** |
 
 ### Qualitative Advantages
 
@@ -423,7 +423,7 @@ Modern Features:           Limited (no native GPU, no auto-diff)
 |--------|-------------------|
 | **Technology** | JAX vs C++ (10-100x speedup) |
 | **Scope** | Pricing + Risk + Regulatory + Infrastructure |
-| **Deployment** | Cloud-native (Kubernetes) vs library-only |
+| **Deployment** | Cloud-native (K8s deployment) vs library-only |
 | **Cost** | Free vs $1M+/year commercial platforms |
 | **Velocity** | 70K lines/year vs 12K (QuantLib) |
 

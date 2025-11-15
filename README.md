@@ -10,7 +10,7 @@
   <img alt="Python Version" src="https://img.shields.io/badge/python-3.10+-blue?style=for-the-badge"/>
   <img alt="JAX Version" src="https://img.shields.io/badge/jax-0.4.26+-orange?style=for-the-badge"/>
   <img alt="License" src="https://img.shields.io/badge/license-MIT-lightgrey?style=for-the-badge"/>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.1.0-blue?style=for-the-badge"/>
+  <img alt="Version" src="https://img.shields.io/badge/version-1.0.0-blue?style=for-the-badge"/>
 </p>
 
 <p align="center">
@@ -46,7 +46,7 @@ is **JIT-compiled**, **GPU-accelerated**, and **production-ready**.
 - ✅ **v0.1.0** Foundation Release - Multi-asset derivatives platform
 - ✅ **v0.2.0** Advanced Calibration - Bayesian model averaging, joint calibration
 - ✅ **v0.4.0** Regulatory Compliance - Complete FRTB SA/IMA, SA-CCR, DRC/RRAO
-- ✅ **v1.0.0** Enterprise Platform - SSO/OAuth/MFA/LDAP, Kubernetes orchestration, AMR PDE solvers
+- ✅ **v1.0.0** Enterprise Platform - SSO/OAuth/MFA/LDAP, Kubernetes deployment support, AMR PDE solvers
 - 🔄 **v1.x** Analytics & Research - 60% complete (backtesting, factor analysis delivered)
 
 **Recently Added Features:**
@@ -55,7 +55,7 @@ is **JIT-compiled**, **GPU-accelerated**, and **production-ready**.
 - 🆕 Comprehensive backtesting framework with transaction cost modeling
 - 🆕 Factor analysis toolkit (PCA, Barra-style models, style attribution)
 - 🆕 Adaptive mesh refinement (AMR) for PDE solvers
-- 🆕 Kubernetes orchestration with auto-scaling and multi-region deployment
+- 🆕 Kubernetes deployment support with auto-scaling and high availability
 - 🆕 Enterprise authentication (SSO, OAuth 2.0, MFA, LDAP)
 
 **In Active Development:**
@@ -132,7 +132,7 @@ is **JIT-compiled**, **GPU-accelerated**, and **production-ready**.
 - **GPU/TPU Ready:** Seamless acceleration on modern hardware with `pmap`/`pjit`
 - **High Performance:** Optimized numerical algorithms with 10-100x speedup, adaptive mesh refinement (AMR) for PDE solvers
 - **Reproducible:** Unified configuration via YAML, consistent PRNG seeding
-- **Well-Tested:** Comprehensive test suite (450+ tests), quality tooling (ruff, bandit, pytest)
+- **Well-Tested:** Comprehensive test suite (500+ tests), quality tooling (ruff, bandit, pytest)
 - **Production-Ready:**
   - Proven numerical stability and accuracy
   - Extensive validation against analytical solutions
@@ -352,7 +352,7 @@ neutryx-core/
     ├── products/         # Multi-asset class product library
     ├── portfolio/        # Portfolio analytics and optimization
     ├── valuations/       # XVA and exposure analytics
-    └── tests/            # 100+ comprehensive tests
+    └── tests/            # 500+ comprehensive tests
 ```
 
 ---
@@ -461,7 +461,7 @@ v0.4.0 (COMPLETE) ────────────────────�
                                                                │
 v1.0.0 (COMPLETE) ────────────────────────────────────────────┤
                                                                │
-    ✅ SSO/OAuth/MFA, Kubernetes, AMR PDEs                    │
+    ✅ SSO/OAuth/MFA, K8s deployment, AMR PDEs               │
     ✅ Enterprise platform (500+ tests)                       │
                                                                │
 v1.x (60% Complete) ──────────────────────────────────────────┤

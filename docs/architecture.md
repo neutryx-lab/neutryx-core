@@ -716,45 +716,92 @@ services:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: neutryx-pricing
+  name: neutryx-api
+  namespace: neutryx-api
 spec:
   replicas: 3
   selector:
     matchLabels:
-      app: neutryx-pricing
+      app: neutryx-api
   template:
     metadata:
       labels:
-        app: neutryx-pricing
+        app: neutryx-api
     spec:
       containers:
-      - name: pricing
-        image: neutryx/pricing:latest
+      - name: api
+        image: neutryx/api:latest
         resources:
+          requests:
+            memory: "1Gi"
+            cpu: "500m"
           limits:
-            nvidia.com/gpu: 1
+            memory: "2Gi"
+            cpu: "1000m"
         env:
-        - name: JAX_PLATFORM_NAME
-          value: "gpu"
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: neutryx-api-secrets
+              key: database-url
         ports:
         - containerPort: 8000
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8000
+          initialDelaySeconds: 5
+          periodSeconds: 5
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: neutryx-pricing-service
+  name: neutryx-api-service
+  namespace: neutryx-api
 spec:
   selector:
-    app: neutryx-pricing
+    app: neutryx-api
   ports:
   - port: 80
     targetPort: 8000
   type: LoadBalancer
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: neutryx-api-hpa
+  namespace: neutryx-api
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: neutryx-api
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
 ```
 
 ## Next Steps
 
 - [Performance Tuning Guide](performance_tuning.md) - Optimize for speed
 - [Troubleshooting Guide](troubleshooting.md) - Debug common issues
-- [Developer Guide](developer_guide.md) - Contribute to Neutryx Core
+- [Developer Guide](developer_guide.md) - Contribute to Neutryx API
 - [API Reference](api_reference.md) - Complete API documentation

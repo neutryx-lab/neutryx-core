@@ -375,7 +375,7 @@ prices = distributed_pricing(keys, spots, strikes, maturities, config)
 - **Memory**: Limited by GPU memory (32GB per A100)
 
 **Deployment:**
-- Kubernetes with GPU node pools
+- Kubernetes deployment with resource management
 - Auto-scaling based on queue depth
 - Multi-region deployment for disaster recovery
 
@@ -449,7 +449,7 @@ async def price_portfolio(portfolio_id: str, context: TenantContext):
 **Enforcement:**
 - Database row-level security (RLS)
 - Application-level permission checks
-- Network policies in Kubernetes
+- Network policies in K8s deployments
 - Audit logging of all access
 
 ---

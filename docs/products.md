@@ -135,7 +135,7 @@ Neutryx Core is a **next-generation JAX-first quantitative finance platform** de
 - Deploy and scale quantitative finance systems
 - Integrate with market data vendors and clearing systems
 - Monitor system performance and reliability
-- Manage cloud infrastructure and Kubernetes clusters
+- Manage cloud infrastructure and Kubernetes deployments
 
 **Pain Points:**
 - Monolithic legacy systems hard to scale
@@ -144,7 +144,7 @@ Neutryx Core is a **next-generation JAX-first quantitative finance platform** de
 - Vendor lock-in and integration complexity
 
 **Value Proposition:**
-- **Kubernetes-native deployment** with auto-scaling and multi-region support
+- **Kubernetes deployment support** with auto-scaling and high availability
 - **Comprehensive observability**: Prometheus metrics, Grafana dashboards, Jaeger tracing
 - **Vendor integrations**: Bloomberg, Refinitiv with automatic failover
 - **Multi-database support**: PostgreSQL, MongoDB, TimescaleDB with 90% compression
@@ -447,7 +447,7 @@ Neutryx Core is a **next-generation JAX-first quantitative finance platform** de
 - Maker-checker workflows
 
 **Deployment:**
-- Kubernetes orchestration with auto-scaling
+- Kubernetes deployment support with auto-scaling
 - Multi-region deployment with disaster recovery
 - Docker containers for consistent environments
 - CI/CD pipelines with GitHub Actions

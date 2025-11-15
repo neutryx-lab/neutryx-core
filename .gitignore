@@ -57,6 +57,7 @@ site/
 *.swp
 *.swo
 *~
+*.code-workspace
 
 # Logs
 *.log

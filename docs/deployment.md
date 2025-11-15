@@ -405,14 +405,14 @@ docker push neutryx/neutryx-core:gpu
 kubectl create namespace neutryx-api
 
 # Deploy API services
-kubectl apply -f deployment.yaml -n neutryx-api
+kubectl apply -f deployment.yaml -n neutryx-api-api
 
 # Check deployment status
-kubectl get pods -n neutryx-api
-kubectl get svc -n neutryx-api
+kubectl get pods -n neutryx-api-api
+kubectl get svc -n neutryx-api-api
 
 # Access API service
-kubectl port-forward svc/neutryx-api 8000:8000 -n neutryx-api
+kubectl port-forward svc/neutryx-api 8000:8000 -n neutryx-api-api
 ```
 
 ### Key Features
@@ -494,26 +494,26 @@ gcloud redis instances create neutryx-api-cache \
   --region=us-central1 \
   --tier=standard
 
-# 5. Deploy application
-kubectl apply -k k8s/overlays/prod
+# 4. Deploy API application
+kubectl apply -f deployment.yaml -n neutryx-api-api
 ```
 
 #### Cost Optimization
 
 ```bash
-# Use preemptible VMs for worker nodes (save 60-80%)
+# Use spot VMs for cost-efficient API pods (save 60-80%)
 gcloud container node-pools create spot-pool \
-  --cluster=neutryx-prod \
+  --cluster=neutryx-api-prod \
   --region=us-central1 \
-  --machine-type=n2-standard-16 \
+  --machine-type=n2-standard-4 \
   --spot \
-  --num-nodes=5 \
+  --num-nodes=2 \
   --enable-autoscaling \
   --min-nodes=0 \
-  --max-nodes=50
+  --max-nodes=10
 
-# Set storage lifecycle policy
-gsutil lifecycle set lifecycle-policy.json gs://neutryx-backups
+# Set storage lifecycle policy for backups
+gsutil lifecycle set lifecycle-policy.json gs://neutryx-api-backups
 ```
 
 ### Amazon Web Services (AWS)
@@ -523,7 +523,7 @@ gsutil lifecycle set lifecycle-policy.json gs://neutryx-backups
 ```bash
 # 1. Create EKS cluster
 eksctl create cluster \
-  --name neutryx-prod \
+  --name neutryx-api-prod \
   --region us-east-1 \
   --nodegroup-name standard-workers \
   --node-type m5.2xlarge \
@@ -534,7 +534,7 @@ eksctl create cluster \
 
 # 2. Add GPU node group
 eksctl create nodegroup \
-  --cluster neutryx-prod \
+  --cluster neutryx-api-prod \
   --region us-east-1 \
   --name gpu-workers \
   --node-type p3.2xlarge \
@@ -544,7 +544,7 @@ eksctl create nodegroup \
 
 # 3. Create RDS instance
 aws rds create-db-instance \
-  --db-instance-identifier neutryx-db \
+  --db-instance-identifier neutryx-api-db \
   --db-instance-class db.r5.2xlarge \
   --engine postgres \
   --engine-version 15.3 \
@@ -557,15 +557,15 @@ aws rds create-db-instance \
 
 # 4. Create ElastiCache cluster
 aws elasticache create-replication-group \
-  --replication-group-id neutryx-cache \
+  --replication-group-id neutryx-api-cache \
   --replication-group-description "Neutryx Redis Cache" \
   --cache-node-type cache.r5.large \
   --engine redis \
   --num-cache-clusters 2 \
   --automatic-failover-enabled
 
-# 5. Deploy application
-kubectl apply -k k8s/overlays/prod
+# 4. Deploy API application
+kubectl apply -f deployment.yaml -n neutryx-api-api
 ```
 
 ### Microsoft Azure
@@ -576,7 +576,7 @@ kubectl apply -k k8s/overlays/prod
 # 1. Create AKS cluster
 az aks create \
   --resource-group neutryx-rg \
-  --name neutryx-prod \
+  --name neutryx-api-prod \
   --location eastus \
   --node-count 3 \
   --node-vm-size Standard_D8s_v3 \
@@ -588,7 +588,7 @@ az aks create \
 # 2. Add GPU node pool
 az aks nodepool add \
   --resource-group neutryx-rg \
-  --cluster-name neutryx-prod \
+  --cluster-name neutryx-api-prod \
   --name gpupool \
   --node-count 2 \
   --node-vm-size Standard_NC6s_v3 \
@@ -599,7 +599,7 @@ az aks nodepool add \
 # 3. Create PostgreSQL server
 az postgres flexible-server create \
   --resource-group neutryx-rg \
-  --name neutryx-db \
+  --name neutryx-api-db \
   --location eastus \
   --admin-user neutryx \
   --admin-password <password> \
@@ -611,13 +611,13 @@ az postgres flexible-server create \
 # 4. Create Redis cache
 az redis create \
   --resource-group neutryx-rg \
-  --name neutryx-cache \
+  --name neutryx-api-cache \
   --location eastus \
   --sku Premium \
   --vm-size P1
 
-# 5. Deploy application
-kubectl apply -k k8s/overlays/prod
+# 4. Deploy API application
+kubectl apply -f deployment.yaml -n neutryx-api-api
 ```
 
 ---
@@ -1222,8 +1222,8 @@ jobs:
         run: |
           kubectl set image deployment/neutryx-api \
             neutryx-api=neutryx/neutryx-core:${{ github.sha }} \
-            -n neutryx
-          kubectl rollout status deployment/neutryx-api -n neutryx
+            -n neutryx-api
+          kubectl rollout status deployment/neutryx-api -n neutryx-api
 ```
 
 ### GitLab CI/CD
@@ -1259,7 +1259,7 @@ deploy_production:
     - kubectl config use-context production
     - kubectl set image deployment/neutryx-api
         neutryx-api=neutryx/neutryx-core:$CI_COMMIT_SHA
-        -n neutryx
+        -n neutryx-api
   only:
     - main
 ```
@@ -1366,14 +1366,14 @@ See [monitoring.md](monitoring.md) for detailed dashboard configurations.
 
 ```bash
 # Check pod status
-kubectl get pods -n neutryx
+kubectl get pods -n neutryx-api
 
 # Describe pod for events
-kubectl describe pod <pod-name> -n neutryx
+kubectl describe pod <pod-name> -n neutryx-api
 
 # Check logs
-kubectl logs <pod-name> -n neutryx
-kubectl logs <pod-name> -n neutryx --previous
+kubectl logs <pod-name> -n neutryx-api
+kubectl logs <pod-name> -n neutryx-api --previous
 
 # Common causes:
 # - Image pull errors: Check registry credentials
@@ -1401,24 +1401,24 @@ WHERE state = 'active' AND now() - query_start > interval '1 minute';
 
 ```bash
 # Check resource usage
-kubectl top pods -n neutryx
+kubectl top pods -n neutryx-api
 kubectl top nodes
 
 # Adjust memory limits in deployment
 kubectl set resources deployment neutryx-api \
   --limits=memory=8Gi \
   --requests=memory=4Gi \
-  -n neutryx
+  -n neutryx-api
 ```
 
 #### 4. Market Data Feed Issues
 
 ```bash
 # Check adapter logs
-kubectl logs -f deployment/neutryx-market-data -n neutryx
+kubectl logs -f deployment/neutryx-market-data -n neutryx-api
 
 # Verify connectivity to vendor
-kubectl exec -it <pod-name> -n neutryx -- \
+kubectl exec -it <pod-name> -n neutryx-api -- \
   nc -zv bloomberg-server 8194
 
 # Check data freshness

@@ -86,7 +86,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Pledge vs rehypothecation tracking with CSA framework
 
 **Distributed Computing & Scalability**
-- Kubernetes orchestration with auto-scaling
+- Kubernetes deployment support with auto-scaling
 - Risk grid architecture for distributed calculations
 - Multi-region deployment with disaster recovery
 - Fault tolerance and automatic recovery (workflow checkpointing)
@@ -113,7 +113,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Tests
 - Reached 500+ comprehensive tests across all modules
 - Added enterprise security integration tests
-- Kubernetes deployment tests
+- K8s deployment tests
 - GPU/TPU performance benchmarks
 
 ---
@@ -340,7 +340,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 | v0.1.0 | Jan 2025 | Foundation & core pricing | 370+ | Multi-asset products, market data, observability |
 | v0.2.0 | Apr 2025 | Advanced calibration | +60 | Joint calibration, Bayesian averaging, SLV |
 | v0.4.0 | Jan 2026 | Regulatory compliance | +120 | FRTB SA/IMA, DRC/RRAO, SA-CCR, SIMM, IFRS 9/13 |
-| v1.0.0 | Jun 2026 | Enterprise platform | +50 | SSO/OAuth/MFA/LDAP, Kubernetes, AMR, collateral |
+| v1.0.0 | Jun 2026 | Enterprise platform | +50 | SSO/OAuth/MFA/LDAP, K8s deployment, AMR, collateral |
 | v1.0.3 | Nov 2025 | Analytics & research | +80 | Backtesting, factor analysis, portfolio optimization |
 | **Total** | **Current** | **Production-ready** | **500+** | **Complete enterprise derivatives platform** |
 
@@ -361,7 +361,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### v0.4.0 → v1.0.0
 - Authentication now required for all API endpoints
 - Environment variables needed for OAuth/LDAP configuration
-- Kubernetes deployment templates available in `deployment/k8s/`
+- Kubernetes deployment examples available in documentation
 - New collateral management API endpoints
 
 ### v1.0.0 → v1.0.3

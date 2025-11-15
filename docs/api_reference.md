@@ -8,7 +8,7 @@ Neutryx Core provides a complete JAX-first quantitative finance platform with:
 
 - **500+ tests** ensuring production-ready quality
 - **Multi-asset class coverage**: Interest rates, FX, equity, credit, commodity
-- **Enterprise features**: SSO/OAuth/MFA, Kubernetes orchestration, observability
+- **Enterprise features**: SSO/OAuth/MFA, Kubernetes deployment support, observability
 - **Regulatory compliance**: FRTB SA/IMA, SA-CCR, SIMM, IFRS 9/13
 - **Advanced analytics**: Backtesting, factor analysis, portfolio optimization
 
@@ -1692,7 +1692,7 @@ rbac.assign_role(user_id="john.doe", role="trader")
 has_permission = rbac.check_permission(user_id="john.doe", resource="portfolio", action="write")
 ```
 
-### Kubernetes Orchestration 🆕
+### Kubernetes Deployment 🆕
 
 ```python
 from neutryx.infrastructure.k8s import (
@@ -1987,7 +1987,7 @@ class CustomExotic(Product):
 
 Key changes:
 - SSO/OAuth authentication is now available
-- Kubernetes orchestration support added
+- Kubernetes deployment support added
 - FRTB IMA, DRC, RRAO modules added
 - Backtesting and factor analysis modules added
 
