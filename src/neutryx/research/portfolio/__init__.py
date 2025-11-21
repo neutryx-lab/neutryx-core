@@ -8,6 +8,18 @@ from .optimizers import (
     BlackLittermanModel,
     BlackLittermanPosterior,
 )
+from .advanced import (
+    RobustMeanVarianceOptimizer,
+    MarketSimulationEnvironment,
+    ReinforcementLearningPortfolioAgent,
+    DynamicProgrammingPortfolioOptimizer,
+    StochasticDynamicProgramming,
+)
+from .reinforcement_learning import (
+    PPOAgent,
+    A3CAgent,
+    PortfolioTradingEnvironment,
+)
 
 __all__ = [
     "CovarianceEstimator",
@@ -17,4 +29,12 @@ __all__ = [
     "MaximumSharpeRatioOptimizer",
     "BlackLittermanModel",
     "BlackLittermanPosterior",
+    "RobustMeanVarianceOptimizer",
+    "MarketSimulationEnvironment",
+    "ReinforcementLearningPortfolioAgent",
+    "DynamicProgrammingPortfolioOptimizer",
+    "StochasticDynamicProgramming",
+    "PPOAgent",
+    "A3CAgent",
+    "PortfolioTradingEnvironment",
 ]
