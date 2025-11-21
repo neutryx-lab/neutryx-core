@@ -227,6 +227,65 @@ from .workflow import (
     WorkflowSnapshot,
 )
 
+# New v0.3.0 components
+from .ccp_router import (
+    CCPRouter,
+    RoutingStrategy,
+    RoutingDecision,
+    MarginQuote,
+    CCPEligibilityRule,
+    CCPCapability,
+)
+from .rfq_ccp_integration import (
+    RFQCCPIntegrationService,
+    RFQCCPIntegrationConfig,
+    RFQExecutionResult,
+    RFQExecutionStatus,
+    TradeAllocation,
+)
+from .settlement_workflow import (
+    AutomaticSettlementService,
+    SettlementWorkflow,
+    SettlementWorkflowConfig,
+    SettlementWorkflowEvent,
+    SettlementRoutingStrategy,
+    WorkflowStatus,
+)
+from .margin_aggregator import (
+    MarginAggregationService,
+    MarginAggregatorConfig,
+    AggregatedMarginReport,
+    CCPMarginRequirement,
+    CollateralPosition,
+    MarginType,
+    CollateralType,
+    MarginCallStatus,
+)
+from .lifecycle_settlement_mapper import (
+    LifecycleSettlementMapper,
+    LifecycleSettlementConfig,
+    LifecycleSettlementImpact,
+    SettlementAction,
+)
+from .margin_tracker import (
+    CCPMarginTracker,
+    MarginTrackerConfig,
+    MarginSnapshot,
+    MarginChangeEvent,
+    MarginCallRecord,
+    MarginChangeType,
+)
+from .reconciliation import (
+    CCPReconciliationEngine,
+    ReconciliationConfig,
+    ReconciliationResult,
+    ReconciliationBreak,
+    ReconciliationType,
+    BreakType,
+    BreakSeverity,
+    BreakStatus,
+)
+
 __version__ = "0.1.0"
 
 __all__ = [
@@ -278,4 +337,54 @@ __all__ = [
     "EurexClearingConfig",
     "EurexAssetClass",
     "PrismaMarginBreakdown",
+    # CCP Routing (v0.3.0)
+    "CCPRouter",
+    "RoutingStrategy",
+    "RoutingDecision",
+    "MarginQuote",
+    "CCPEligibilityRule",
+    "CCPCapability",
+    # RFQ-CCP Integration (v0.3.0)
+    "RFQCCPIntegrationService",
+    "RFQCCPIntegrationConfig",
+    "RFQExecutionResult",
+    "RFQExecutionStatus",
+    "TradeAllocation",
+    # Settlement Workflow (v0.3.0)
+    "AutomaticSettlementService",
+    "SettlementWorkflow",
+    "SettlementWorkflowConfig",
+    "SettlementWorkflowEvent",
+    "SettlementRoutingStrategy",
+    "WorkflowStatus",
+    # Margin Aggregation (v0.3.0)
+    "MarginAggregationService",
+    "MarginAggregatorConfig",
+    "AggregatedMarginReport",
+    "CCPMarginRequirement",
+    "CollateralPosition",
+    "MarginType",
+    "CollateralType",
+    "MarginCallStatus",
+    # Lifecycle Settlement Mapping (v0.3.0)
+    "LifecycleSettlementMapper",
+    "LifecycleSettlementConfig",
+    "LifecycleSettlementImpact",
+    "SettlementAction",
+    # Margin Tracking (v0.3.0)
+    "CCPMarginTracker",
+    "MarginTrackerConfig",
+    "MarginSnapshot",
+    "MarginChangeEvent",
+    "MarginCallRecord",
+    "MarginChangeType",
+    # Reconciliation (v0.3.0)
+    "CCPReconciliationEngine",
+    "ReconciliationConfig",
+    "ReconciliationResult",
+    "ReconciliationBreak",
+    "ReconciliationType",
+    "BreakType",
+    "BreakSeverity",
+    "BreakStatus",
 ]

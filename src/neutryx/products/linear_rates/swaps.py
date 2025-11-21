@@ -234,8 +234,41 @@ class OvernightIndexSwap(Product):
             return fixed_leg_pv - floating_leg_pv
 
     def payoff_terminal(self, spot: Array) -> Array:
-        """OIS requires path-dependent pricing."""
-        raise NotImplementedError("OIS requires path for daily compounding")
+        """Simplified OIS payoff using spot rate as constant overnight rate.
+
+        Note: This is a simplified approximation. For accurate OIS pricing with
+        daily compounding, use `payoff_path` method with actual daily overnight rates.
+
+        Args:
+            spot: Spot overnight rate to use as constant rate
+
+        Returns:
+            Approximate present value of the OIS
+        """
+        n_payments = int(self.T * self.payment_frequency)
+        period_length = 1.0 / self.payment_frequency
+        payment_times = jnp.arange(1, n_payments + 1) * period_length
+
+        # Discount factors
+        discount_factors = jnp.exp(-spot * payment_times)
+
+        # Fixed leg PV
+        fixed_cash_flows = self.notional * self.fixed_rate * period_length
+        fixed_leg_pv = jnp.sum(fixed_cash_flows * discount_factors)
+
+        # Floating leg: approximate with constant overnight rate (spot)
+        # Daily compounding over each period: (1 + r/360)^days - 1
+        days_per_period = int(360 * period_length)
+        compound_factor = jnp.power(1.0 + spot / 360.0, days_per_period)
+        floating_rate = (compound_factor - 1.0) / period_length
+        floating_cash_flows = self.notional * floating_rate * period_length
+        floating_leg_pv = jnp.sum(floating_cash_flows * discount_factors)
+
+        # Net value
+        if self.swap_type == SwapType.PAYER:
+            return floating_leg_pv - fixed_leg_pv
+        else:
+            return fixed_leg_pv - floating_leg_pv
 
 
 @dataclass

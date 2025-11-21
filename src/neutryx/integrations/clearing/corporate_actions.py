@@ -605,7 +605,13 @@ class CorporateActionProcessor:
             )
 
         else:
-            raise NotImplementedError(f"Payment type {terms.payment_type} not implemented")
+            # All standard PaymentType values are handled above
+            # This should only be reached if a new/unknown payment type is used
+            valid_types = [t.value for t in PaymentType]
+            raise ValueError(
+                f"Unknown payment type: {terms.payment_type}. "
+                f"Valid payment types are: {', '.join(valid_types)}"
+            )
 
         return self._store_entitlement(entitlement)
 

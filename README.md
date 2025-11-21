@@ -10,7 +10,7 @@
   <img alt="Python Version" src="https://img.shields.io/badge/python-3.10+-blue?style=for-the-badge"/>
   <img alt="JAX Version" src="https://img.shields.io/badge/jax-0.4.26+-orange?style=for-the-badge"/>
   <img alt="License" src="https://img.shields.io/badge/license-MIT-lightgrey?style=for-the-badge"/>
-  <img alt="Version" src="https://img.shields.io/badge/version-1.0.0-blue?style=for-the-badge"/>
+  <img alt="Version" src="https://img.shields.io/badge/version-1.0.3-blue?style=for-the-badge"/>
 </p>
 
 <p align="center">
@@ -46,21 +46,28 @@ is **JIT-compiled**, **GPU-accelerated**, and **production-ready**.
 - ✅ **v0.1.0** Foundation Release - Multi-asset derivatives platform
 - ✅ **v0.2.0** Advanced Calibration - Bayesian model averaging, joint calibration
 - ✅ **v0.4.0** Regulatory Compliance - Complete FRTB SA/IMA, SA-CCR, DRC/RRAO
-- ✅ **v1.0.0** Enterprise Platform - SSO/OAuth/MFA/LDAP, Kubernetes deployment support, AMR PDE solvers
-- 🔄 **v1.x** Analytics & Research - 60% complete (backtesting, factor analysis delivered)
+- ✅ **v1.0.0** Enterprise Platform - RBAC/audit/multi-tenancy, distributed computing, AMR PDE solvers
+- ✅ **v1.x** Analytics & Research - 85% complete (backtesting, factor analysis, portfolio optimization delivered)
 
 **Recently Added Features:**
+- 🆕 RFQ (Request for Quote) workflow with multi-dealer auctions and best execution tracking
+- 🆕 Convention-based trade generation system for market-standard trades (USD, EUR, GBP, JPY, CHF)
+- 🆕 Confirmation matching and settlement instruction generation
 - 🆕 FRTB Internal Models Approach (IMA) with ES 97.5%, P&L attribution, backtesting
 - 🆕 Default Risk Charge (DRC) and Residual Risk Add-On (RRAO)
 - 🆕 Comprehensive backtesting framework with transaction cost modeling
 - 🆕 Factor analysis toolkit (PCA, Barra-style models, style attribution)
 - 🆕 Adaptive mesh refinement (AMR) for PDE solvers
-- 🆕 Kubernetes deployment support with auto-scaling and high availability
-- 🆕 Enterprise authentication (SSO, OAuth 2.0, MFA, LDAP)
+- 🆕 Enterprise governance framework (RBAC, audit logging, multi-tenancy, SLA monitoring)
+- 🆕 Observability instrumentation (Prometheus metrics, OpenTelemetry tracing)
+
+**Recently Completed:**
+- ✅ Trading infrastructure (v0.3.0) - CCP integration (LCH, CME, ICE, Eurex), settlement systems (CLS, Euroclear, SWIFT), corporate actions
+- ✅ Portfolio optimization - Black-Litterman, minimum variance, maximum Sharpe ratio, robust optimization
 
 **In Active Development:**
-- 🔄 Trading infrastructure (v0.3.0) - CCP integration, settlement systems
-- 🔄 Advanced portfolio optimization - Black-Litterman, reinforcement learning
+- 🔄 Advanced reinforcement learning (PPO, A3C algorithms)
+- 🔄 Multi-period dynamic programming for portfolio allocation
 
 ---
 
@@ -68,7 +75,7 @@ is **JIT-compiled**, **GPU-accelerated**, and **production-ready**.
 
 ### Core Capabilities
 
-- **Models:** Analytic Black-Scholes, stochastic volatility (Heston, SABR), jump diffusion, rough volatility
+- **Models:** Analytic Black-Scholes, stochastic volatility (Heston, SABR), jump diffusion, rough volatility, multi-factor interest rate models (Hull-White, G2++, Quasi-Gaussian, LMM)
 - **Products:** Comprehensive multi-asset class coverage including vanilla, exotic, and structured products
   - **Derivatives:** European, Asian, Barrier, Lookback, American (Longstaff-Schwartz)
   - **Equity:** Forwards, dividend swaps, variance swaps, TRS, equity-linked notes
@@ -113,11 +120,13 @@ is **JIT-compiled**, **GPU-accelerated**, and **production-ready**.
 
 ### Observability & Monitoring (NEW)
 
-- **Prometheus Metrics**: Custom business metrics for pricing, risk, and XVA operations
-- **Grafana Dashboards**: Pre-built dashboards for system monitoring and performance analysis
-- **Distributed Tracing**: OpenTelemetry integration with Jaeger for request tracing
-- **Performance Profiling**: Automatic profiling of slow requests with cProfile
-- **Alerting**: Intelligent alerting with configurable thresholds and notification channels
+- **Prometheus Metrics**: Custom business metrics instrumentation for pricing, risk, and XVA operations
+- **Grafana Dashboard Templates**: Pre-built dashboard configurations for monitoring and performance analysis
+- **Distributed Tracing**: OpenTelemetry instrumentation for computation tracing
+- **Performance Profiling**: Automatic profiling support with cProfile integration
+- **Alerting Framework**: Configurable alert rules and notification channels
+
+Note: Grafana/Prometheus/Jaeger deployment and dashboards are managed by the neutryx-api package.
 
 ### Research & Analytics (NEW)
 
@@ -338,21 +347,39 @@ neutryx-core/
 ├── dev/                  # Developer tooling
 │   └── monitoring/       # Prometheus, Grafana, Jaeger stack
 └── src/neutryx/
-    ├── api/              # REST and gRPC services
+    ├── calibration/      # Model calibration and parameter estimation
     ├── core/             # Pricing engines and infrastructure
     ├── infrastructure/   # Observability, governance, workflows
     │   ├── observability/    # Prometheus, tracing, profiling, alerting
     │   └── governance/       # Multi-tenancy, RBAC, compliance
+    ├── integrations/     # External system integrations
+    │   ├── fpml/         # FpML parsing and generation
+    │   ├── clearing/     # CLS, Euroclear, SWIFT (in progress)
+    │   └── databases/    # PostgreSQL, MongoDB, TimescaleDB
     ├── market/           # Market data and analytics
     │   ├── adapters/     # Bloomberg, Refinitiv integrations
     │   ├── storage/      # PostgreSQL, MongoDB, TimescaleDB
     │   ├── validation/   # Data quality and validation
     │   └── feeds/        # Real-time feed management
     ├── models/           # Stochastic models (BS, Heston, SABR, etc.)
+    ├── portfolio/        # Portfolio management and trade lifecycle
+    │   ├── contracts/    # Trade contracts, CSA, master agreements
+    │   └── trade_generation/  # Convention-based trade generation
     ├── products/         # Multi-asset class product library
-    ├── portfolio/        # Portfolio analytics and optimization
-    ├── valuations/       # XVA and exposure analytics
-    └── tests/            # 500+ comprehensive tests
+    ├── regulatory/       # Regulatory compliance and reporting
+    │   ├── ima/          # FRTB Internal Models Approach
+    │   ├── accounting/   # IFRS 9/13 compliance
+    │   └── reporting/    # EMIR, MiFID II, Basel reporting
+    ├── research/         # Backtesting and portfolio optimization
+    │   └── portfolio/    # Black-Litterman, robust optimization
+    ├── trading/          # Trading workflows and execution
+    │   ├── rfq.py        # Request for Quote and auction mechanisms
+    │   ├── confirmation.py  # Confirmation matching
+    │   └── settlement.py    # Settlement processing
+    └── valuations/       # XVA and exposure analytics
+        └── regulatory/   # FRTB, SA-CCR calculators
+
+Note: REST/gRPC APIs have been extracted to a separate neutryx-api package for modular deployment.
 ```
 
 ---
@@ -449,10 +476,10 @@ v0.2.0 (COMPLETE) ────────────────────�
     ✅ Advanced calibration & model enhancements              │
     ✅ Bayesian model averaging, jump clustering              │
                                                                │
-v0.3.0 (In Progress - 50%) ───────────────────────────────────┤
+v0.3.0 (95% Complete) ────────────────────────────────────────┤
                                                                │
-    🔄 Trading platform infrastructure                        │
-    🔄 Lifecycle management, CCP integration, FpML           │
+    ✅ RFQ workflow, Convention profiles, FpML               │
+    ✅ CCP integration (LCH, CME, ICE, Eurex), Settlement    │
                                                                │
 v0.4.0 (COMPLETE) ────────────────────────────────────────────┤
                                                                │
@@ -461,13 +488,13 @@ v0.4.0 (COMPLETE) ────────────────────�
                                                                │
 v1.0.0 (COMPLETE) ────────────────────────────────────────────┤
                                                                │
-    ✅ SSO/OAuth/MFA, K8s deployment, AMR PDEs               │
+    ✅ RBAC/Audit/Multi-tenancy, Distributed compute, AMR    │
     ✅ Enterprise platform (500+ tests)                       │
                                                                │
-v1.x (60% Complete) ──────────────────────────────────────────┤
+v1.x (85% Complete) ──────────────────────────────────────────┤
                                                                │
-    ✅ Backtesting, factor analysis                           │
-    🔄 Portfolio optimization, reinforcement learning         │
+    ✅ Backtesting, factor analysis, portfolio optimization   │
+    🔄 Advanced RL (PPO/A3C), dynamic programming             │
                                                                │
 
 ### 🎯 Key Milestones
@@ -476,10 +503,10 @@ v1.x (60% Complete) ────────────────────
 |---------|-------|----------|--------|
 | **v0.1.0** | Foundation & Core Pricing | Jan 2025 | ✅ **Released** |
 | **v0.2.0** | Advanced Calibration | Q2-Q3 2025 | ✅ **Complete** |
-| **v0.3.0** | Trading Infrastructure | Q4 2025 | 🔄 **50% Complete** |
+| **v0.3.0** | Trading Infrastructure | Q4 2025 | ✅ **95% Complete** |
 | **v0.4.0** | Regulatory Compliance | Q1 2026 | ✅ **Complete** |
 | **v1.0.0** | Enterprise Platform | Q2 2026 | ✅ **Complete** |
-| **v1.x** | Analytics & Portfolio | 2026-2027 | 🔄 **60% Complete** |
+| **v1.x** | Analytics & Portfolio | 2026-2027 | ✅ **85% Complete** |
 
 ---
 
@@ -512,7 +539,7 @@ v1.x (60% Complete) ────────────────────
 - ✅ **Fixed Income, Inflation, Volatility, Convertibles**
 
 **Advanced Models & Calibration:**
-- ✅ **IR Models:** Hull-White (1F/2F), Black-Karasinski, Cheyette, LGM, LMM/BGM, HJM, CIR, Vasicek
+- ✅ **IR Models:** Hull-White (1F/2F), G2++ (two-factor Gaussian), Quasi-Gaussian (QG), Black-Karasinski, Cheyette, LGM, LMM/BGM, HJM, CIR, Vasicek, Cross-currency basis
 - ✅ **Equity Models:** Local vol (Dupire), Heston, rough vol, jump-diffusion (Merton, Kou, Variance Gamma)
 - ✅ **FX Models:** Garman-Kohlhagen, FX Heston, FX SABR, FX Bates, two-factor FX
 - ✅ **Credit Models:** Gaussian copula, hazard rate (Jarrow-Turnbull, Duffie-Singleton)
@@ -529,10 +556,10 @@ v1.x (60% Complete) ────────────────────
 
 **Infrastructure & Operations:**
 - ✅ **Market Data:** Bloomberg/Refinitiv integration, PostgreSQL/MongoDB/TimescaleDB storage, validation pipeline
-- ✅ **Observability:** Prometheus metrics, Grafana dashboards, Jaeger tracing, automatic profiling
+- ✅ **Observability:** Prometheus metrics instrumentation, OpenTelemetry tracing, automatic profiling
 - ✅ **Regulatory Reporting:** EMIR/Dodd-Frank, MiFID II/MiFIR, Basel III/IV (70 tests)
-- ✅ **APIs:** REST/gRPC endpoints, interactive dashboards
-- ✅ **Performance:** JIT compilation (10-100x speedup), GPU/TPU support, mixed-precision
+- ✅ **Governance:** RBAC, audit logging, multi-tenancy, SLA monitoring, cost tracking
+- ✅ **Performance:** JIT compilation (10-100x speedup), GPU/TPU support, distributed computing
 
 ---
 
@@ -546,7 +573,7 @@ v1.x (60% Complete) ────────────────────
   - ✅ Multi-instrument simultaneous calibration (e.g., cap/floor + swaption joint calibration)
   - ✅ Cross-asset calibration (FX smile + equity correlation)
   - ✅ Time-dependent parameter fitting with smoothness constraints
-  - [ ] Multi-objective optimization with Pareto frontiers
+  - ✅ Multi-objective optimization with Pareto frontiers
 
 - ✅ **Regularization & Stability**
   - ✅ Tikhonov regularization for ill-posed calibration problems
@@ -572,10 +599,10 @@ v1.x (60% Complete) ────────────────────
   - ✅ CreditMetrics framework integration
   - ✅ Structural models (Merton, Black-Cox)
 
-- [ ] **Interest Rate Models**
-  - [ ] G2++ (two-factor Gaussian) model
-  - [ ] Quasi-Gaussian (QG) models
-  - [ ] Cross-currency basis modeling
+- ✅ **Interest Rate Models**
+  - ✅ G2++ (two-factor Gaussian) model
+  - ✅ Quasi-Gaussian (QG) models
+  - ✅ Cross-currency basis modeling
 
 **Target Release:** Q3 2025 ✅ **Delivered**
 **Key Deliverables:** ✅ 50+ new tests, joint calibration framework, Bayesian model averaging, enhanced model selection
@@ -590,7 +617,11 @@ v1.x (60% Complete) ────────────────────
 - ✅ **Pre-Trade**
   - ✅ Real-time pricing engines for multi-asset classes
   - ✅ Streaming quotes with dynamic refresh (polling-based)
-  - [ ] RFQ (Request for Quote) workflow and auction mechanisms
+  - ✅ RFQ (Request for Quote) workflow and auction mechanisms
+    - ✅ Multi-dealer competitive bidding
+    - ✅ Blind and open auction types
+    - ✅ Quote acceptance/rejection workflows
+    - ✅ Best execution tracking and dealer statistics
   - ✅ Pre-trade analytics and what-if scenario analysis
 
 - ✅ **Trade Capture**
@@ -598,19 +629,24 @@ v1.x (60% Complete) ────────────────────
   - ✅ Trade booking workflow with validation
   - ✅ Trade amendment and cancellation handling
   - ✅ Automated trade enrichment (counterparty, legal entity, booking center)
+  - ✅ Convention-based trade generation system
+    - ✅ Market-standard conventions for all major currencies (USD, EUR, GBP, JPY, CHF)
+    - ✅ Product-specific convention profiles (IRS, OIS, CCS, Basis, FRA)
+    - ✅ Override mechanism for non-standard trades
+    - ✅ Convention compliance validation and warnings
 
 - ✅ **Post-Trade**
-  - [ ] Confirmation matching and affirmation
-  - [ ] Settlement instruction generation
+  - ✅ Confirmation matching and affirmation
+  - ✅ Settlement instruction generation
   - ✅ Payment calculation and netting
-  - [ ] Corporate action processing
+  - ✅ Corporate action processing (dividends, splits, mergers, rights issues, etc.)
   - ✅ Novation and assignment workflows
 
 #### Reference Data Management
-- [ ] **Security Master**
-  - [ ] Centralized security master database
+- ⚠️ **Security Master** (Partial)
+  - [ ] Centralized security master database (planned)
   - ✅ ISIN/CUSIP/SEDOL cross-reference (in vendor adapters)
-  - [ ] Corporate actions processing and adjustments
+  - ✅ Corporate actions processing and adjustments (ISO 20022 support)
   - ✅ Real-time reference data updates
 
 - ✅ **Market Conventions**
@@ -627,19 +663,22 @@ v1.x (60% Complete) ────────────────────
   - [ ] ICE Data Services connectivity
   - [ ] CME Market Data direct feeds
 
-- [ ] **CCP Integration**
-  - [ ] LCH SwapClear connectivity and trade submission
-  - [ ] CME Clearing integration
-  - [ ] ICE Clear Credit/Europe
-  - [ ] Eurex Clearing
+- ✅ **CCP Integration**
+  - ✅ LCH SwapClear connectivity and trade submission
+  - ✅ CME Clearing integration with SPAN/CORE margin support
+  - ✅ ICE Clear Credit/Europe/US/Singapore
+  - ✅ Eurex Clearing with Prisma margin framework
+  - ✅ CCP routing service with intelligent strategy selection
 
-- [ ] **Settlement Systems**
-  - [ ] CLS (Continuous Linked Settlement) for FX
-  - [ ] Euroclear/Clearstream integration
-  - [ ] SWIFT messaging (MT and MX formats)
+- ✅ **Settlement Systems**
+  - ✅ CLS (Continuous Linked Settlement) for FX with settlement instruction generation
+  - ✅ Euroclear/Clearstream integration with trade settlement workflows
+  - ✅ SWIFT messaging (MT and MX formats) with automated routing
+  - ✅ Settlement workflow automation and lifecycle event mapping
+  - ✅ Reconciliation framework for settlement confirmation
 
 **Target Release:** Q4 2025
-**Key Deliverables:** 80+ new tests, FpML integration, LCH SwapClear connectivity
+**Key Deliverables:** ✅ FpML integration, ✅ RFQ workflow with multi-dealer auctions, ✅ Convention-based trade generation, ✅ Confirmation matching and settlement, ✅ CCP integration (LCH, CME, ICE, Eurex), ✅ Settlement systems (CLS, Euroclear, SWIFT), ✅ Corporate actions
 
 ---
 
@@ -708,24 +747,25 @@ v1.x (60% Complete) ────────────────────
 **Milestone:** Complete enterprise-grade derivatives platform with full regulatory compliance
 **Status:** Production-ready with all enterprise features delivered
 
-#### Enterprise Features
-- ✅ **Security & Access Control**
-  - ✅ SSO (Single Sign-On) with OAuth 2.0/OpenID Connect
-  - ✅ Role-based access control (RBAC) and fine-grained permissions
-  - ✅ Multi-factor authentication (MFA)
-  - ✅ LDAP/Active Directory integration
+#### Enterprise Governance Framework
+- ✅ **Access Control & Authorization**
+  - ✅ Role-based access control (RBAC) with fine-grained permissions
+  - ✅ Hierarchical role inheritance and tenant-scoped roles
+  - ✅ Permission validation and enforcement logic
 
 - ✅ **Audit & Compliance**
   - ✅ Immutable audit trail with user action tracking
-  - [ ] Data lineage and provenance tracking
-  - ✅ Maker-checker workflow with 4-eyes principle (generic workflow)
-  - ✅ Approval workflows and compliance attestation (reporting framework)
+  - ✅ Compliance rule engine and automated reporting
+  - ✅ Maker-checker workflow support (generic workflow patterns)
+  - ✅ Approval workflow orchestration
 
 - ✅ **Multi-Tenancy**
   - ✅ Multi-desk/legal entity isolation
-  - ✅ Geography-based segregation and data residency (metadata support)
-  - ✅ Compute quota management and cost allocation
-  - ✅ SLA monitoring and reporting by tenant
+  - ✅ Tenant quota management and resource allocation
+  - ✅ Cost tracking and allocation by tenant
+  - ✅ SLA policy definition and monitoring
+
+Note: Authentication endpoints (SSO/OAuth/MFA/LDAP) are provided by the separate neutryx-api package.
 
 #### Collateral Management
 - ✅ **Margining & Optimization**
@@ -738,10 +778,10 @@ v1.x (60% Complete) ────────────────────
 
 #### Performance & Scalability
 - ✅ **Distributed Computing**
-  - ✅ Kubernetes orchestration with auto-scaling
+  - ✅ JAX distributed execution configuration (multi-process clusters)
   - ✅ Risk grid architecture for distributed calculations (framework ready)
-  - ✅ Multi-region deployment with disaster recovery
-  - ✅ Fault tolerance and automatic recovery (workflow checkpointing)
+  - ✅ Workflow checkpointing for fault tolerance
+  - ✅ Parallel computation orchestration
 
 - ✅ **GPU/TPU Acceleration**
   - ✅ Multi-GPU Monte Carlo with pmap/pjit
@@ -757,7 +797,9 @@ v1.x (60% Complete) ────────────────────
   - ✅ Adaptive mesh refinement (AMR) for PDEs
 
 **Target Release:** Q2 2026 ✅ **Delivered**
-**Key Deliverables:** ✅ Production-ready with SSO/OAuth/MFA, Kubernetes orchestration, collateral transformation, AMR for PDEs, 500+ tests
+**Key Deliverables:** ✅ Enterprise governance framework, distributed computing support, collateral transformation, AMR for PDEs, 500+ tests
+
+**Note:** Deployment infrastructure (Kubernetes orchestration, auto-scaling, multi-region deployment) and API services (REST/gRPC endpoints, SSO/OAuth/MFA/LDAP authentication, interactive dashboards) are provided by the separate **neutryx-api** package, enabling modular deployment and infrastructure management.
 
 ---
 
@@ -768,15 +810,15 @@ v1.x (60% Complete) ────────────────────
 #### Portfolio Optimization
 - ✅ **Classical Methods**
   - ✅ Mean-variance optimization (Markowitz)
-  - [ ] Black-Litterman model with views integration
+  - ✅ Black-Litterman model with views integration
   - ✅ Risk parity portfolios
-  - [ ] Minimum variance and maximum Sharpe ratio
+  - ✅ Minimum variance and maximum Sharpe ratio
 
-- [ ] **Advanced Optimization**
+- ✅ **Advanced Optimization**
   - ✅ CVaR/ES optimization for tail risk
-  - [ ] Robust optimization with uncertainty sets
+  - ✅ Robust optimization with uncertainty sets
   - [ ] Dynamic programming for multi-period allocation
-  - [ ] Reinforcement learning for adaptive allocation (PPO, A3C)
+  - ⚠️ Reinforcement learning for adaptive allocation (basic policy gradient implemented, PPO/A3C in progress)
 
 #### Research & Backtesting Tools
 - ✅ **Strategy Backtesting**
@@ -792,7 +834,7 @@ v1.x (60% Complete) ────────────────────
   - ✅ Factor timing and allocation
 
 **Target Releases:** v1.1 (Q3 2026), v1.2 (Q4 2026), v1.3 (Q1 2027)
-**Status:** 60% Complete - Core backtesting and factor analysis frameworks delivered ahead of schedule
+**Status:** 85% Complete - Core backtesting, factor analysis, and portfolio optimization frameworks delivered ahead of schedule
 
 ---
 
@@ -909,15 +951,15 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 - ✅ Jump clustering models for equity
 - ✅ Bayesian model averaging framework
 
-**Remaining (moved to v0.3.0):**
-- 🔄 Additional Lévy processes (NIG, CGMY)
-- 🔄 IR model extensions (G2++, Quasi-Gaussian)
+**Additional Delivered:**
+- ✅ Interest rate model extensions (G2++, Quasi-Gaussian, Cross-currency basis)
+- ✅ Additional Lévy processes (NIG, CGMY)
 
 **Delivered:** 60+ new tests, comprehensive calibration framework, Bayesian model averaging, production-ready implementations
 
 ---
 
-### **v0.3.0** (In Progress - 50% Complete)
+### **v0.3.0** (95% Complete)
 
 **Trading Platform Infrastructure**
 
@@ -928,16 +970,27 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 - ✅ Market conventions (calendars, day count, business day adjustment)
 - ✅ Payment calculation and netting
 - ✅ Vendor adapter architecture (Bloomberg, Refinitiv)
+- ✅ RFQ workflow and auction mechanisms
+  - ✅ Multi-dealer competitive bidding
+  - ✅ Blind and open auction types
+  - ✅ Quote acceptance/rejection workflows
+  - ✅ Best execution tracking and dealer statistics
+- ✅ Convention-based trade generation system
+  - ✅ Market-standard conventions for major currencies (USD, EUR, GBP, JPY, CHF)
+  - ✅ Product-specific profiles (IRS, OIS, CCS, Basis, FRA)
+  - ✅ Convention compliance validation
+- ✅ Confirmation matching and affirmation
+- ✅ Settlement instruction generation
 
-**In Progress:**
-- 🔄 RFQ workflow and auction mechanisms
-- 🔄 Confirmation matching and affirmation
-- 🔄 Settlement instruction generation
-- 🔄 Corporate action processing
-- 🔄 CCP integration (LCH SwapClear, CME Clearing, ICE Clear, Eurex)
-- 🔄 Settlement systems (CLS, Euroclear/Clearstream, SWIFT messaging)
+**Additional Delivered:**
+- ✅ Corporate action processing (ISO 20022, DTCC integration, 10+ action types)
+- ✅ CCP integration (LCH SwapClear, CME Clearing, ICE Clear, Eurex with intelligent routing)
+- ✅ Settlement systems (CLS, Euroclear/Clearstream, SWIFT MT/MX messaging, workflow automation)
 
-**Delivered:** FpML integration, trade lifecycle framework, comprehensive market conventions
+**Remaining:**
+- [ ] Centralized security master database (planned for v1.1)
+
+**Delivered:** FpML integration, RFQ workflow with multi-dealer auctions, convention-based trade generation (USD/EUR/GBP/JPY/CHF), confirmation matching, settlement instructions, CCP integration (LCH/CME/ICE/Eurex), settlement systems (CLS/Euroclear/SWIFT), corporate actions processing, comprehensive market conventions
 
 ---
 
@@ -974,29 +1027,29 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 **Production Enterprise Platform**
 
 **Completed:**
-- ✅ SSO (Single Sign-On) with OAuth 2.0/OpenID Connect
-- ✅ Multi-factor authentication (MFA)
-- ✅ LDAP/Active Directory integration
 - ✅ Role-based access control (RBAC) with fine-grained permissions
 - ✅ Immutable audit trail with user action tracking
 - ✅ Multi-tenancy (desk/entity isolation, quota management, cost allocation, SLA monitoring)
+- ✅ Compliance rule engine and automated reporting
 - ✅ Collateral management (ISDA SIMM, VM, margin calls with aging, CSA framework)
 - ✅ Collateral transformation strategies
 - ✅ GPU/TPU acceleration (multi-GPU Monte Carlo, PDE solver acceleration, batch pricing)
 - ✅ Algorithmic improvements (adjoint AAD, variance reduction, Sobol/Halton QMC, MLMC, AMR for PDEs)
-- ✅ Kubernetes orchestration with auto-scaling
-- ✅ Multi-region deployment with disaster recovery
+- ✅ JAX distributed execution configuration (multi-process clusters)
+- ✅ Workflow checkpointing for fault tolerance
 - ✅ Maker-checker workflow framework
-- ✅ Compliance reporting framework
+- ✅ Observability instrumentation (Prometheus metrics, OpenTelemetry tracing)
 
 **Remaining (deferred to v1.1):**
 - 🔄 Data lineage and provenance tracking (low priority)
 
-**Delivered:** Complete production-ready platform with enterprise security (SSO/OAuth/MFA/LDAP), distributed Kubernetes infrastructure, collateral transformation, AMR PDE solvers, 500+ tests
+**Delivered:** Complete production-ready platform with enterprise governance framework (RBAC, audit, multi-tenancy), distributed computing support, collateral transformation, AMR PDE solvers, observability instrumentation, 500+ tests
+
+**Note:** API services (SSO/OAuth/MFA/LDAP authentication, REST/gRPC endpoints) and deployment infrastructure (Kubernetes, auto-scaling, multi-region) are provided by the **neutryx-api** package.
 
 ---
 
-### **v1.x** (2026-2027) - 🔄 **60% Complete**
+### **v1.x** (2026-2027) - ✅ **85% Complete**
 
 **Advanced Analytics & Portfolio Optimization**
 
@@ -1006,14 +1059,17 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 - ✅ Performance metrics (Sharpe, Sortino, Calmar, drawdown analysis)
 - ✅ Portfolio optimization (Markowitz mean-variance, risk parity, CVaR optimization)
 
-**In Progress:**
-- 🔄 Black-Litterman model with views integration
-- 🔄 Minimum variance and maximum Sharpe ratio optimization
-- 🔄 Robust optimization with uncertainty sets
-- 🔄 Dynamic programming for multi-period allocation
-- 🔄 Reinforcement learning for adaptive allocation (PPO, A3C)
+**Additional Delivered:**
+- ✅ Black-Litterman model with views integration
+- ✅ Minimum variance and maximum Sharpe ratio optimization
+- ✅ Robust optimization with uncertainty sets
+- ✅ Basic reinforcement learning (policy gradient methods, market simulation environment)
 
-**Delivered:** Core research and analytics infrastructure with 80+ new tests, comprehensive backtesting and factor analysis frameworks
+**In Progress:**
+- 🔄 Dynamic programming for multi-period allocation
+- 🔄 Advanced reinforcement learning algorithms (PPO, A3C)
+
+**Delivered:** Core research and analytics infrastructure with 100+ new tests, comprehensive backtesting, factor analysis, and portfolio optimization frameworks (Black-Litterman, robust optimization, reinforcement learning foundation)
 
 ---
 
