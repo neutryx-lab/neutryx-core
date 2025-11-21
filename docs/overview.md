@@ -18,12 +18,14 @@ Our vision is to provide a **complete derivatives lifecycle platform** - from re
 - 🔄 **v1.x** (2026-2027): 60% complete - Core backtesting and factor analysis delivered
 
 **Recently Added Features:**
+- 🆕 RFQ (Request for Quote) workflow with multi-dealer auctions and best execution tracking
+- 🆕 Convention-based trade generation system for market-standard trades (USD, EUR, GBP, JPY, CHF)
+- 🆕 Confirmation matching and settlement instruction generation
 - 🆕 FRTB Internal Models Approach (IMA) with ES 97.5%, P&L attribution test, backtesting framework
 - 🆕 Default Risk Charge (DRC) and Residual Risk Add-On (RRAO)
 - 🆕 Comprehensive backtesting framework with transaction cost modeling
 - 🆕 Factor analysis toolkit (PCA, Barra-style factor models, style attribution, factor timing)
 - 🆕 Adaptive Mesh Refinement (AMR) for PDE solvers
-- 🆕 Kubernetes deployment support with auto-scaling and high availability
 - 🆕 Enterprise authentication stack (SSO, OAuth 2.0, MFA, LDAP integration)
 
 ## Core Philosophy
@@ -536,7 +538,7 @@ spec:
 - ✅ **v1.0.1-v1.0.3** (Q3 2026): Backtesting framework, factor analysis, portfolio optimization (mean-variance, risk parity, CVaR)
 
 **In Progress:**
-- 🔄 **v0.3.0** (50% complete): Trading infrastructure (CCP integration, settlement systems)
+- 🔄 **v0.3.0** (70% complete): Trading infrastructure (CCP integration, settlement systems)
 - 🔄 **v1.x** (60% complete): Advanced analytics (Black-Litterman, reinforcement learning for portfolio allocation)
 
 See [roadmap.md](roadmap.md) for detailed milestones.

@@ -1,17 +1,26 @@
 ---
 title: RFQ Workflow and Post-Trade Automation
-status: draft
-last_updated: 2024-05-12
+status: implemented
+last_updated: 2025-11-21
 ---
 
 # RFQ Workflow and Auction Design
 
-This document captures the current state of the RFQ implementation under
-`src/neutryx/integrations/clearing/rfq.py` and proposes concrete workflow,
-auction, and API semantics for orchestrating cleared RFQs end-to-end. The
-workflow covers the RFQ lifecycle, quote collection, auction execution,
-trade booking, confirmation/affirmation, and generation of settlement
-instructions.
+> **Status: IMPLEMENTED** (v0.3.0 - 70% complete)
+>
+> This document describes the fully implemented RFQ (Request for Quote) workflow system with multi-dealer competitive bidding, auction mechanisms, and best execution tracking.
+
+This document captures the RFQ implementation under `src/neutryx/trading/rfq.py` and related modules, providing concrete workflow, auction, and API semantics for orchestrating RFQs end-to-end. The workflow covers the RFQ lifecycle, quote collection, auction execution, trade booking, confirmation/affirmation, and generation of settlement instructions.
+
+## Implementation Overview
+
+The RFQ system is **fully operational** and includes:
+- ✅ Multi-dealer competitive bidding
+- ✅ Blind and open auction types
+- ✅ Quote acceptance/rejection workflows
+- ✅ Best execution tracking and dealer statistics
+- ✅ Confirmation matching
+- ✅ Settlement instruction generation
 
 ## 1. Existing Capabilities
 

@@ -17,10 +17,10 @@ v0.2.0 (Complete - Q2-Q3 2025) ────────────────�
     ✅ Advanced calibration & model enhancements            │
     ✅ Joint calibration, regularization, Bayesian methods  │
                                                              │
-v0.3.0 (50% Complete - Q4 2025) ───────────────────────────┤
+v0.3.0 (70% Complete - Q4 2025) ───────────────────────────┤
                                                              │
     🔄 Trading platform infrastructure                      │
-    🔄 Lifecycle management, CCP integration, FpML         │
+    ✅ RFQ workflow, conventions, FpML, confirmations      │
                                                              │
 v0.4.0 (Complete - Q1 2026) ───────────────────────────────┤
                                                              │
@@ -45,7 +45,7 @@ v1.x (60% Complete - 2026-2027) ────────────────
 |---------|-------|----------|--------|
 | **v0.1.0** | Foundation & Core Pricing | Jan 2025 | ✅ **Released** |
 | **v0.2.0** | Advanced Calibration | Q2-Q3 2025 | ✅ **Complete** |
-| **v0.3.0** | Trading Infrastructure | Q4 2025 | 🔄 **50% Complete** |
+| **v0.3.0** | Trading Infrastructure | Q4 2025 | 🔄 **70% Complete** |
 | **v0.4.0** | Regulatory Compliance | Q1 2026 | ✅ **Complete** |
 | **v1.0.0** | Enterprise Platform | Q2 2026 | ✅ **Complete** |
 | **v1.x** | Analytics & Portfolio | 2026-2027 | 🔄 **60% Complete** |
@@ -156,14 +156,18 @@ v1.x (60% Complete - 2026-2027) ────────────────
 
 ## 🔄 **v0.3.0 — Trading Platform Infrastructure** (Q4 2025)
 
-**Status:** 50% Complete
+**Status:** 70% Complete
 
 ### Trade Lifecycle Management
 
 - ✅ **Pre-Trade**
   - ✅ Real-time pricing engines for multi-asset classes
   - ✅ Streaming quotes with dynamic refresh (polling-based)
-  - [ ] RFQ (Request for Quote) workflow and auction mechanisms
+  - ✅ RFQ (Request for Quote) workflow and auction mechanisms
+    - ✅ Multi-dealer competitive bidding
+    - ✅ Blind and open auction types
+    - ✅ Quote acceptance/rejection workflows
+    - ✅ Best execution tracking and dealer statistics
   - ✅ Pre-trade analytics and what-if scenario analysis
 
 - ✅ **Trade Capture**
@@ -171,12 +175,17 @@ v1.x (60% Complete - 2026-2027) ────────────────
   - ✅ Trade booking workflow with validation
   - ✅ Trade amendment and cancellation handling
   - ✅ Automated trade enrichment (counterparty, legal entity, booking center)
+  - ✅ Convention-based trade generation system
+    - ✅ Market-standard conventions for all major currencies (USD, EUR, GBP, JPY, CHF)
+    - ✅ Product-specific convention profiles (IRS, OIS, CCS, Basis, FRA)
+    - ✅ Override mechanism for non-standard trades
+    - ✅ Convention compliance validation and warnings
 
 - ✅ **Post-Trade**
-  - [ ] Confirmation matching and affirmation
-  - [ ] Settlement instruction generation
+  - ✅ Confirmation matching and affirmation
+  - ✅ Settlement instruction generation
   - ✅ Payment calculation and netting
-  - [ ] Corporate action processing
+  - [ ] Corporate action processing (in progress)
   - ✅ Novation and assignment workflows
 
 ### Reference Data Management
@@ -214,7 +223,7 @@ v1.x (60% Complete - 2026-2027) ────────────────
   - [ ] SWIFT messaging (MT and MX formats)
 
 **Target Release:** Q4 2025
-**Delivered So Far:** FpML integration, trade lifecycle framework, comprehensive market conventions, 80+ tests
+**Key Deliverables:** ✅ FpML integration, ✅ RFQ workflow with multi-dealer auctions, ✅ Convention-based trade generation, ✅ Confirmation matching and settlement, 🔄 CCP integration (in progress)
 
 ---
 
@@ -416,7 +425,7 @@ v1.x (60% Complete - 2026-2027) ────────────────
 | Market Data | ✅ Complete | 25 tests |
 | Calibration | ✅ Complete | 60 tests |
 | Observability | ✅ Complete | Integration tests |
-| Trading Infrastructure | 🔄 50% | 80 tests |
+| Trading Infrastructure | 🔄 70% | 80 tests |
 | Portfolio Analytics | 🔄 60% | 80 tests |
 
 ---

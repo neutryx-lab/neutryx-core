@@ -13,6 +13,10 @@ The trade management system includes:
 - **Portfolio Aggregation**: Book-level, desk-level, and trader-level aggregation
 - **Pricing Bridge**: Connect trades to pricing engines
 - **Repository Pattern**: Abstract persistence layer for trades and entities
+- **RFQ Workflow** (NEW): Multi-dealer request-for-quote with competitive bidding and best execution tracking
+- **Convention-Based Trade Generation** (NEW): Generate market-standard trades using currency-specific conventions
+- **Confirmation Matching** (NEW): Automated matching and affirmation of trade confirmations
+- **Settlement Instructions** (NEW): Generate settlement instructions and SWIFT messages with payment netting
 
 ## ID Generation
 
@@ -368,6 +372,343 @@ print(f"Failed: {len(failed)} trades")
 params = bridge.extract_pricing_parameters(trade)
 ```
 
+## RFQ Workflow (NEW)
+
+### Request for Quote System
+
+The RFQ (Request for Quote) system enables multi-dealer competitive bidding with auction mechanisms:
+
+```python
+from neutryx.trading.rfq import (
+    RFQ,
+    RFQRequest,
+    Quote,
+    RFQStatus,
+    AuctionType,
+    RFQManager,
+)
+from datetime import datetime, timedelta
+
+# Create RFQ request
+rfq_request = RFQRequest(
+    product_type="IRS",
+    notional=10_000_000,
+    currency="USD",
+    maturity_years=5,
+    fixed_rate=None,  # Requesting quotes
+    additional_terms={"payment_frequency": "quarterly"},
+)
+
+# Initialize RFQ manager
+manager = RFQManager()
+
+# Create RFQ with multiple dealers
+rfq = manager.create_rfq(
+    request=rfq_request,
+    dealer_ids=["DEALER-001", "DEALER-002", "DEALER-003"],
+    auction_type=AuctionType.BLIND,  # or AuctionType.OPEN
+    expiry=datetime.now() + timedelta(hours=2),
+)
+
+# Dealers submit quotes
+quote1 = Quote(
+    rfq_id=rfq.rfq_id,
+    dealer_id="DEALER-001",
+    price=10_250_000,
+    fixed_rate=0.0425,
+    spread=0.0025,
+    quote_time=datetime.now(),
+)
+
+manager.submit_quote(rfq.rfq_id, quote1)
+
+# Get best execution
+best_quote = manager.get_best_quote(rfq.rfq_id)
+print(f"Best quote from {best_quote.dealer_id}: {best_quote.price}")
+
+# Accept quote
+manager.accept_quote(rfq.rfq_id, best_quote.quote_id)
+
+# Track dealer statistics
+stats = manager.get_dealer_statistics("DEALER-001")
+print(f"Win rate: {stats.win_rate:.2%}")
+print(f"Average spread: {stats.avg_spread:.4f}")
+```
+
+### Auction Types
+
+- **Blind Auction**: Dealers cannot see other quotes
+- **Open Auction**: All quotes are visible to participants
+
+### Best Execution Tracking
+
+The RFQ system automatically tracks:
+- Quote response times
+- Dealer win rates
+- Average spreads by dealer
+- Historical quote quality
+
+## Convention-Based Trade Generation (NEW)
+
+### Market Convention Profiles
+
+Generate trades using market-standard conventions for different currencies and products:
+
+```python
+from neutryx.portfolio.trade_generation import (
+    ConventionProfile,
+    TradeGenerator,
+    get_convention_profile,
+)
+from neutryx.market.convention_profiles import CurrencyConvention
+
+# Get USD IRS convention
+usd_irs_convention = get_convention_profile(
+    currency="USD",
+    product="IRS",
+)
+
+print(f"Day count: {usd_irs_convention.day_count}")
+print(f"Payment frequency: {usd_irs_convention.payment_frequency}")
+print(f"Business day convention: {usd_irs_convention.business_day_convention}")
+print(f"Calendar: {usd_irs_convention.calendar}")
+
+# Generate trade using conventions
+generator = TradeGenerator()
+
+irs_trade = generator.generate_irs(
+    currency="USD",
+    notional=10_000_000,
+    maturity_years=5,
+    fixed_rate=0.045,
+    use_conventions=True,  # Apply USD market conventions
+)
+
+# Override specific conventions if needed
+custom_irs = generator.generate_irs(
+    currency="USD",
+    notional=10_000_000,
+    maturity_years=5,
+    fixed_rate=0.045,
+    use_conventions=True,
+    overrides={
+        "payment_frequency": "monthly",  # Non-standard
+        "day_count": "ACT/ACT",
+    },
+)
+
+# Validate convention compliance
+validation = generator.validate_conventions(custom_irs)
+if not validation.is_compliant:
+    print(f"Warnings: {validation.warnings}")
+```
+
+### Supported Conventions
+
+**Currencies:**
+- USD: SOFR-based conventions
+- EUR: ESTR-based conventions
+- GBP: SONIA-based conventions
+- JPY: TONA-based conventions
+- CHF: SARON-based conventions
+
+**Products:**
+- IRS (Interest Rate Swaps)
+- OIS (Overnight Index Swaps)
+- CCS (Cross-Currency Swaps)
+- Basis Swaps (tenor and currency basis)
+- FRA (Forward Rate Agreements)
+- Caps/Floors
+
+### Convention Profile Details
+
+```python
+from neutryx.market.convention_profiles import (
+    get_usd_irs_convention,
+    get_eur_ois_convention,
+    get_gbp_basis_convention,
+)
+
+# USD IRS convention details
+usd_irs = get_usd_irs_convention()
+# - Day count: ACT/360
+# - Payment frequency: Semi-annual (6M)
+# - Business day: Modified Following
+# - Calendar: US (Fed holidays)
+# - Floating index: SOFR
+
+# EUR OIS convention details
+eur_ois = get_eur_ois_convention()
+# - Day count: ACT/360
+# - Payment frequency: Annual
+# - Business day: Modified Following
+# - Calendar: TARGET
+# - Floating index: ESTR
+```
+
+## Confirmation Matching (NEW)
+
+### Match Trade Confirmations
+
+Automated confirmation matching and affirmation workflow:
+
+```python
+from neutryx.trading.confirmation import (
+    Confirmation,
+    ConfirmationMatcher,
+    MatchStatus,
+    ConfirmationType,
+)
+
+# Create internal trade confirmation
+internal_conf = Confirmation(
+    trade_id="TRD-001",
+    confirmation_type=ConfirmationType.INTERNAL,
+    product_type="IRS",
+    notional=10_000_000,
+    currency="USD",
+    fixed_rate=0.045,
+    maturity_date="2030-03-15",
+    counterparty_id="CP-001",
+)
+
+# Receive counterparty confirmation
+counterparty_conf = Confirmation(
+    trade_id="TRD-001-CP",
+    confirmation_type=ConfirmationType.EXTERNAL,
+    product_type="IRS",
+    notional=10_000_000,
+    currency="USD",
+    fixed_rate=0.045,
+    maturity_date="2030-03-15",
+    counterparty_id="CP-001",
+)
+
+# Match confirmations
+matcher = ConfirmationMatcher(tolerance=0.01)  # 1% tolerance
+match_result = matcher.match(internal_conf, counterparty_conf)
+
+if match_result.status == MatchStatus.MATCHED:
+    print("Confirmations match - ready for settlement")
+elif match_result.status == MatchStatus.BREAK:
+    print(f"Confirmation break: {match_result.breaks}")
+    for field, values in match_result.breaks.items():
+        print(f"  {field}: {values['internal']} vs {values['external']}")
+
+# Affirm trade after matching
+if match_result.status == MatchStatus.MATCHED:
+    affirmed = matcher.affirm_trade("TRD-001")
+    print(f"Trade affirmed: {affirmed}")
+```
+
+### Matching Rules
+
+The confirmation matcher checks:
+- Product type and key terms
+- Notional amounts (with tolerance)
+- Currencies and rates
+- Payment dates and schedules
+- Counterparty information
+
+### Break Management
+
+```python
+# Get all unmatched trades
+breaks = matcher.get_breaks()
+
+# Resolve break manually
+matcher.resolve_break(
+    trade_id="TRD-001",
+    resolution="Counterparty confirmed rate should be 0.046",
+    resolved_by="ops-team",
+)
+```
+
+## Settlement Instructions (NEW)
+
+### Generate Settlement Instructions
+
+Automatically generate settlement instructions for affirmed trades:
+
+```python
+from neutryx.trading.settlement import (
+    SettlementInstruction,
+    SettlementInstructionGenerator,
+    SettlementType,
+    PaymentDetails,
+)
+
+# Create settlement instruction generator
+generator = SettlementInstructionGenerator()
+
+# Generate settlement instruction
+instruction = generator.generate_instruction(
+    trade_id="TRD-001",
+    settlement_type=SettlementType.DVP,  # Delivery vs Payment
+    settlement_date="2025-03-17",
+    currency="USD",
+    amount=10_000_000,
+    counterparty_id="CP-001",
+)
+
+print(f"Instruction ID: {instruction.instruction_id}")
+print(f"Settlement date: {instruction.settlement_date}")
+print(f"Currency: {instruction.currency}")
+print(f"Amount: {instruction.amount}")
+
+# Add payment details
+payment_details = PaymentDetails(
+    beneficiary_name="Neutryx Trading Corp",
+    beneficiary_account="123456789",
+    beneficiary_bank="JPMORGAN CHASE",
+    swift_code="CHASUS33",
+    reference="TRD-001-SETTLEMENT",
+)
+
+instruction.add_payment_details(payment_details)
+
+# Generate SWIFT message
+swift_message = generator.generate_swift_message(instruction, message_type="MT202")
+print(swift_message)
+
+# Track settlement status
+generator.update_status(instruction.instruction_id, "PENDING")
+generator.update_status(instruction.instruction_id, "SETTLED")
+```
+
+### Settlement Types
+
+- **DVP**: Delivery versus Payment
+- **RVP**: Receive versus Payment
+- **FOP**: Free of Payment
+- **PVP**: Payment versus Payment (for FX)
+
+### Payment Netting
+
+```python
+# Enable payment netting for multiple trades
+netting_result = generator.net_payments(
+    trade_ids=["TRD-001", "TRD-002", "TRD-003"],
+    counterparty_id="CP-001",
+    settlement_date="2025-03-17",
+    currency="USD",
+)
+
+print(f"Net amount: {netting_result.net_amount}")
+print(f"Gross amount: {netting_result.gross_amount}")
+print(f"Netting efficiency: {netting_result.efficiency:.2%}")
+
+# Generate single settlement instruction for netted amount
+netted_instruction = generator.generate_instruction(
+    trade_id=netting_result.netting_set_id,
+    settlement_type=SettlementType.DVP,
+    settlement_date="2025-03-17",
+    currency="USD",
+    amount=netting_result.net_amount,
+    counterparty_id="CP-001",
+)
+```
+
 ## Repository Pattern
 
 ### Persist and Retrieve Entities
@@ -501,6 +842,10 @@ book_repo.save_book(book)
 5. **Aggregate Regularly**: Use portfolio aggregation methods for risk reporting
 6. **Version Control**: Leverage version tracking for trade history and compliance
 7. **Persist Data**: Use repositories to abstract data persistence
+8. **Use RFQ for Price Discovery**: Leverage the RFQ workflow for competitive multi-dealer pricing
+9. **Apply Market Conventions**: Use convention-based trade generation for market-standard trades
+10. **Match Confirmations**: Always match internal and external confirmations before settlement
+11. **Net Payments**: Use payment netting to reduce settlement risk and operational costs
 
 ## API Reference
 
@@ -513,6 +858,11 @@ For detailed API documentation, see:
 - **Pricing Bridge API**: `neutryx.portfolio.pricing_bridge`
 - **Repository Pattern API**: `neutryx.portfolio.repository`
 - **Portfolio API**: `neutryx.portfolio.portfolio`
+- **RFQ Workflow API**: `neutryx.trading.rfq` (NEW)
+- **Trade Generation API**: `neutryx.portfolio.trade_generation` (NEW)
+- **Convention Profiles API**: `neutryx.market.convention_profiles` (NEW)
+- **Confirmation Matching API**: `neutryx.trading.confirmation` (NEW)
+- **Settlement Instructions API**: `neutryx.trading.settlement` (NEW)
 
 ## Testing
 
