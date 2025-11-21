@@ -53,13 +53,20 @@ class IRSGenerator:
 
     def _map_day_count(self, day_count_conv: DayCountConvention) -> DayCount:
         """Map DayCountConvention to product DayCount enum"""
-        mapping = {
-            DayCountConvention.ACT_360: DayCount.ACT_360,
-            DayCountConvention.ACT_365: DayCount.ACT_365,
-            DayCountConvention.ACT_ACT: DayCount.ACT_ACT,
-            DayCountConvention.THIRTY_360: DayCount.THIRTY_360,
-        }
-        return mapping.get(day_count_conv, DayCount.ACT_360)
+        # Map by type since DayCountConvention uses class instances, not enum
+        day_count_type = type(day_count_conv)
+
+        if day_count_type == Actual360:
+            return DayCount.ACT_360
+        elif day_count_type == Actual365Fixed:
+            return DayCount.ACT_365
+        elif day_count_type == ActualActual:
+            return DayCount.ACT_ACT
+        elif day_count_type == Thirty360:
+            return DayCount.THIRTY_360
+        else:
+            # Default to ACT_360
+            return DayCount.ACT_360
 
     def _map_swap_type(self, swap_type_str: str) -> SwapType:
         """Map string swap type to SwapType enum"""
