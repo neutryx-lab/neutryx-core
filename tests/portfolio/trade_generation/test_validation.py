@@ -281,7 +281,7 @@ class TestConvenienceFunction:
             ProductTypeConvention.INTEREST_RATE_SWAP,
             fixed_leg_params={
                 "frequency": Frequency.QUARTERLY,  # Non-standard
-                "day_count": DayCountConvention.THIRTY_360,
+                "day_count": THIRTY_360,
             },
         )
 
