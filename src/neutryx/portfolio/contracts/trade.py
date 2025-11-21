@@ -128,6 +128,14 @@ class Trade(BaseModel):
         default=None,
         description="Flexible storage for product-specific data",
     )
+    convention_profile_id: Optional[str] = Field(
+        default=None,
+        description="ID of the convention profile used to generate this trade",
+    )
+    generated_from_convention: bool = Field(
+        default=False,
+        description="Whether this trade was generated from market conventions",
+    )
     mtm: Optional[float] = None
     last_valuation_date: Optional[date] = None
 
