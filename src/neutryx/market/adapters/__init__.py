@@ -7,15 +7,12 @@ from .corporate_actions import (
     CorporateActionParser,
     RefinitivCorporateActionParser,
     SimulatedCorporateActionParser,
+    normalize_events,
 )
 from .refinitiv import RefinitivAdapter
 from .simulated import SimulatedAdapter, SimulatedConfig
-from .corporate_actions import (
-    CorporateActionParser,
-    BloombergCorporateActionParser,
-    RefinitivCorporateActionParser,
-    normalize_events,
-)
+from .ice import ICEDataServicesAdapter, ICEDataServicesConfig
+from .cme import CMEMarketDataAdapter, CMEMarketDataConfig
 
 __all__ = [
     "BaseMarketDataAdapter",
@@ -28,8 +25,9 @@ __all__ = [
     "RefinitivAdapter",
     "SimulatedAdapter",
     "SimulatedConfig",
-    "CorporateActionParser",
-    "BloombergCorporateActionParser",
-    "RefinitivCorporateActionParser",
     "normalize_events",
+    "ICEDataServicesAdapter",
+    "ICEDataServicesConfig",
+    "CMEMarketDataAdapter",
+    "CMEMarketDataConfig",
 ]

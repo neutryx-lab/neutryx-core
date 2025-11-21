@@ -39,23 +39,23 @@ jobs:
 
       - name: Run fast unit tests (smoke tests only for PRs)
         run: |
-          PYTHONPATH=$PWD:$PYTHONPATH pytest src/neutryx/tests \
+          PYTHONPATH=$PWD:$PYTHONPATH pytest tests \
             -n auto \
             -x \
             --maxfail=3 \
-            --ignore=src/neutryx/tests/regression \
-            --ignore=src/neutryx/tests/performance \
-            --ignore=src/neutryx/tests/monte_carlo \
-            --ignore=src/neutryx/tests/integration \
-            --ignore=src/neutryx/tests/tools \
-            --ignore=src/neutryx/tests/test_calibration.py \
-            --ignore=src/neutryx/tests/test_calibration_diagnostics.py \
-            --ignore=src/neutryx/tests/test_config_smoke.py \
-            --ignore=src/neutryx/tests/test_credit_models.py \
-            --ignore=src/neutryx/tests/test_ffi_bindings.py \
-            --ignore=src/neutryx/tests/test_ffi_performance.py \
-            --ignore=src/neutryx/tests/test_fourier_pricing.py \
-            --ignore=src/neutryx/tests/test_pde.py \
+            --ignore=tests/regression \
+            --ignore=tests/performance \
+            --ignore=tests/monte_carlo \
+            --ignore=tests/integration \
+            --ignore=tests/tools \
+            --ignore=tests/calibration/test_calibration.py \
+            --ignore=tests/calibration/test_calibration_diagnostics.py \
+            --ignore=tests/core/test_config_smoke.py \
+            --ignore=tests/models/test_credit_models_extended.py \
+            --ignore=tests/bridge/test_ffi_bindings.py \
+            --ignore=tests/bridge/test_ffi_performance.py \
+            --ignore=tests/core/test_fourier_pricing.py \
+            --ignore=tests/calibration/test_pde.py \
             || [ $? -eq 5 ]
 
   full-tests:
@@ -83,21 +83,21 @@ jobs:
 
       - name: Run all unit tests
         run: |
-          PYTHONPATH=$PWD:$PYTHONPATH pytest src/neutryx/tests \
+          PYTHONPATH=$PWD:$PYTHONPATH pytest tests \
             -n auto \
-            --ignore=src/neutryx/tests/regression \
-            --ignore=src/neutryx/tests/performance \
-            --ignore=src/neutryx/tests/monte_carlo \
-            --ignore=src/neutryx/tests/integration/test_cli.py \
-            --ignore=src/neutryx/tests/tools/test_kernel_profiler.py \
-            --ignore=src/neutryx/tests/test_calibration.py \
-            --ignore=src/neutryx/tests/test_calibration_diagnostics.py \
-            --ignore=src/neutryx/tests/test_config_smoke.py \
-            --ignore=src/neutryx/tests/test_credit_models.py \
-            --ignore=src/neutryx/tests/test_ffi_bindings.py \
-            --ignore=src/neutryx/tests/test_ffi_performance.py \
-            --ignore=src/neutryx/tests/test_fourier_pricing.py \
-            --ignore=src/neutryx/tests/test_pde.py
+            --ignore=tests/regression \
+            --ignore=tests/performance \
+            --ignore=tests/monte_carlo \
+            --ignore=tests/integration/test_cli.py \
+            --ignore=tests/tools/test_kernel_profiler.py \
+            --ignore=tests/calibration/test_calibration.py \
+            --ignore=tests/calibration/test_calibration_diagnostics.py \
+            --ignore=tests/core/test_config_smoke.py \
+            --ignore=tests/models/test_credit_models_extended.py \
+            --ignore=tests/bridge/test_ffi_bindings.py \
+            --ignore=tests/bridge/test_ffi_performance.py \
+            --ignore=tests/core/test_fourier_pricing.py \
+            --ignore=tests/calibration/test_pde.py
 
   regression:
     name: Regression suite (main branch only)
@@ -124,10 +124,10 @@ jobs:
 
       - name: Run regression tests
         run: |
-          PYTHONPATH=$PWD:$PYTHONPATH pytest src/neutryx/tests/regression \
-            --ignore=src/neutryx/tests/regression/test_monte_carlo_greeks.py \
-            --ignore=src/neutryx/tests/regression/test_tree_pricing.py \
-            --ignore=src/neutryx/tests/regression/test_portfolio_scenarios.py \
+          PYTHONPATH=$PWD:$PYTHONPATH pytest tests/regression \
+            --ignore=tests/regression/test_monte_carlo_greeks.py \
+            --ignore=tests/regression/test_tree_pricing.py \
+            --ignore=tests/regression/test_portfolio_scenarios.py \
             || [ $? -eq 5 ]
 
   benchmarks:
@@ -154,7 +154,7 @@ jobs:
           pip install -e ".[dev,api]"
 
       - name: Run benchmarks
-        run: PYTHONPATH=$PWD:$PYTHONPATH pytest src/neutryx/tests/performance --benchmark-only --benchmark-json=benchmark-results.json
+        run: PYTHONPATH=$PWD:$PYTHONPATH pytest tests/performance --benchmark-only --benchmark-json=benchmark-results.json
 
       - name: Upload benchmark results
         uses: actions/upload-artifact@v5

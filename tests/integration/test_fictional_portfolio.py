@@ -4,7 +4,7 @@ Tests portfolio creation, API integration, and XVA calculations.
 """
 import pytest
 
-from neutryx.tests.fixtures.fictional_portfolio import (
+from tests.fixtures.fictional_portfolio import (
     create_fictional_portfolio,
     get_portfolio_summary,
 )

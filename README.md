@@ -334,52 +334,94 @@ tarn = TargetRedemptionNote(
 ```text
 neutryx-core/
 ├── .github/              # CI/CD workflows and automation
-├── config/               # YAML configuration presets
 ├── docs/                 # Documentation and guides
-│   ├── monitoring.md     # Observability and monitoring guide
-│   └── market_data.md    # Market data infrastructure guide
+│   ├── calibration/      # Calibration methodology documentation
+│   ├── design/           # Architecture and design documents
+│   ├── models/           # Model specification and theory
+│   ├── notebooks/        # Documentation notebooks
+│   ├── project/          # Project management and planning
+│   ├── risk/             # Risk management documentation
+│   └── theory/           # Mathematical theory and derivations
 ├── examples/             # Examples, dashboards, and tutorials
-│   ├── tutorials/        # Step-by-step tutorials
-│   ├── notebooks/        # Jupyter notebooks
-│   ├── advanced/         # Advanced examples
+│   ├── basic/            # Basic usage examples
+│   ├── advanced/         # Advanced examples (fpml, market, risk)
 │   ├── applications/     # Full applications (dashboard, fictional_bank)
-│   └── benchmarks/       # Performance benchmarks
-├── dev/                  # Developer tooling
-│   └── monitoring/       # Prometheus, Grafana, Jaeger stack
+│   ├── benchmarks/       # Performance benchmarks
+│   ├── demos/            # Demonstration scripts
+│   ├── tutorials/        # Step-by-step tutorials
+│   └── notebooks/        # Jupyter notebooks
+├── dev/                  # Developer tooling and infrastructure
+│   ├── benchmarks/       # Performance testing tools
+│   ├── ci/               # Continuous integration scripts
+│   ├── monitoring/       # Prometheus, Grafana, Jaeger stack
+│   ├── orchestration/    # Deployment orchestration
+│   ├── profiling/        # Performance profiling tools
+│   ├── repro/            # Reproducibility scripts
+│   └── scripts/          # Utility scripts
+├── tests/                # Test suite (500+ tests)
 └── src/neutryx/
+    ├── api/              # API layer (internal, separate neutryx-api package for deployment)
+    │   ├── auth/         # Authentication and authorization
+    │   ├── config/       # API configuration
+    │   └── schemas/      # Request/response schemas
     ├── calibration/      # Model calibration and parameter estimation
-    ├── core/             # Pricing engines and infrastructure
-    ├── infrastructure/   # Observability, governance, workflows
-    │   ├── observability/    # Prometheus, tracing, profiling, alerting
-    │   └── governance/       # Multi-tenancy, RBAC, compliance
+    ├── core/             # Core pricing engines and infrastructure
+    │   ├── autodiff/     # Automatic differentiation utilities
+    │   ├── cli/          # Command-line interface
+    │   ├── dates/        # Date handling and calendar utilities
+    │   ├── math/         # Mathematical primitives and algorithms
+    │   └── utils/        # General utilities
+    ├── data/             # Data management and utilities
+    ├── distributed/      # Distributed computing infrastructure
+    ├── engines/          # Pricing engine implementations
+    ├── infrastructure/   # Enterprise infrastructure components
+    │   ├── config/       # Configuration management
+    │   ├── observability/    # Prometheus metrics, tracing, profiling, alerting
+    │   └── governance/       # Multi-tenancy, RBAC, audit, compliance
     ├── integrations/     # External system integrations
-    │   ├── fpml/         # FpML parsing and generation
-    │   ├── clearing/     # CLS, Euroclear, SWIFT (in progress)
-    │   └── databases/    # PostgreSQL, MongoDB, TimescaleDB
-    ├── market/           # Market data and analytics
-    │   ├── adapters/     # Bloomberg, Refinitiv integrations
-    │   ├── storage/      # PostgreSQL, MongoDB, TimescaleDB
-    │   ├── validation/   # Data quality and validation
-    │   └── feeds/        # Real-time feed management
-    ├── models/           # Stochastic models (BS, Heston, SABR, etc.)
+    │   ├── adapters/     # Vendor adapter interfaces
+    │   ├── clearing/     # CLS, Euroclear, SWIFT settlement systems
+    │   ├── databases/    # PostgreSQL, MongoDB, TimescaleDB connectors
+    │   ├── ffi/          # Foreign function interface (QuantLib, Eigen)
+    │   └── fpml/         # FpML parsing and generation
+    ├── io/               # Input/output utilities
+    ├── market/           # Market data infrastructure
+    │   ├── adapters/     # Bloomberg, Refinitiv, ICE, CME integrations
+    │   ├── credit/       # Credit market data and curves
+    │   ├── feeds/        # Real-time feed management and orchestration
+    │   ├── storage/      # Time-series storage (PostgreSQL, MongoDB, TimescaleDB)
+    │   └── validation/   # Data quality and validation pipeline
+    ├── models/           # Stochastic models (BS, Heston, SABR, Hull-White, etc.)
     ├── portfolio/        # Portfolio management and trade lifecycle
     │   ├── contracts/    # Trade contracts, CSA, master agreements
-    │   └── trade_generation/  # Convention-based trade generation
+    │   └── trade_generation/  # Convention-based trade generation system
     ├── products/         # Multi-asset class product library
+    │   ├── energy/       # Energy derivatives (oil, gas, power, spreads)
+    │   ├── fx_complex/   # Complex FX products (barriers, TARFs, accumulators)
+    │   ├── linear_rates/ # Linear interest rate products (IRS, OIS, basis swaps)
+    │   └── metals_agriculture/  # Metals and agricultural commodities
     ├── regulatory/       # Regulatory compliance and reporting
-    │   ├── ima/          # FRTB Internal Models Approach
-    │   ├── accounting/   # IFRS 9/13 compliance
-    │   └── reporting/    # EMIR, MiFID II, Basel reporting
-    ├── research/         # Backtesting and portfolio optimization
-    │   └── portfolio/    # Black-Litterman, robust optimization
+    │   ├── accounting/   # IFRS 9/13 compliance and fair value hierarchy
+    │   ├── ima/          # FRTB Internal Models Approach (ES, backtesting)
+    │   └── reporting/    # EMIR, MiFID II, Basel III/IV reporting
+    ├── research/         # Research and analytics infrastructure
+    │   └── portfolio/    # Portfolio optimization (Black-Litterman, robust optimization)
     ├── trading/          # Trading workflows and execution
-    │   ├── rfq.py        # Request for Quote and auction mechanisms
-    │   ├── confirmation.py  # Confirmation matching
-    │   └── settlement.py    # Settlement processing
-    └── valuations/       # XVA and exposure analytics
-        └── regulatory/   # FRTB, SA-CCR calculators
+    │   ├── rfq.py        # Request for Quote and multi-dealer auctions
+    │   ├── confirmation.py  # Confirmation matching and affirmation
+    │   └── settlement.py    # Settlement instruction generation
+    └── valuations/       # Valuation analytics and risk measures
+        ├── attribution/  # P&L attribution and risk factor decomposition
+        ├── greeks/       # Greeks calculation (delta, gamma, vega, etc.)
+        ├── margin/       # Margin calculation and optimization
+        ├── regulatory/   # FRTB SA/IMA, SA-CCR calculators
+        ├── risk/         # VaR, stress testing, limit monitoring
+        ├── scenarios/    # Scenario generation and stress testing
+        ├── simm/         # ISDA SIMM initial margin calculation
+        └── xva/          # XVA calculations (CVA, DVA, FVA, MVA, KVA)
 
-Note: REST/gRPC APIs have been extracted to a separate neutryx-api package for modular deployment.
+Note: REST/gRPC API endpoints and deployment infrastructure (SSO/OAuth/MFA/LDAP, Kubernetes,
+auto-scaling) have been extracted to a separate neutryx-api package for modular deployment.
 ```
 
 ---
