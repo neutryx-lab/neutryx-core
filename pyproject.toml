@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "neutryx-core"
-version = "0.2.0"
+version = "1.0.3"
 description = "A JAX-based quantitative finance library for derivatives pricing, risk management, and model calibration."
 authors = [{ name = "Neutryx", email = "dev@neutryx.tech" }]
 readme = "README.md"

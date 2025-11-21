@@ -10,7 +10,7 @@
   <img alt="Python Version" src="https://img.shields.io/badge/python-3.10+-blue?style=for-the-badge"/>
   <img alt="JAX Version" src="https://img.shields.io/badge/jax-0.4.26+-orange?style=for-the-badge"/>
   <img alt="License" src="https://img.shields.io/badge/license-MIT-lightgrey?style=for-the-badge"/>
-  <img alt="Version" src="https://img.shields.io/badge/version-1.0.0-blue?style=for-the-badge"/>
+  <img alt="Version" src="https://img.shields.io/badge/version-1.0.3-blue?style=for-the-badge"/>
 </p>
 
 <p align="center">
