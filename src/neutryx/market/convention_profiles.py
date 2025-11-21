@@ -380,6 +380,189 @@ class ConventionProfileRegistry:
                 description=f"{currency} Forward Rate Agreement",
             ))
 
+        # USD Basis Swap (3M SOFR vs 1M SOFR typical)
+        self.register_profile(ConventionProfile(
+            currency="USD",
+            product_type=ProductTypeConvention.BASIS_SWAP,
+            fixed_leg=LegConvention(  # First floating leg (3M)
+                frequency=Frequency.QUARTERLY,
+                day_count=ACT_360,
+                business_day_convention=MODIFIED_FOLLOWING,
+                rate_index=get_rfr_index("USD"),  # SOFR
+                compounding="COMPOUND",
+            ),
+            floating_leg=LegConvention(  # Second floating leg (1M) with spread
+                frequency=Frequency.MONTHLY,
+                day_count=ACT_360,
+                business_day_convention=MODIFIED_FOLLOWING,
+                rate_index=get_rfr_index("USD"),  # SOFR
+                compounding="COMPOUND",
+            ),
+            calendars=["USD"],
+            spot_lag=2,
+            description="USD Basis Swap (3M SOFR vs 1M SOFR)",
+        ))
+
+        # EUR Basis Swap (3M EURIBOR vs 6M EURIBOR typical)
+        self.register_profile(ConventionProfile(
+            currency="EUR",
+            product_type=ProductTypeConvention.BASIS_SWAP,
+            fixed_leg=LegConvention(  # First floating leg (3M)
+                frequency=Frequency.QUARTERLY,
+                day_count=ACT_360,
+                business_day_convention=MODIFIED_FOLLOWING,
+                rate_index=get_rate_index("EURIBOR-3M"),
+            ),
+            floating_leg=LegConvention(  # Second floating leg (6M) with spread
+                frequency=Frequency.SEMI_ANNUAL,
+                day_count=ACT_360,
+                business_day_convention=MODIFIED_FOLLOWING,
+                rate_index=get_rate_index("EURIBOR-6M"),
+            ),
+            calendars=["TARGET"],
+            spot_lag=2,
+            description="EUR Basis Swap (3M EURIBOR vs 6M EURIBOR)",
+        ))
+
+        # GBP Basis Swap (3M SONIA vs 6M SONIA typical)
+        self.register_profile(ConventionProfile(
+            currency="GBP",
+            product_type=ProductTypeConvention.BASIS_SWAP,
+            fixed_leg=LegConvention(  # First floating leg (3M)
+                frequency=Frequency.QUARTERLY,
+                day_count=ACT_365,
+                business_day_convention=MODIFIED_FOLLOWING,
+                rate_index=get_rfr_index("GBP"),  # SONIA
+                compounding="COMPOUND",
+            ),
+            floating_leg=LegConvention(  # Second floating leg (6M) with spread
+                frequency=Frequency.SEMI_ANNUAL,
+                day_count=ACT_365,
+                business_day_convention=MODIFIED_FOLLOWING,
+                rate_index=get_rfr_index("GBP"),  # SONIA
+                compounding="COMPOUND",
+            ),
+            calendars=["GBP"],
+            spot_lag=0,
+            description="GBP Basis Swap (3M SONIA vs 6M SONIA)",
+        ))
+
+        # USD/EUR Cross-Currency Swap
+        self.register_profile(ConventionProfile(
+            currency="USDEUR",  # Currency pair notation
+            product_type=ProductTypeConvention.CROSS_CURRENCY_SWAP,
+            fixed_leg=LegConvention(  # USD leg (domestic)
+                frequency=Frequency.SEMI_ANNUAL,
+                day_count=THIRTY_360,
+                business_day_convention=MODIFIED_FOLLOWING,
+            ),
+            floating_leg=LegConvention(  # EUR leg (foreign)
+                frequency=Frequency.ANNUAL,
+                day_count=THIRTY_360,
+                business_day_convention=MODIFIED_FOLLOWING,
+            ),
+            calendars=["USD", "TARGET"],
+            spot_lag=2,
+            description="USD/EUR Cross-Currency Swap",
+        ))
+
+        # USD/JPY Cross-Currency Swap
+        self.register_profile(ConventionProfile(
+            currency="USDJPY",  # Currency pair notation
+            product_type=ProductTypeConvention.CROSS_CURRENCY_SWAP,
+            fixed_leg=LegConvention(  # USD leg (domestic)
+                frequency=Frequency.SEMI_ANNUAL,
+                day_count=THIRTY_360,
+                business_day_convention=MODIFIED_FOLLOWING,
+            ),
+            floating_leg=LegConvention(  # JPY leg (foreign)
+                frequency=Frequency.SEMI_ANNUAL,
+                day_count=ACT_365,
+                business_day_convention=MODIFIED_FOLLOWING,
+            ),
+            calendars=["USD", "JPY"],
+            spot_lag=2,
+            description="USD/JPY Cross-Currency Swap",
+        ))
+
+        # EUR/GBP Cross-Currency Swap
+        self.register_profile(ConventionProfile(
+            currency="EURGBP",  # Currency pair notation
+            product_type=ProductTypeConvention.CROSS_CURRENCY_SWAP,
+            fixed_leg=LegConvention(  # EUR leg (domestic)
+                frequency=Frequency.ANNUAL,
+                day_count=THIRTY_360,
+                business_day_convention=MODIFIED_FOLLOWING,
+            ),
+            floating_leg=LegConvention(  # GBP leg (foreign)
+                frequency=Frequency.SEMI_ANNUAL,
+                day_count=ACT_365,
+                business_day_convention=MODIFIED_FOLLOWING,
+            ),
+            calendars=["TARGET", "GBP"],
+            spot_lag=2,
+            description="EUR/GBP Cross-Currency Swap",
+        ))
+
+        # Add Cap/Floor conventions for major currencies
+        for currency in ["USD", "EUR", "GBP", "JPY", "CHF"]:
+            calendar = "TARGET" if currency == "EUR" else currency
+            day_count = ACT_360 if currency in ["USD", "EUR", "CHF"] else ACT_365
+
+            # Cap conventions
+            self.register_profile(ConventionProfile(
+                currency=currency,
+                product_type=ProductTypeConvention.CAP,
+                floating_leg=LegConvention(
+                    frequency=Frequency.QUARTERLY,  # Standard quarterly resets
+                    day_count=day_count,
+                    business_day_convention=MODIFIED_FOLLOWING,
+                    rate_index=get_rfr_index(currency),
+                ),
+                calendars=[calendar],
+                spot_lag=2 if currency != "GBP" else 0,
+                description=f"{currency} Interest Rate Cap",
+            ))
+
+            # Floor conventions
+            self.register_profile(ConventionProfile(
+                currency=currency,
+                product_type=ProductTypeConvention.FLOOR,
+                floating_leg=LegConvention(
+                    frequency=Frequency.QUARTERLY,  # Standard quarterly resets
+                    day_count=day_count,
+                    business_day_convention=MODIFIED_FOLLOWING,
+                    rate_index=get_rfr_index(currency),
+                ),
+                calendars=[calendar],
+                spot_lag=2 if currency != "GBP" else 0,
+                description=f"{currency} Interest Rate Floor",
+            ))
+
+        # Add Swaption conventions for major currencies
+        for currency in ["USD", "EUR", "GBP", "JPY", "CHF"]:
+            calendar = "TARGET" if currency == "EUR" else currency
+            day_count = ACT_360 if currency in ["USD", "EUR", "CHF"] else ACT_365
+
+            self.register_profile(ConventionProfile(
+                currency=currency,
+                product_type=ProductTypeConvention.SWAPTION,
+                fixed_leg=LegConvention(  # Underlying swap fixed leg
+                    frequency=Frequency.SEMI_ANNUAL if currency != "EUR" else Frequency.ANNUAL,
+                    day_count=THIRTY_360,
+                    business_day_convention=MODIFIED_FOLLOWING,
+                ),
+                floating_leg=LegConvention(  # Underlying swap floating leg
+                    frequency=Frequency.QUARTERLY if currency != "EUR" else Frequency.SEMI_ANNUAL,
+                    day_count=day_count,
+                    business_day_convention=MODIFIED_FOLLOWING,
+                    rate_index=get_rfr_index(currency),
+                ),
+                calendars=[calendar],
+                spot_lag=2 if currency != "GBP" else 0,
+                description=f"{currency} Swaption",
+            ))
+
     def register_profile(self, profile: ConventionProfile):
         """Register a new convention profile"""
         profile_id = profile.get_profile_id()
