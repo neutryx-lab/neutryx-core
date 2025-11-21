@@ -11,7 +11,67 @@ Version 0.3.0 introduces comprehensive CCP (Central Counterparty) and settlement
 - Trade lifecycle event handling
 - Position and settlement reconciliation
 
-## 📦 New Components
+## 🌟 RFQ-to-CCP Integration (`rfq_ccp_integration.py`)
+
+**NEW:** Complete integration between RFQ auctions and CCP clearing workflow!
+
+The RFQ-CCP Integration Service provides end-to-end automation from auction execution through CCP clearing to settlement:
+
+```python
+from neutryx.integrations.clearing import (
+    RFQManager,
+    RFQCCPIntegrationService,
+    CCPRouter,
+    AutomaticSettlementService,
+)
+
+# Setup services
+rfq_manager = RFQManager()
+integration_service = RFQCCPIntegrationService(
+    rfq_manager=rfq_manager,
+    ccp_router=ccp_router,
+    settlement_service=settlement_service,
+    margin_service=margin_service,
+)
+
+# Execute complete workflow
+result = await integration_service.execute_rfq_workflow(
+    rfq_id="RFQ-001",
+    requester_party=party,
+)
+
+# Review results
+print(f"Allocations: {result.total_allocations}")
+print(f"Successful CCP submissions: {result.successful_submissions}")
+print(f"Total duration: {result.total_duration_ms:.2f}ms")
+
+# Check margin impact
+margin_impact = await integration_service.get_margin_impact(result.execution_id)
+```
+
+**What it does:**
+1. Executes RFQ auction (Single-Price, Multi-Price, Dutch, Vickrey, etc.)
+2. Creates trade allocations from auction results
+3. Routes each allocation to optimal CCP (LCH, CME, ICE, Eurex)
+4. Submits trades for clearing
+5. Generates settlement instructions automatically
+6. Tracks margin impact across all CCPs
+7. Performs position reconciliation
+
+**Supports all 7 auction types:**
+- Single-Price (Uniform clearing)
+- Multi-Price (Discriminatory)
+- Continuous (Order book matching)
+- Dutch (Descending price)
+- Vickrey (Second-price sealed-bid)
+- Second-Price (Multi-unit second price)
+- Multi-Round (Sequential rounds)
+
+See [`examples/rfq_ccp_workflow_demo.py`](../../../examples/rfq_ccp_workflow_demo.py) for a complete demonstration.
+
+---
+
+## 📦 Core Components
 
 ### 1. CCP Router (`ccp_router.py`)
 Intelligent routing service that selects the optimal CCP for each trade.

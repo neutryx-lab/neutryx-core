@@ -236,6 +236,13 @@ from .ccp_router import (
     CCPEligibilityRule,
     CCPCapability,
 )
+from .rfq_ccp_integration import (
+    RFQCCPIntegrationService,
+    RFQCCPIntegrationConfig,
+    RFQExecutionResult,
+    RFQExecutionStatus,
+    TradeAllocation,
+)
 from .settlement_workflow import (
     AutomaticSettlementService,
     SettlementWorkflow,
@@ -337,6 +344,12 @@ __all__ = [
     "MarginQuote",
     "CCPEligibilityRule",
     "CCPCapability",
+    # RFQ-CCP Integration (v0.3.0)
+    "RFQCCPIntegrationService",
+    "RFQCCPIntegrationConfig",
+    "RFQExecutionResult",
+    "RFQExecutionStatus",
+    "TradeAllocation",
     # Settlement Workflow (v0.3.0)
     "AutomaticSettlementService",
     "SettlementWorkflow",
