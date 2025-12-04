@@ -24,7 +24,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 
 # Add project root to path
-project_root = Path(__file__).parent.parent.parent.parent
+project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root / "src"))
 
 from neutryx.tests.fixtures.fictional_portfolio import (
