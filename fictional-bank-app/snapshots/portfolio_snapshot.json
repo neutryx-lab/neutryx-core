@@ -1,0 +1,788 @@
+{
+  "name": "Global Trading Portfolio",
+  "counterparties": {
+    "CP_BANK_AAA": {
+      "id": "CP_BANK_AAA",
+      "name": "AAA Global Bank",
+      "entity_type": "Financial",
+      "lei": "213800WAVVOPS85N2205",
+      "jurisdiction": "US",
+      "credit": {
+        "rating": "AAA",
+        "internal_rating": null,
+        "lgd": 0.4,
+        "recovery_rate": null,
+        "hazard_curve": null,
+        "credit_spread_bps": 15.0
+      },
+      "parent_id": null,
+      "is_bank": true,
+      "is_clearinghouse": false
+    },
+    "CP_CORP_A": {
+      "id": "CP_CORP_A",
+      "name": "Tech Corporation A",
+      "entity_type": "Corporate",
+      "lei": "549300VZKC1YSLMVXU38",
+      "jurisdiction": "US",
+      "credit": {
+        "rating": "A",
+        "internal_rating": null,
+        "lgd": 0.6,
+        "recovery_rate": null,
+        "hazard_curve": null,
+        "credit_spread_bps": 75.0
+      },
+      "parent_id": null,
+      "is_bank": false,
+      "is_clearinghouse": false
+    },
+    "CP_CORP_BBB": {
+      "id": "CP_CORP_BBB",
+      "name": "Industrial Group BBB",
+      "entity_type": "Corporate",
+      "lei": "549300LLCY4K6URF6Z41",
+      "jurisdiction": "DE",
+      "credit": {
+        "rating": "BBB",
+        "internal_rating": null,
+        "lgd": 0.65,
+        "recovery_rate": null,
+        "hazard_curve": null,
+        "credit_spread_bps": 125.0
+      },
+      "parent_id": null,
+      "is_bank": false,
+      "is_clearinghouse": false
+    },
+    "CP_HEDGE_FUND": {
+      "id": "CP_HEDGE_FUND",
+      "name": "Alpha Strategies Fund",
+      "entity_type": "Fund",
+      "lei": "5493001KJTIIGC8Y1R12",
+      "jurisdiction": "KY",
+      "credit": {
+        "rating": "A-",
+        "internal_rating": null,
+        "lgd": 0.7,
+        "recovery_rate": null,
+        "hazard_curve": null,
+        "credit_spread_bps": 150.0
+      },
+      "parent_id": null,
+      "is_bank": false,
+      "is_clearinghouse": false
+    },
+    "CP_SOVEREIGN": {
+      "id": "CP_SOVEREIGN",
+      "name": "Republic Investment Authority",
+      "entity_type": "Sovereign",
+      "lei": null,
+      "jurisdiction": "SG",
+      "credit": {
+        "rating": "AA+",
+        "internal_rating": null,
+        "lgd": 0.5,
+        "recovery_rate": null,
+        "hazard_curve": null,
+        "credit_spread_bps": 50.0
+      },
+      "parent_id": null,
+      "is_bank": false,
+      "is_clearinghouse": false
+    },
+    "CP_INSURANCE": {
+      "id": "CP_INSURANCE",
+      "name": "Global Insurance Group",
+      "entity_type": "Financial",
+      "lei": "549300QYCBDK3RUHVD89",
+      "jurisdiction": "GB",
+      "credit": {
+        "rating": "AA",
+        "internal_rating": null,
+        "lgd": 0.45,
+        "recovery_rate": null,
+        "hazard_curve": null,
+        "credit_spread_bps": 45.0
+      },
+      "parent_id": null,
+      "is_bank": false,
+      "is_clearinghouse": false
+    }
+  },
+  "master_agreements": {
+    "MA_CP_BANK_AAA": {
+      "id": "MA_CP_BANK_AAA",
+      "agreement_type": "ISDA2002",
+      "party_a_id": "OUR_INSTITUTION",
+      "party_b_id": "CP_BANK_AAA",
+      "effective_date": "2020-01-01",
+      "governing_law": "NewYork",
+      "termination_currency": "USD",
+      "csa_id": null,
+      "payment_netting": true,
+      "close_out_netting": true,
+      "automatic_early_termination": false,
+      "walkaway_clause": false,
+      "additional_termination_events": [],
+      "credit_event_upon_merger": true,
+      "cross_default_applicable": true
+    },
+    "MA_CP_CORP_A": {
+      "id": "MA_CP_CORP_A",
+      "agreement_type": "ISDA2002",
+      "party_a_id": "OUR_INSTITUTION",
+      "party_b_id": "CP_CORP_A",
+      "effective_date": "2020-01-01",
+      "governing_law": "NewYork",
+      "termination_currency": "USD",
+      "csa_id": null,
+      "payment_netting": true,
+      "close_out_netting": true,
+      "automatic_early_termination": false,
+      "walkaway_clause": false,
+      "additional_termination_events": [],
+      "credit_event_upon_merger": true,
+      "cross_default_applicable": true
+    },
+    "MA_CP_CORP_BBB": {
+      "id": "MA_CP_CORP_BBB",
+      "agreement_type": "ISDA2002",
+      "party_a_id": "OUR_INSTITUTION",
+      "party_b_id": "CP_CORP_BBB",
+      "effective_date": "2020-01-01",
+      "governing_law": "German",
+      "termination_currency": "USD",
+      "csa_id": null,
+      "payment_netting": true,
+      "close_out_netting": true,
+      "automatic_early_termination": false,
+      "walkaway_clause": false,
+      "additional_termination_events": [],
+      "credit_event_upon_merger": true,
+      "cross_default_applicable": true
+    },
+    "MA_CP_HEDGE_FUND": {
+      "id": "MA_CP_HEDGE_FUND",
+      "agreement_type": "ISDA2002",
+      "party_a_id": "OUR_INSTITUTION",
+      "party_b_id": "CP_HEDGE_FUND",
+      "effective_date": "2020-01-01",
+      "governing_law": "English",
+      "termination_currency": "USD",
+      "csa_id": null,
+      "payment_netting": true,
+      "close_out_netting": true,
+      "automatic_early_termination": false,
+      "walkaway_clause": false,
+      "additional_termination_events": [],
+      "credit_event_upon_merger": true,
+      "cross_default_applicable": true
+    },
+    "MA_CP_SOVEREIGN": {
+      "id": "MA_CP_SOVEREIGN",
+      "agreement_type": "ISDA2002",
+      "party_a_id": "OUR_INSTITUTION",
+      "party_b_id": "CP_SOVEREIGN",
+      "effective_date": "2020-01-01",
+      "governing_law": "English",
+      "termination_currency": "USD",
+      "csa_id": null,
+      "payment_netting": true,
+      "close_out_netting": true,
+      "automatic_early_termination": false,
+      "walkaway_clause": false,
+      "additional_termination_events": [],
+      "credit_event_upon_merger": true,
+      "cross_default_applicable": true
+    },
+    "MA_CP_INSURANCE": {
+      "id": "MA_CP_INSURANCE",
+      "agreement_type": "ISDA2002",
+      "party_a_id": "OUR_INSTITUTION",
+      "party_b_id": "CP_INSURANCE",
+      "effective_date": "2020-01-01",
+      "governing_law": "English",
+      "termination_currency": "USD",
+      "csa_id": null,
+      "payment_netting": true,
+      "close_out_netting": true,
+      "automatic_early_termination": false,
+      "walkaway_clause": false,
+      "additional_termination_events": [],
+      "credit_event_upon_merger": true,
+      "cross_default_applicable": true
+    }
+  },
+  "csas": {
+    "CSA_CP_BANK_AAA": {
+      "id": "CSA_CP_BANK_AAA",
+      "party_a_id": "OUR_INSTITUTION",
+      "party_b_id": "CP_BANK_AAA",
+      "effective_date": "2020-01-01",
+      "threshold_terms": {
+        "threshold_party_a": 1000000.0,
+        "threshold_party_b": 1000000.0,
+        "mta_party_a": 100000.0,
+        "mta_party_b": 100000.0,
+        "independent_amount_party_a": 0.0,
+        "independent_amount_party_b": 0.0,
+        "rounding": 100000.0
+      },
+      "collateral_terms": {
+        "base_currency": "USD",
+        "valuation_frequency": "Daily",
+        "valuation_time": null,
+        "dispute_threshold": 0.0,
+        "dispute_resolution": "MarketQuotation",
+        "eligible_collateral": [
+          {
+            "collateral_type": "Cash",
+            "currency": "USD",
+            "haircut": 0.0,
+            "concentration_limit": null,
+            "rating_threshold": null,
+            "maturity_max_years": null
+          },
+          {
+            "collateral_type": "GovernmentBond",
+            "currency": null,
+            "haircut": 0.02,
+            "concentration_limit": null,
+            "rating_threshold": "AA-",
+            "maturity_max_years": 10.0
+          }
+        ]
+      },
+      "initial_margin_required": false,
+      "variation_margin_required": true,
+      "rehypothecation_allowed": false,
+      "segregation_required": false
+    },
+    "CSA_CP_CORP_A": {
+      "id": "CSA_CP_CORP_A",
+      "party_a_id": "OUR_INSTITUTION",
+      "party_b_id": "CP_CORP_A",
+      "effective_date": "2020-01-01",
+      "threshold_terms": {
+        "threshold_party_a": 1000000.0,
+        "threshold_party_b": 1000000.0,
+        "mta_party_a": 100000.0,
+        "mta_party_b": 100000.0,
+        "independent_amount_party_a": 0.0,
+        "independent_amount_party_b": 0.0,
+        "rounding": 100000.0
+      },
+      "collateral_terms": {
+        "base_currency": "USD",
+        "valuation_frequency": "Daily",
+        "valuation_time": null,
+        "dispute_threshold": 0.0,
+        "dispute_resolution": "MarketQuotation",
+        "eligible_collateral": [
+          {
+            "collateral_type": "Cash",
+            "currency": "USD",
+            "haircut": 0.0,
+            "concentration_limit": null,
+            "rating_threshold": null,
+            "maturity_max_years": null
+          },
+          {
+            "collateral_type": "GovernmentBond",
+            "currency": null,
+            "haircut": 0.02,
+            "concentration_limit": null,
+            "rating_threshold": "AA-",
+            "maturity_max_years": 10.0
+          }
+        ]
+      },
+      "initial_margin_required": false,
+      "variation_margin_required": true,
+      "rehypothecation_allowed": false,
+      "segregation_required": false
+    },
+    "CSA_CP_SOVEREIGN": {
+      "id": "CSA_CP_SOVEREIGN",
+      "party_a_id": "OUR_INSTITUTION",
+      "party_b_id": "CP_SOVEREIGN",
+      "effective_date": "2020-01-01",
+      "threshold_terms": {
+        "threshold_party_a": 1000000.0,
+        "threshold_party_b": 1000000.0,
+        "mta_party_a": 100000.0,
+        "mta_party_b": 100000.0,
+        "independent_amount_party_a": 0.0,
+        "independent_amount_party_b": 0.0,
+        "rounding": 100000.0
+      },
+      "collateral_terms": {
+        "base_currency": "USD",
+        "valuation_frequency": "Daily",
+        "valuation_time": null,
+        "dispute_threshold": 0.0,
+        "dispute_resolution": "MarketQuotation",
+        "eligible_collateral": [
+          {
+            "collateral_type": "Cash",
+            "currency": "USD",
+            "haircut": 0.0,
+            "concentration_limit": null,
+            "rating_threshold": null,
+            "maturity_max_years": null
+          },
+          {
+            "collateral_type": "GovernmentBond",
+            "currency": null,
+            "haircut": 0.02,
+            "concentration_limit": null,
+            "rating_threshold": "AA-",
+            "maturity_max_years": 10.0
+          }
+        ]
+      },
+      "initial_margin_required": false,
+      "variation_margin_required": true,
+      "rehypothecation_allowed": false,
+      "segregation_required": false
+    },
+    "CSA_CP_INSURANCE": {
+      "id": "CSA_CP_INSURANCE",
+      "party_a_id": "OUR_INSTITUTION",
+      "party_b_id": "CP_INSURANCE",
+      "effective_date": "2020-01-01",
+      "threshold_terms": {
+        "threshold_party_a": 1000000.0,
+        "threshold_party_b": 1000000.0,
+        "mta_party_a": 100000.0,
+        "mta_party_b": 100000.0,
+        "independent_amount_party_a": 0.0,
+        "independent_amount_party_b": 0.0,
+        "rounding": 100000.0
+      },
+      "collateral_terms": {
+        "base_currency": "USD",
+        "valuation_frequency": "Daily",
+        "valuation_time": null,
+        "dispute_threshold": 0.0,
+        "dispute_resolution": "MarketQuotation",
+        "eligible_collateral": [
+          {
+            "collateral_type": "Cash",
+            "currency": "USD",
+            "haircut": 0.0,
+            "concentration_limit": null,
+            "rating_threshold": null,
+            "maturity_max_years": null
+          },
+          {
+            "collateral_type": "GovernmentBond",
+            "currency": null,
+            "haircut": 0.02,
+            "concentration_limit": null,
+            "rating_threshold": "AA-",
+            "maturity_max_years": 10.0
+          }
+        ]
+      },
+      "initial_margin_required": false,
+      "variation_margin_required": true,
+      "rehypothecation_allowed": false,
+      "segregation_required": false
+    }
+  },
+  "netting_sets": {
+    "NS_CP_BANK_AAA": {
+      "id": "NS_CP_BANK_AAA",
+      "name": null,
+      "master_agreement_id": "MA_CP_BANK_AAA",
+      "counterparty_id": "CP_BANK_AAA",
+      "csa_id": "CSA_CP_BANK_AAA",
+      "trade_ids": [
+        "TRD_00001",
+        "TRD_00002"
+      ],
+      "is_cleared": false,
+      "clearinghouse_id": null
+    },
+    "NS_CP_CORP_A": {
+      "id": "NS_CP_CORP_A",
+      "name": null,
+      "master_agreement_id": "MA_CP_CORP_A",
+      "counterparty_id": "CP_CORP_A",
+      "csa_id": "CSA_CP_CORP_A",
+      "trade_ids": [
+        "TRD_00005",
+        "TRD_00006"
+      ],
+      "is_cleared": false,
+      "clearinghouse_id": null
+    },
+    "NS_CP_CORP_BBB": {
+      "id": "NS_CP_CORP_BBB",
+      "name": null,
+      "master_agreement_id": "MA_CP_CORP_BBB",
+      "counterparty_id": "CP_CORP_BBB",
+      "csa_id": null,
+      "trade_ids": [
+        "TRD_00003"
+      ],
+      "is_cleared": false,
+      "clearinghouse_id": null
+    },
+    "NS_CP_HEDGE_FUND": {
+      "id": "NS_CP_HEDGE_FUND",
+      "name": null,
+      "master_agreement_id": "MA_CP_HEDGE_FUND",
+      "counterparty_id": "CP_HEDGE_FUND",
+      "csa_id": null,
+      "trade_ids": [
+        "TRD_00007",
+        "TRD_00010"
+      ],
+      "is_cleared": false,
+      "clearinghouse_id": null
+    },
+    "NS_CP_SOVEREIGN": {
+      "id": "NS_CP_SOVEREIGN",
+      "name": null,
+      "master_agreement_id": "MA_CP_SOVEREIGN",
+      "counterparty_id": "CP_SOVEREIGN",
+      "csa_id": "CSA_CP_SOVEREIGN",
+      "trade_ids": [
+        "TRD_00008",
+        "TRD_00009"
+      ],
+      "is_cleared": false,
+      "clearinghouse_id": null
+    },
+    "NS_CP_INSURANCE": {
+      "id": "NS_CP_INSURANCE",
+      "name": null,
+      "master_agreement_id": "MA_CP_INSURANCE",
+      "counterparty_id": "CP_INSURANCE",
+      "csa_id": "CSA_CP_INSURANCE",
+      "trade_ids": [
+        "TRD_00004",
+        "TRD_00011"
+      ],
+      "is_cleared": false,
+      "clearinghouse_id": null
+    }
+  },
+  "trades": {
+    "TRD_00001": {
+      "id": "TRD_00001",
+      "trade_number": "IRS-USD-001",
+      "external_id": null,
+      "usi": null,
+      "counterparty_id": "CP_BANK_AAA",
+      "netting_set_id": "NS_CP_BANK_AAA",
+      "book_id": "BOOK_IRS_USD",
+      "desk_id": "DESK_RATES",
+      "trader_id": "TRADER_001",
+      "product_type": "InterestRateSwap",
+      "trade_date": "2024-01-15",
+      "effective_date": "2024-01-17",
+      "maturity_date": "2029-01-13",
+      "status": "Active",
+      "notional": 10000000.0,
+      "currency": "USD",
+      "settlement_type": "Cash",
+      "product_details": {
+        "fixed_rate": 0.045,
+        "floating_rate": "USD-LIBOR-3M",
+        "payment_frequency": "quarterly",
+        "direction": "receive_fixed"
+      },
+      "mtm": 125000.0,
+      "last_valuation_date": "2024-01-15"
+    },
+    "TRD_00002": {
+      "id": "TRD_00002",
+      "trade_number": "IRS-USD-002",
+      "external_id": null,
+      "usi": null,
+      "counterparty_id": "CP_BANK_AAA",
+      "netting_set_id": "NS_CP_BANK_AAA",
+      "book_id": "BOOK_IRS_USD",
+      "desk_id": "DESK_RATES",
+      "trader_id": "TRADER_001",
+      "product_type": "InterestRateSwap",
+      "trade_date": "2023-12-16",
+      "effective_date": "2023-12-18",
+      "maturity_date": "2034-01-12",
+      "status": "Active",
+      "notional": 25000000.0,
+      "currency": "USD",
+      "settlement_type": "Cash",
+      "product_details": {
+        "fixed_rate": 0.038,
+        "floating_rate": "USD-SOFR",
+        "payment_frequency": "semiannual",
+        "direction": "pay_fixed"
+      },
+      "mtm": -85000.0,
+      "last_valuation_date": "2024-01-15"
+    },
+    "TRD_00003": {
+      "id": "TRD_00003",
+      "trade_number": "IRS-EUR-001",
+      "external_id": null,
+      "usi": null,
+      "counterparty_id": "CP_CORP_BBB",
+      "netting_set_id": "NS_CP_CORP_BBB",
+      "book_id": "BOOK_IRS_EUR",
+      "desk_id": "DESK_RATES",
+      "trader_id": "TRADER_002",
+      "product_type": "InterestRateSwap",
+      "trade_date": "2023-11-16",
+      "effective_date": "2023-11-18",
+      "maturity_date": "2031-01-13",
+      "status": "Active",
+      "notional": 15000000.0,
+      "currency": "EUR",
+      "settlement_type": "Cash",
+      "product_details": {
+        "fixed_rate": 0.025,
+        "floating_rate": "EUR-EURIBOR-6M",
+        "payment_frequency": "semiannual",
+        "direction": "receive_fixed"
+      },
+      "mtm": 235000.0,
+      "last_valuation_date": "2024-01-15"
+    },
+    "TRD_00004": {
+      "id": "TRD_00004",
+      "trade_number": "SWPN-001",
+      "external_id": null,
+      "usi": null,
+      "counterparty_id": "CP_INSURANCE",
+      "netting_set_id": "NS_CP_INSURANCE",
+      "book_id": "BOOK_SWAPTIONS",
+      "desk_id": "DESK_RATES",
+      "trader_id": "TRADER_001",
+      "product_type": "Swaption",
+      "trade_date": "2023-12-31",
+      "effective_date": "2024-01-02",
+      "maturity_date": "2024-07-13",
+      "status": "Active",
+      "notional": 50000000.0,
+      "currency": "USD",
+      "settlement_type": "Cash",
+      "product_details": {
+        "option_type": "payer",
+        "strike_rate": 0.04,
+        "underlying_tenor": "10Y",
+        "exercise_style": "european"
+      },
+      "mtm": 450000.0,
+      "last_valuation_date": "2024-01-15"
+    },
+    "TRD_00005": {
+      "id": "TRD_00005",
+      "trade_number": "FXO-EURUSD-001",
+      "external_id": null,
+      "usi": null,
+      "counterparty_id": "CP_CORP_A",
+      "netting_set_id": "NS_CP_CORP_A",
+      "book_id": "BOOK_FX_MAJORS",
+      "desk_id": "DESK_FX",
+      "trader_id": "TRADER_003",
+      "product_type": "FxOption",
+      "trade_date": "2024-01-15",
+      "effective_date": "2024-01-15",
+      "maturity_date": "2024-04-14",
+      "status": "Active",
+      "notional": 5000000.0,
+      "currency": "EUR",
+      "settlement_type": "Cash",
+      "product_details": {
+        "currency_pair": "EUR/USD",
+        "call_currency": "EUR",
+        "put_currency": "USD",
+        "strike": 1.085,
+        "option_type": "call",
+        "exercise_style": "european"
+      },
+      "mtm": 75000.0,
+      "last_valuation_date": "2024-01-15"
+    },
+    "TRD_00006": {
+      "id": "TRD_00006",
+      "trade_number": "FXO-USDJPY-001",
+      "external_id": null,
+      "usi": null,
+      "counterparty_id": "CP_CORP_A",
+      "netting_set_id": "NS_CP_CORP_A",
+      "book_id": "BOOK_FX_MAJORS",
+      "desk_id": "DESK_FX",
+      "trader_id": "TRADER_003",
+      "product_type": "FxOption",
+      "trade_date": "2023-12-01",
+      "effective_date": "2023-12-01",
+      "maturity_date": "2024-07-13",
+      "status": "Active",
+      "notional": 8000000.0,
+      "currency": "USD",
+      "settlement_type": "Cash",
+      "product_details": {
+        "currency_pair": "USD/JPY",
+        "call_currency": "USD",
+        "put_currency": "JPY",
+        "strike": 148.5,
+        "option_type": "put",
+        "exercise_style": "american"
+      },
+      "mtm": -125000.0,
+      "last_valuation_date": "2024-01-15"
+    },
+    "TRD_00007": {
+      "id": "TRD_00007",
+      "trade_number": "FXO-USDBRL-001",
+      "external_id": null,
+      "usi": null,
+      "counterparty_id": "CP_HEDGE_FUND",
+      "netting_set_id": "NS_CP_HEDGE_FUND",
+      "book_id": "BOOK_FX_EMERGING",
+      "desk_id": "DESK_FX",
+      "trader_id": "TRADER_004",
+      "product_type": "FxOption",
+      "trade_date": "2023-12-26",
+      "effective_date": "2023-12-26",
+      "maturity_date": "2024-05-14",
+      "status": "Active",
+      "notional": 3000000.0,
+      "currency": "USD",
+      "settlement_type": "Cash",
+      "product_details": {
+        "currency_pair": "USD/BRL",
+        "call_currency": "USD",
+        "put_currency": "BRL",
+        "strike": 5.15,
+        "option_type": "call",
+        "exercise_style": "european"
+      },
+      "mtm": 180000.0,
+      "last_valuation_date": "2024-01-15"
+    },
+    "TRD_00008": {
+      "id": "TRD_00008",
+      "trade_number": "EQO-SPX-001",
+      "external_id": null,
+      "usi": null,
+      "counterparty_id": "CP_SOVEREIGN",
+      "netting_set_id": "NS_CP_SOVEREIGN",
+      "book_id": "BOOK_EQ_VANILLA",
+      "desk_id": "DESK_EQUITY",
+      "trader_id": "TRADER_005",
+      "product_type": "EquityOption",
+      "trade_date": "2024-01-15",
+      "effective_date": "2024-01-15",
+      "maturity_date": "2025-01-14",
+      "status": "Active",
+      "notional": 20000000.0,
+      "currency": "USD",
+      "settlement_type": "Cash",
+      "product_details": {
+        "underlyer": "SPX",
+        "underlyer_name": "S&P 500 Index",
+        "option_type": "call",
+        "strike": 4500.0,
+        "exercise_style": "european",
+        "number_of_options": 100
+      },
+      "mtm": 950000.0,
+      "last_valuation_date": "2024-01-15"
+    },
+    "TRD_00009": {
+      "id": "TRD_00009",
+      "trade_number": "EQO-AAPL-001",
+      "external_id": null,
+      "usi": null,
+      "counterparty_id": "CP_SOVEREIGN",
+      "netting_set_id": "NS_CP_SOVEREIGN",
+      "book_id": "BOOK_EQ_VANILLA",
+      "desk_id": "DESK_EQUITY",
+      "trader_id": "TRADER_005",
+      "product_type": "EquityOption",
+      "trade_date": "2024-01-05",
+      "effective_date": "2024-01-05",
+      "maturity_date": "2024-07-13",
+      "status": "Active",
+      "notional": 5000000.0,
+      "currency": "USD",
+      "settlement_type": "Physical",
+      "product_details": {
+        "underlyer": "AAPL",
+        "underlyer_name": "Apple Inc.",
+        "option_type": "call",
+        "strike": 180.0,
+        "exercise_style": "american",
+        "number_of_options": 10000
+      },
+      "mtm": 250000.0,
+      "last_valuation_date": "2024-01-15"
+    },
+    "TRD_00010": {
+      "id": "TRD_00010",
+      "trade_number": "EQO-EXOTIC-001",
+      "external_id": null,
+      "usi": null,
+      "counterparty_id": "CP_HEDGE_FUND",
+      "netting_set_id": "NS_CP_HEDGE_FUND",
+      "book_id": "BOOK_EQ_EXOTIC",
+      "desk_id": "DESK_EQUITY",
+      "trader_id": "TRADER_006",
+      "product_type": "EquityOption",
+      "trade_date": "2023-12-16",
+      "effective_date": "2023-12-16",
+      "maturity_date": "2024-10-11",
+      "status": "Active",
+      "notional": 10000000.0,
+      "currency": "USD",
+      "settlement_type": "Cash",
+      "product_details": {
+        "underlyer": "TSLA",
+        "underlyer_name": "Tesla Inc.",
+        "product_subtype": "barrier_option",
+        "option_type": "call",
+        "strike": 250.0,
+        "barrier_type": "knock_out",
+        "barrier_level": 300.0,
+        "exercise_style": "european"
+      },
+      "mtm": 625000.0,
+      "last_valuation_date": "2024-01-15"
+    },
+    "TRD_00011": {
+      "id": "TRD_00011",
+      "trade_number": "VARSWAP-001",
+      "external_id": null,
+      "usi": null,
+      "counterparty_id": "CP_INSURANCE",
+      "netting_set_id": "NS_CP_INSURANCE",
+      "book_id": "BOOK_EQ_EXOTIC",
+      "desk_id": "DESK_EQUITY",
+      "trader_id": "TRADER_006",
+      "product_type": "VarianceSwap",
+      "trade_date": "2023-10-17",
+      "effective_date": "2023-10-17",
+      "maturity_date": "2024-10-16",
+      "status": "Active",
+      "notional": 1000000.0,
+      "currency": "USD",
+      "settlement_type": "Cash",
+      "product_details": {
+        "underlyer": "SPX",
+        "strike_variance": 0.04,
+        "vega_notional": 1000000.0,
+        "observation_frequency": "daily"
+      },
+      "mtm": -150000.0,
+      "last_valuation_date": "2024-01-15"
+    }
+  },
+  "base_currency": "USD"
+}

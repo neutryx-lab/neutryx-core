@@ -1,0 +1,168 @@
+# Fictional Bank Portfolio Configuration
+
+portfolio:
+  name: "Global Trading Portfolio"
+  base_currency: "USD"
+  valuation_date: "2024-01-15"
+
+# Market data settings for pricing
+market_data:
+  # Interest rate curves
+  rates:
+    USD:
+      curve_date: "2024-01-15"
+      spot_rates:
+        - tenor: "1M"
+          rate: 0.0530
+        - tenor: "3M"
+          rate: 0.0535
+        - tenor: "6M"
+          rate: 0.0525
+        - tenor: "1Y"
+          rate: 0.0485
+        - tenor: "2Y"
+          rate: 0.0440
+        - tenor: "5Y"
+          rate: 0.0410
+        - tenor: "10Y"
+          rate: 0.0425
+        - tenor: "30Y"
+          rate: 0.0450
+
+    EUR:
+      curve_date: "2024-01-15"
+      spot_rates:
+        - tenor: "1M"
+          rate: 0.0390
+        - tenor: "3M"
+          rate: 0.0385
+        - tenor: "6M"
+          rate: 0.0375
+        - tenor: "1Y"
+          rate: 0.0340
+        - tenor: "2Y"
+          rate: 0.0295
+        - tenor: "5Y"
+          rate: 0.0265
+        - tenor: "10Y"
+          rate: 0.0280
+        - tenor: "30Y"
+          rate: 0.0305
+
+  # FX spot rates
+  fx_spots:
+    EURUSD: 1.0850
+    USDJPY: 148.25
+    GBPUSD: 1.2720
+    USDBRL: 5.12
+
+  # FX volatilities (annualized)
+  fx_vols:
+    EURUSD:
+      tenor_1M: 0.085
+      tenor_3M: 0.090
+      tenor_6M: 0.095
+      tenor_1Y: 0.105
+    USDJPY:
+      tenor_1M: 0.110
+      tenor_3M: 0.115
+      tenor_6M: 0.120
+      tenor_1Y: 0.125
+    USDBRL:
+      tenor_1M: 0.180
+      tenor_3M: 0.185
+      tenor_6M: 0.190
+      tenor_1Y: 0.200
+
+  # Equity spots and volatilities
+  equities:
+    SPX:
+      spot: 4783.45
+      dividend_yield: 0.015
+      volatilities:
+        tenor_1M: 0.140
+        tenor_3M: 0.155
+        tenor_6M: 0.165
+        tenor_1Y: 0.175
+        tenor_2Y: 0.185
+
+    AAPL:
+      spot: 185.92
+      dividend_yield: 0.005
+      volatilities:
+        tenor_1M: 0.250
+        tenor_3M: 0.265
+        tenor_6M: 0.275
+        tenor_1Y: 0.285
+        tenor_2Y: 0.295
+
+    TSLA:
+      spot: 207.83
+      dividend_yield: 0.000
+      volatilities:
+        tenor_1M: 0.550
+        tenor_3M: 0.565
+        tenor_6M: 0.575
+        tenor_1Y: 0.585
+        tenor_2Y: 0.595
+
+  # Swaption volatilities
+  swaption_vols:
+    USD:
+      "1Yx10Y": 0.65  # 1Y into 10Y
+      "2Yx10Y": 0.60
+      "5Yx10Y": 0.55
+      "10Yx10Y": 0.50
+
+# XVA calculation parameters
+xva_config:
+  # Credit parameters
+  credit:
+    default_lgd: 0.60
+    our_default_probability_bps: 50  # 0.5% annual
+
+  # Funding parameters
+  funding:
+    default_spread_bps: 50
+    collateralized_spread_bps: 10
+
+  # Initial margin parameters
+  margin:
+    im_haircut_percent: 6.0  # 6% of notional
+    margin_lending_spread_bps: 150
+
+  # Simulation parameters
+  monte_carlo:
+    num_paths: 50000
+    num_steps: 252
+    seed: 42
+    antithetic: true
+
+  # Exposure grid
+  exposure:
+    time_grid_years: [0.25, 0.5, 1.0, 2.0, 3.0, 5.0, 7.0, 10.0]
+    confidence_levels: [0.95, 0.975, 0.99]
+
+# Reporting configuration
+reporting:
+  output_directory: "examples/applications/fictional_bank/reports"
+  formats: ["json", "csv", "html"]
+
+  include_sections:
+    - portfolio_summary
+    - counterparty_breakdown
+    - book_hierarchy
+    - netting_set_analysis
+    - xva_calculations
+    - risk_metrics
+
+  # Email notification (optional)
+  notifications:
+    enabled: false
+    recipients: []
+
+# Data persistence
+persistence:
+  save_portfolio_snapshot: true
+  snapshot_directory: "examples/applications/fictional_bank/snapshots"
+  compression: true

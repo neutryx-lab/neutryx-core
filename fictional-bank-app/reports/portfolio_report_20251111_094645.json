@@ -1,0 +1,163 @@
+{
+  "report_metadata": {
+    "generated_at": "2025-11-11T09:46:45.346149",
+    "report_type": "portfolio_analysis",
+    "version": "1.0"
+  },
+  "portfolio_summary": {
+    "portfolio_name": "Global Trading Portfolio",
+    "base_currency": "USD",
+    "statistics": {
+      "counterparties": 6,
+      "netting_sets": 6,
+      "trades": 11,
+      "active_trades": 11
+    },
+    "total_mtm": 2530000.0,
+    "gross_notional": 152000000.0,
+    "counterparties": {
+      "CP_BANK_AAA": {
+        "name": "AAA Global Bank",
+        "entity_type": "Financial",
+        "rating": "AAA",
+        "num_trades": 2,
+        "net_mtm": 40000.0,
+        "has_csa": true
+      },
+      "CP_CORP_A": {
+        "name": "Tech Corporation A",
+        "entity_type": "Corporate",
+        "rating": "A",
+        "num_trades": 2,
+        "net_mtm": -50000.0,
+        "has_csa": true
+      },
+      "CP_CORP_BBB": {
+        "name": "Industrial Group BBB",
+        "entity_type": "Corporate",
+        "rating": "BBB",
+        "num_trades": 1,
+        "net_mtm": 235000.0,
+        "has_csa": false
+      },
+      "CP_HEDGE_FUND": {
+        "name": "Alpha Strategies Fund",
+        "entity_type": "Fund",
+        "rating": "A-",
+        "num_trades": 2,
+        "net_mtm": 805000.0,
+        "has_csa": false
+      },
+      "CP_SOVEREIGN": {
+        "name": "Republic Investment Authority",
+        "entity_type": "Sovereign",
+        "rating": "AA+",
+        "num_trades": 2,
+        "net_mtm": 1200000.0,
+        "has_csa": true
+      },
+      "CP_INSURANCE": {
+        "name": "Global Insurance Group",
+        "entity_type": "Financial",
+        "rating": "AA",
+        "num_trades": 2,
+        "net_mtm": 300000.0,
+        "has_csa": true
+      }
+    },
+    "books": {
+      "BOOK_FX_EMERGING": {
+        "name": "FX Emerging Markets",
+        "desk": "DESK_FX",
+        "book_id": "BOOK_FX_EMERGING",
+        "num_trades": 1,
+        "active_trades": 1,
+        "total_mtm": 180000.0,
+        "total_notional": 3000000.0
+      },
+      "BOOK_SWAPTIONS": {
+        "name": "Swaptions Book",
+        "desk": "DESK_RATES",
+        "book_id": "BOOK_SWAPTIONS",
+        "num_trades": 1,
+        "active_trades": 1,
+        "total_mtm": 450000.0,
+        "total_notional": 50000000.0
+      },
+      "BOOK_FX_MAJORS": {
+        "name": "FX Majors Options",
+        "desk": "DESK_FX",
+        "book_id": "BOOK_FX_MAJORS",
+        "num_trades": 2,
+        "active_trades": 2,
+        "total_mtm": -50000.0,
+        "total_notional": 13000000.0
+      },
+      "BOOK_IRS_EUR": {
+        "name": "EUR Interest Rate Swaps",
+        "desk": "DESK_RATES",
+        "book_id": "BOOK_IRS_EUR",
+        "num_trades": 1,
+        "active_trades": 1,
+        "total_mtm": 235000.0,
+        "total_notional": 15000000.0
+      },
+      "BOOK_EQ_VANILLA": {
+        "name": "Equity Vanilla Options",
+        "desk": "DESK_EQUITY",
+        "book_id": "BOOK_EQ_VANILLA",
+        "num_trades": 2,
+        "active_trades": 2,
+        "total_mtm": 1200000.0,
+        "total_notional": 25000000.0
+      },
+      "BOOK_IRS_USD": {
+        "name": "USD Interest Rate Swaps",
+        "desk": "DESK_RATES",
+        "book_id": "BOOK_IRS_USD",
+        "num_trades": 2,
+        "active_trades": 2,
+        "total_mtm": 40000.0,
+        "total_notional": 35000000.0
+      },
+      "BOOK_EQ_EXOTIC": {
+        "name": "Equity Exotic Options",
+        "desk": "DESK_EQUITY",
+        "book_id": "BOOK_EQ_EXOTIC",
+        "num_trades": 2,
+        "active_trades": 2,
+        "total_mtm": 475000.0,
+        "total_notional": 11000000.0
+      }
+    },
+    "desks": {
+      "DESK_EQUITY": {
+        "name": "Equity Derivatives Desk",
+        "desk_id": "DESK_EQUITY",
+        "num_trades": 4,
+        "active_trades": 4,
+        "num_books": 2,
+        "total_mtm": 1675000.0,
+        "total_notional": 36000000.0
+      },
+      "DESK_FX": {
+        "name": "Foreign Exchange Desk",
+        "desk_id": "DESK_FX",
+        "num_trades": 3,
+        "active_trades": 3,
+        "num_books": 2,
+        "total_mtm": 130000.0,
+        "total_notional": 16000000.0
+      },
+      "DESK_RATES": {
+        "name": "Interest Rates Desk",
+        "desk_id": "DESK_RATES",
+        "num_trades": 4,
+        "active_trades": 4,
+        "num_books": 3,
+        "total_mtm": 725000.0,
+        "total_notional": 100000000.0
+      }
+    }
+  }
+}
