@@ -1,0 +1,134 @@
+name: Schema Code Generation
+
+on:
+  push:
+    paths:
+      - 'src/neutryx/schemas/**'
+    branches:
+      - main
+      - updates
+  pull_request:
+    paths:
+      - 'src/neutryx/schemas/**'
+
+jobs:
+  validate-schemas:
+    name: Validate Schemas
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Validate schema imports
+        run: |
+          python -c "from neutryx.schemas import TradeStatus, ProductType, Party, Trade"
+          python -c "from neutryx.schemas._registry import SchemaRegistry; r = SchemaRegistry.instance(); print(f'Registered {len(r)} schemas')"
+
+      - name: Run schema tests
+        run: |
+          pytest tests/ -k "schema" -v --tb=short || true
+
+  generate-artifacts:
+    name: Generate Schema Artifacts
+    runs-on: ubuntu-latest
+    needs: validate-schemas
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Generate JSON Schemas
+        run: |
+          python -m neutryx.schemas._codegen.cli json \
+            -o src/neutryx/schemas/_generated/json_schemas/
+
+      - name: Generate TypeScript types
+        run: |
+          python -m neutryx.schemas._codegen.cli typescript \
+            -o src/neutryx/schemas/_generated/typescript/types.ts
+
+      - name: Generate OpenAPI components
+        run: |
+          python -m neutryx.schemas._codegen.cli openapi \
+            -o src/neutryx/schemas/_generated/openapi/components.json
+
+      - name: List schemas
+        run: |
+          python -m neutryx.schemas._codegen.cli list
+
+      - name: Upload generated artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: schema-artifacts
+          path: src/neutryx/schemas/_generated/
+          retention-days: 7
+
+  check-generated-files:
+    name: Check Generated Files (PR only)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    needs: generate-artifacts
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download generated artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: schema-artifacts
+          path: src/neutryx/schemas/_generated/
+
+      - name: Check for uncommitted changes
+        run: |
+          if [ -n "$(git status --porcelain src/neutryx/schemas/_generated/)" ]; then
+            echo "::warning::Generated files are out of date. Run 'python -m neutryx.schemas._codegen.cli' locally."
+            git diff src/neutryx/schemas/_generated/
+          fi
+
+  commit-generated-files:
+    name: Commit Generated Files (main only)
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    needs: generate-artifacts
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Download generated artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: schema-artifacts
+          path: src/neutryx/schemas/_generated/
+
+      - name: Commit and push if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add src/neutryx/schemas/_generated/
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "chore: regenerate schema artifacts [skip ci]"
+            git push
+          fi
