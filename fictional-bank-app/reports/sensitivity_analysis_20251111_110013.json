@@ -1,0 +1,64 @@
+{
+  "greeks": [],
+  "portfolio_greeks": {},
+  "greeks_by_underlying": {},
+  "greeks_by_product": {},
+  "ir_sensitivities": {
+    "USD": {
+      "PV01": 0,
+      "DV01": 0,
+      "trades": 0
+    },
+    "EUR": {
+      "PV01": 0,
+      "DV01": 0,
+      "trades": 0
+    }
+  },
+  "fx_sensitivities": {},
+  "eq_sensitivities": {},
+  "vega_sensitivities": {
+    "FX": {
+      "vega": 0,
+      "trades": 0
+    },
+    "Equity": {
+      "vega": 0,
+      "trades": 0
+    },
+    "Rates": {
+      "vega": 0,
+      "trades": 0
+    }
+  },
+  "bucketed_ir": {
+    "USD": {
+      "1M": 0,
+      "3M": 0,
+      "6M": 0,
+      "1Y": 0,
+      "2Y": 0,
+      "3Y": 0,
+      "5Y": 0,
+      "7Y": 0,
+      "10Y": 0,
+      "15Y": 0,
+      "20Y": 0,
+      "30Y": 0
+    },
+    "EUR": {
+      "1M": 0,
+      "3M": 0,
+      "6M": 0,
+      "1Y": 0,
+      "2Y": 0,
+      "3Y": 0,
+      "5Y": 0,
+      "7Y": 0,
+      "10Y": 0,
+      "15Y": 0,
+      "20Y": 0,
+      "30Y": 0
+    }
+  }
+}

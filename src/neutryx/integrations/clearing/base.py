@@ -3,10 +3,21 @@
 This module provides the foundational architecture for integrating with
 clearing houses and CCPs. It defines common interfaces, message types,
 and protocols that all CCP implementations must follow.
+
+DEPRECATION NOTICE:
+    Schema definitions (TradeStatus, ProductType, MessageType, Party) in this module
+    are deprecated. Import from neutryx.schemas instead:
+
+        from neutryx.schemas import TradeStatus, ProductType, Party
+        from neutryx.schemas.core.enums import MessageType
+
+    The definitions here are maintained for backward compatibility and will be
+    removed in a future version.
 """
 
 from __future__ import annotations
 
+import warnings
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -17,42 +28,27 @@ from typing import Any, Dict, List, Optional, Protocol, Union
 import numpy as np
 from pydantic import BaseModel, Field, ConfigDict
 
-
-class TradeStatus(str, Enum):
-    """Trade lifecycle status."""
-    PENDING = "pending"
-    SUBMITTED = "submitted"
-    ACCEPTED = "accepted"
-    REJECTED = "rejected"
-    CLEARED = "cleared"
-    SETTLED = "settled"
-    CANCELLED = "cancelled"
-    FAILED = "failed"
+# Re-export from canonical location for forward compatibility
+# Users should migrate to importing directly from neutryx.schemas
+from neutryx.schemas.core.enums import (
+    TradeStatus,
+    ProductType,
+    MessageType,
+)
+from neutryx.schemas.core.identifiers import Party
 
 
-class MessageType(str, Enum):
-    """CCP message types."""
-    TRADE_SUBMISSION = "trade_submission"
-    TRADE_CONFIRMATION = "trade_confirmation"
-    TRADE_REJECTION = "trade_rejection"
-    MARGIN_CALL = "margin_call"
-    SETTLEMENT = "settlement"
-    POSITION_REPORT = "position_report"
-    RISK_REPORT = "risk_report"
-    STATUS_UPDATE = "status_update"
-    HEARTBEAT = "heartbeat"
-
-
-class ProductType(str, Enum):
-    """Clearable product types."""
-    IRS = "interest_rate_swap"
-    CDS = "credit_default_swap"
-    FX_FORWARD = "fx_forward"
-    FX_SWAP = "fx_swap"
-    EQUITY_OPTION = "equity_option"
-    COMMODITY_FUTURE = "commodity_future"
-    REPO = "repo"
-    SWAPTION = "swaption"
+def __getattr__(name: str):
+    """Emit deprecation warning for deprecated exports."""
+    deprecated_schemas = {"TradeStatus", "ProductType", "MessageType", "Party"}
+    if name in deprecated_schemas:
+        warnings.warn(
+            f"Importing {name} from neutryx.integrations.clearing.base is deprecated. "
+            f"Use 'from neutryx.schemas import {name}' instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 class CCPError(Exception):

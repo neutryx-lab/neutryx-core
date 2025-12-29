@@ -1,0 +1,76 @@
+# Example Custom Stress Test Scenarios
+#
+# This file demonstrates how to create custom stress scenarios
+# You can create multiple scenarios in a single file or separate files
+#
+# Scenario Structure:
+#   name: Unique identifier for the scenario
+#   description: Human-readable description
+#   category: Type of scenario (rates, fx, equity, volatility, credit, combined, custom)
+#   severity: Impact level (mild, moderate, severe, extreme)
+#   shocks: Dictionary of market shocks to apply
+#
+# Shock Format Examples:
+#   - Interest rates: "+100bps", "-50bps"
+#   - Equities/FX: "+15%", "-20%"
+#   - Volatility: "+50%", "-30%"
+#   - Credit: "+200bps", "-1" (rating notch)
+
+# Example 1: Custom Market Crash
+- name: Custom_Tech_Bubble_Burst
+  description: Technology bubble burst with high volatility
+  category: custom
+  severity: severe
+  shocks:
+    SPX: "-15%"
+    AAPL: "-45%"
+    TSLA: "-60%"
+    EQ_vols: "+120%"
+    USD_curve: "-75bps"
+
+# Example 2: Custom Geopolitical Crisis
+- name: Custom_Geopolitical_Crisis
+  description: Geopolitical tensions causing market stress
+  category: custom
+  severity: severe
+  shocks:
+    EURUSD: "+8%"
+    USDJPY: "-12%"
+    FX_vols: "+90%"
+    credit_spreads: "+180bps"
+    SPX: "-18%"
+
+# Example 3: Custom Inflation Shock
+- name: Custom_Inflation_Shock
+  description: Unexpected inflation surge scenario
+  category: custom
+  severity: moderate
+  shocks:
+    USD_curve: "+175bps"
+    EUR_curve: "+125bps"
+    SPX: "-10%"
+    credit_spreads: "+100bps"
+
+# Example 4: Custom Recovery Scenario
+- name: Custom_Strong_Recovery
+  description: Strong economic recovery scenario
+  category: custom
+  severity: mild
+  shocks:
+    SPX: "+25%"
+    USD_curve: "+50bps"
+    credit_spreads: "-75bps"
+    FX_vols: "-20%"
+    EQ_vols: "-25%"
+
+# Example 5: Custom Emerging Market Crisis
+- name: Custom_EM_Contagion
+  description: Emerging markets contagion event
+  category: custom
+  severity: extreme
+  shocks:
+    USDBRL: "+45%"
+    EURUSD: "-5%"
+    FX_vols: "+150%"
+    credit_spreads: "+250bps"
+    SPX: "-22%"

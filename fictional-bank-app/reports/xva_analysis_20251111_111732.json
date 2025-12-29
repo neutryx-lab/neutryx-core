@@ -1,0 +1,103 @@
+{
+  "timestamp": "2025-11-11T11:17:32.699544",
+  "portfolio_summary": {
+    "num_netting_sets": 6,
+    "total_cva": 4397.142611913789,
+    "total_dva": 0.0,
+    "total_fva": 35739.29347048351,
+    "total_mva": 3573.929347048352,
+    "total_xva": 43710.36542944566
+  },
+  "netting_sets": [
+    {
+      "netting_set_id": "NS_CP_BANK_AAA",
+      "counterparty": "AAA Global Bank",
+      "has_csa": true,
+      "num_trades": 2,
+      "gross_notional": 35000000.0,
+      "net_mtm": 40000.0,
+      "expected_exposure": 12447.947271637062,
+      "peak_exposure": 12854.968359301965,
+      "cva": 0.5869347066102298,
+      "dva": 0.0,
+      "fva": 293.61398706413445,
+      "mva": 29.361398706413446,
+      "total_xva": 323.56232047715815
+    },
+    {
+      "netting_set_id": "NS_CP_CORP_A",
+      "counterparty": "Tech Corporation A",
+      "has_csa": true,
+      "num_trades": 2,
+      "gross_notional": 13000000.0,
+      "net_mtm": -50000.0,
+      "expected_exposure": 0.0,
+      "peak_exposure": 0.0,
+      "cva": 0.0,
+      "dva": 0.0,
+      "fva": 0.0,
+      "mva": 0.0,
+      "total_xva": 0.0
+    },
+    {
+      "netting_set_id": "NS_CP_CORP_BBB",
+      "counterparty": "Industrial Group BBB",
+      "has_csa": false,
+      "num_trades": 1,
+      "gross_notional": 15000000.0,
+      "net_mtm": 235000.0,
+      "expected_exposure": 234997.87600936193,
+      "peak_exposure": 241083.68216460588,
+      "cva": 1548.285073454707,
+      "dva": 0.0,
+      "fva": 5550.132719441832,
+      "mva": 555.0132719441833,
+      "total_xva": 7653.431064840722
+    },
+    {
+      "netting_set_id": "NS_CP_HEDGE_FUND",
+      "counterparty": "Alpha Strategies Fund",
+      "has_csa": false,
+      "num_trades": 2,
+      "gross_notional": 13000000.0,
+      "net_mtm": 805000.0,
+      "expected_exposure": 816744.3335935875,
+      "peak_exposure": 837921.831785322,
+      "cva": 2784.583936854643,
+      "dva": 0.0,
+      "fva": 19266.937099081093,
+      "mva": 1926.69370990811,
+      "total_xva": 23978.21474584385
+    },
+    {
+      "netting_set_id": "NS_CP_SOVEREIGN",
+      "counterparty": "Republic Investment Authority",
+      "has_csa": true,
+      "num_trades": 2,
+      "gross_notional": 25000000.0,
+      "net_mtm": 1200000.0,
+      "expected_exposure": 360064.0956508389,
+      "peak_exposure": 366620.1240270204,
+      "cva": 42.442007887717644,
+      "dva": 0.0,
+      "fva": 8498.90897893014,
+      "mva": 849.890897893014,
+      "total_xva": 9391.241884710871
+    },
+    {
+      "netting_set_id": "NS_CP_INSURANCE",
+      "counterparty": "Global Insurance Group",
+      "has_csa": true,
+      "num_trades": 2,
+      "gross_notional": 51000000.0,
+      "net_mtm": 300000.0,
+      "expected_exposure": 90192.70568058953,
+      "peak_exposure": 92749.28178096155,
+      "cva": 21.24465901011077,
+      "dva": 0.0,
+      "fva": 2129.7006859663134,
+      "mva": 212.97006859663134,
+      "total_xva": 2363.9154135730555
+    }
+  ]
+}
