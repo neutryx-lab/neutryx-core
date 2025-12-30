@@ -34,9 +34,11 @@ Trade lifecycle management with FpML support, RFQ workflow, convention-based tra
 
 **Production-Ready Enterprise Features**: Unlike academic libraries, Neutryx Core delivers enterprise governance (RBAC, audit, multi-tenancy), distributed computing, real-time market data integration, and comprehensive regulatory compliance out of the box.
 
+**Schema-Driven Development**: Centralized Pydantic schema registry ensures type safety and eliminates schema drift across Python/TypeScript/API boundaries. Automatic code generation for frontend integration accelerates development velocity.
+
 **Differentiable Everything**: Automatic differentiation through entire pricing-to-risk workflow enables efficient calibration, adjoint-based Greeks, and gradient-based optimization impossible with traditional finite difference approaches.
 
 **Performance at Scale**: 10-100x speedup through JIT compilation, multi-GPU Monte Carlo, adaptive mesh refinement for PDEs, and advanced variance reduction techniques (QMC, MLMC, control variates).
 
 ---
-_Generated: 2025-12-30_
+_Updated: 2025-12-30_

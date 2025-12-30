@@ -83,6 +83,18 @@
 - `benchmarks/`, `demos/` - Performance and feature showcases
 **Example**: `examples/applications/fictional_bank/cli.py`, `examples/tutorials/01_vanilla_pricing/`
 
+### Schema Registry (`/src/neutryx/schemas/`)
+**Purpose**: Centralized Pydantic schemas for Schema-Driven Development (SDD)
+**Contents**:
+- `core/` - Base schemas, enums, common models (Party, Money, identifiers)
+- `trading/` - Trade lifecycle schemas (RFQ, Quote, Trade)
+- `market/` - Market data schemas
+- `clearing/` - CCP and settlement schemas
+- `config/` - Configuration schemas
+- `_codegen/` - TypeScript/OpenAPI code generation utilities
+**Pattern**: Single source of truth for all data models across the platform
+**Benefits**: Type safety, automatic JSON Schema generation, OpenAPI specs, TypeScript types
+
 ### Tests (`/tests/`)
 **Purpose**: Comprehensive test suite (500+ tests)
 **Organization**: Mirrors `src/neutryx/` structure with `test_*.py` files
@@ -141,7 +153,20 @@ from .utils import validate_inputs
 - Group imports: stdlib → third-party → neutryx → local
 - Follow isort black profile (enforced by CI)
 
+### Kiro Project Management (`/.kiro/`)
+**Purpose**: AI-DLC (AI Development Life Cycle) and Spec-Driven Development infrastructure
+**Contents**:
+- `steering/` - Project-wide context and patterns (product, tech, structure)
+- `specs/` - Feature specifications (requirements, design, tasks)
+- `validation/` - SDD validation framework (Markdown parser, metadata tracker, steering loader)
+- `settings/` - Templates, rules, skill configurations
+**Pattern**: Persistent project memory guiding AI-assisted development
+**Note**: Light references acceptable in steering; detailed documentation lives in specs
+
 ## Code Organization Principles
+
+### Schema-Driven Development (SDD)
+All data models defined as Pydantic schemas in `neutryx.schemas` before implementation. Schemas drive TypeScript types, OpenAPI specs, and validation across boundaries.
 
 ### Pure Functions Everywhere
 JAX requires pure functions for JIT compilation. No global state, explicit PRNG keys passed as arguments.

@@ -36,10 +36,13 @@
 
 ## Development Standards
 
-### Type Safety
+### Type Safety & Schema-Driven Development (SDD)
 - **Strict typing**: Type hints required for all public APIs
 - **Runtime validation**: Pydantic models for config and schemas
 - **JAX types**: Use `jax.Array` (not `np.ndarray`) for array types
+- **Schema-first**: Define Pydantic schemas in `neutryx.schemas` before implementation
+- **Code generation**: Automatic TypeScript types and OpenAPI specs from schemas
+- **Validation framework**: `.kiro/validation/` provides SDD validation and compliance checking
 
 ### Code Quality
 - **Formatter**: Black (100-char line length)
@@ -116,5 +119,8 @@ python examples/applications/dashboard/app.py  # Dash dashboard on :8050
 ### Vendor-Agnostic Adapters
 **Rationale**: Abstract market data interfaces prevent vendor lock-in. Supports Bloomberg, Refinitiv, or custom feeds with consistent API.
 
+### Schema-Driven Development (SDD)
+**Rationale**: Centralized Pydantic schema registry (`neutryx.schemas`) provides single source of truth for data models. Eliminates schema drift across Python/TypeScript/API boundaries and enables automatic code generation for frontend integration.
+
 ---
-_Generated: 2025-12-30_
+_Updated: 2025-12-30_
