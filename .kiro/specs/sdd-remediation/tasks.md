@@ -3,7 +3,7 @@
 ## Foundation Layer
 
 - [ ] 1. Build core utilities infrastructure
-- [ ] 1.1 (P) Create Markdown parser with AST extraction
+- [x] 1.1 (P) Create Markdown parser with AST extraction
   - Implement parser using Python `markdown` library for requirements documents
   - Extract requirement headings with numeric ID detection
   - Extract acceptance criteria from nested lists under requirement sections
@@ -11,7 +11,7 @@
   - Handle code blocks, tables, and nested list structures correctly
   - _Requirements: 3.1, 3.2, 4.1, 4.2_
 
-- [ ] 1.2 (P) Build metadata tracker for spec.json management
+- [x] 1.2 (P) Build metadata tracker for spec.json management
   - Implement spec.json schema loading with pydantic models
   - Create audit trail event logging for phase transitions and approvals
   - Add timestamp management with ISO 8601 format
@@ -19,7 +19,7 @@
   - Ensure atomic updates for phase and approval state changes
   - _Requirements: 12.1, 12.2, 12.3, 12.4, 12.5_
 
-- [ ] 1.3 (P) Implement steering context loader
+- [x] 1.3 (P) Implement steering context loader
   - Build recursive file loader for `.kiro/steering/` directory
   - Validate default steering files exist (product.md, tech.md, structure.md)
   - Implement token estimation and budget-based prioritization by modification time
@@ -27,7 +27,7 @@
   - Support loading custom steering files regardless of mode settings
   - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.5_
 
-- [ ] 1.4 (P) Create error formatter for consistent messaging
+- [x] 1.4 (P) Create error formatter for consistent messaging
   - Build error message formatter with failure reason, file path, and remediation steps
   - Implement before/after example generation for validation failures
   - Add help text formatting with command syntax and options
@@ -35,7 +35,7 @@
   - Support template missing error with expected path and example structure
   - _Requirements: 10.1, 10.2, 10.3, 10.4, 10.5_
 
-- [ ] 1.5 (P) Implement language handler for localization
+- [x] 1.5 (P) Implement language handler for localization
   - Read language setting from spec.json with default to "en"
   - Create EARS keyword preservation validator
   - Implement localization readiness checker
