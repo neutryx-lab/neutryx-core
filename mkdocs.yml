@@ -81,6 +81,8 @@ nav:
       - Trade Management: trade_management.md
       - FpML Integration: fpml_integration.md
       - Configuration Guide: configuration.md
+      - Bank Trading System: BANK_TRADING_SYSTEM.md
+      - Fictional Bank: FICTIONAL_BANK.md
       - Documentation Notebooks: notebooks/index.md
 docs_dir: docs
 theme:

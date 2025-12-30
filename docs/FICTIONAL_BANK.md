@@ -460,7 +460,7 @@ class FictionalBank:
     jurisdiction: str                   # 管轄
     manager: BankConnectionManager      # データベース接続マネージャー
     execution_service: TradeExecutionService  # 取引実行サービス
-    portfolio: Portfolio                # インメモリポートフォリオ
+    portfolio: Portfolio                # インメモリポートフォlio
     book_hierarchy: BookHierarchy       # 組織構造
 ```
 
@@ -647,14 +647,14 @@ async def calculate_portfolio_var():
 ## 参考資料
 
 - [Bank Trading System Documentation](BANK_TRADING_SYSTEM.md)
-- [Portfolio Management Guide](../src/neutryx/portfolio/README.md)
-- [XVA Calculations](../src/neutryx/xva/README.md)
-- [Fictional Portfolio Source](../tests/fixtures/fictional_portfolio.py)
+- [Portfolio Management Guide](https://github.com/neutryx-lab/neutryx-core/blob/main/src/neutryx/portfolio/README.md)
+- [XVA Calculations](https://github.com/neutryx-lab/neutryx-core/blob/main/src/neutryx/xva/README.md)
+- [Fictional Portfolio Source](https://github.com/neutryx-lab/neutryx-core/blob/main/tests/fixtures/fictional_portfolio.py)
 
 ## サポートとフィードバック
 
 問題や質問がある場合:
-1. [GitHub Issues](https://github.com/neutryx/neutryx-core/issues)
+1. [GitHub Issues](https://github.com/neutryx-lab/neutryx-core/issues)
 2. ドキュメントを確認
 3. 例を参照
 

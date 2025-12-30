@@ -519,7 +519,7 @@ python examples/bank_trading_example.py
 - `initial_margin_required`: 当初証拠金要否
 - `variation_margin_required`: 変動証拠金要否
 
-## セキュリティとベストプラクティス
+## セキュリティとベストプラクティс
 
 1. **接続情報の保護**:
    - データベース認証情報は環境変数で管理
@@ -586,4 +586,4 @@ python examples/bank_trading_example.py
 - [PostgreSQL Documentation](https://www.postgresql.org/docs/)
 - [asyncpg Documentation](https://magicstack.github.io/asyncpg/)
 - [ISDA Documentation](https://www.isda.org/)
-- [Neutryx Core Documentation](../README.md)
+- [Neutryx Core Documentation](index.md)

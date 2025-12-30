@@ -306,7 +306,7 @@ The subsystems interact in a layered architecture with clear dependency constrai
 
 ## 6. Assurance Continuity Statement
 
-This architecture description satisfies ADV_TDS.2 requirements by identifying subsystems, describing their security functions, and mapping them to SFRs. All modules listed are traceable to implementation artefacts in the Neutryx codebase. Future updates to this document shall maintain synchronisation with the implementation via automated tooling ([audit_sdd_gap.py](audit_sdd_gap.py)) to detect architectural drift.
+This architecture description satisfies ADV_TDS.2 requirements by identifying subsystems, describing their security functions, and mapping them to SFRs. All modules listed are traceable to implementation artefacts in the Neutryx codebase. Future updates to this document shall maintain synchronisation with the implementation via automated tooling (audit_sdd_gap.py) to detect architectural drift.
 
 ---
 
