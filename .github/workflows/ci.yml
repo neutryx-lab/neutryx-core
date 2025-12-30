@@ -191,7 +191,10 @@ jobs:
           # the cryptography backend, not ecdsa. The ecdsa package is only a transitive
           # dependency and is not used for any cryptographic operations.
           # See: https://github.com/mpdavis/python-jose/issues/341
-          pip-audit --ignore-vuln GHSA-wj6h-64fc-37mp
+          # CVE-2025-53000: Uncontrolled Search Path Element in nbconvert
+          # This vulnerability is Windows-specific (executing malicious inkscape.bat).
+          # Our CI and production environments run on Linux, so this is not applicable.
+          pip-audit --ignore-vuln GHSA-wj6h-64fc-37mp --ignore-vuln CVE-2025-53000
 
       - name: Static analysis security scan
         run: bandit -r src -ll
