@@ -76,7 +76,7 @@ jobs:
           python -m neutryx.schemas._codegen.cli list
 
       - name: Upload generated artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: schema-artifacts
           path: src/neutryx/schemas/_generated/
